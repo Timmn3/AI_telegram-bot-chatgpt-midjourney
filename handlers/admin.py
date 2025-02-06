@@ -3,8 +3,9 @@ import random
 import logging
 from datetime import datetime, timedelta
 
+from aiogram.types import Message, CallbackQuery
 from aiogram.dispatcher import FSMContext
-from aiogram.types import ParseMode, ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, Message, CallbackQuery
+from aiogram.types import ParseMode
 
 import config
 import keyboards.admin as admin_kb  # Клавиатуры для админских команд
@@ -191,95 +192,32 @@ async def add_balance(message: Message):
 
 
 # Хендлер для запуска рассылки сообщений
-@dp.message_handler(commands="send")
-async def enter_text(message: Message, state: FSMContext):
-    if message.from_user.id in ADMINS:
-        await message.answer("Введите текст рассылки", reply_markup=admin_kb.cancel)  # Запрос текста для рассылки
-        await state.set_state(states.Mailing.enter_text)  # Устанавливаем состояние для ввода текста
+@dp.message_handler(commands="send", is_admin=True)
+async def enter_text(message: Message):
+
+    await message.answer("Введите текст рассылки", reply_markup=admin_kb.cancel)  # Запрос текста для рассылки
+    await states.Mailing.enter_text.set()  # Устанавливаем состояние для ввода текста
 
 
-# Хендлер для ввода текста рассылки и запроса подтверждения
+# Хендлер для отправки рассылки всем пользователям
 @dp.message_handler(state=states.Mailing.enter_text, is_admin=True)
 async def start_send(message: Message, state: FSMContext):
-    if message.text == "Отмена":
-        await message.answer("Отменено")
-        await state.finish()  # Завершаем состояние
-        return
 
-    await message.answer("Собираю данные пользователей...")
-
+    await message.answer("Начал рассылку")
+    await state.finish()  # Завершаем состояние
     users = await db.get_users()  # Получаем всех пользователей
-    users_list = [{"user_id": user["user_id"]} for user in users]  # Преобразуем в JSON-совместимый формат
-
-    # Сохраняем пользователей в FSMContext
-    await state.update_data(users=users_list, text=message.text)  # Сохраняем текст рассылки и пользователей
-
-    total_minutes, total_hours = await calculate_time(len(users), 0.25)
-
-    if total_hours < 1:
-        await message.answer(f"Количество пользователей: {len(users)}\n"
-                             f"Приблизительное время отправки сообщений {total_minutes} минут ")
-    else:
-        await message.answer(f"Количество пользователей: {len(users)}\n"
-                             f"Приблизительное время отправки сообщений {total_hours} часов")
-
-    # Создание кнопок для согласия
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(KeyboardButton("Да"), KeyboardButton("Нет"))
-
-    # Запрашиваем подтверждение
-    await message.answer("Вы хотите продолжить рассылку?", reply_markup=markup)
-    await state.set_state(states.Mailing.confirm)  # Переходим в состояние подтверждения
-
-
-# Хендлер для получения согласия и рассылки сообщений
-@dp.message_handler(state=states.Mailing.confirm, text=["Да", "Нет"], is_admin=True)
-async def confirm_send(message: Message, state: FSMContext):
-    if message.text == "Нет":
-        await message.answer("Рассылка отменена.", reply_markup=ReplyKeyboardRemove())
-        await state.finish()
-        return
-
-    # Извлекаем данные из состояния
-    user_data = await state.get_data()
-    users = user_data["users"]
-    text = user_data["text"]  # Берём сохранённый текст рассылки
-
-    await message.answer("Начал рассылку...", reply_markup=ReplyKeyboardRemove())
-
     count = 0
     block_count = 0
-    await message.bot.send_message(1089138631, text)  # Используем сохранённый текст
-    await state.finish()  # Завершаем состояние
-
-    # Выполняем рассылку
     for user in users:
         try:
-            await message.bot.send_message(user["user_id"], text)  # Используем сохранённый текст
+            await message.bot.send_message(user["user_id"], message.text)  # Отправляем сообщение каждому пользователю
             count += 1
         except:
             block_count += 1  # Считаем пользователей, заблокировавших бота
         await asyncio.sleep(0.1)  # Делаем небольшую паузу между отправками
-
-    # Итог рассылки
     await message.answer(
-        f"Количество получивших сообщение: {count}. Пользователей, заблокировавших бота: {block_count}"
-    )
+        f"Количество получивших сообщение: {count}. Пользователей, заблокировавших бота: {block_count}")  # Итог рассылки
 
-
-
-async def calculate_time(N, time_per_task):
-    """
-    Функция для расчета времени выполнения задачи.
-
-    :param N: Количество задач (например, пользователей)
-    :param time_per_task: Время на одну задачу (в секундах)
-    :return: Время в секундах, минутах и часах
-    """
-    total_seconds = N * time_per_task
-    total_minutes = total_seconds / 60
-    total_hours = total_minutes / 60
-    return round(total_minutes, 2), round(total_hours, 2)
 
 # Хендлер для создания промокода через команду
 @dp.message_handler(commands="freemoney", is_admin=True)

@@ -3,7 +3,7 @@ import logging  # Логирование
 from datetime import timedelta, datetime  # Для работы с датами
 
 import asyncpg  # Асинхронная работа с PostgreSQL
-from config import DB_USER, DB_HOST, DB_DATABASE, DB_PASSWORD, DB_PORT  # Импорт данных для подключения к базе данных
+from config import DB_USER, DB_HOST, DB_DATABASE, DB_PASSWORD  # Импорт данных для подключения к базе данных
 
 from create_bot import bot  # Импорт бота для отправки сообщений
 from keyboards import user as user_kb  # Импорт пользовательских клавиатур
@@ -16,7 +16,7 @@ EXTEND_PRICE = 4  # Переменная для хранения цены про
 async def main():
 
     # Подключение к базе данных PostgreSQL
-    conn = await asyncpg.connect(user=DB_USER, password=DB_PASSWORD, database=DB_DATABASE, host=DB_HOST, port=DB_PORT)
+    conn = await asyncpg.connect(user=DB_USER, password=DB_PASSWORD, database=DB_DATABASE, host=DB_HOST)
     
     # Выборка пользователей, у которых подписка заканчивается в течение 24 часов, и которые еще не получили уведомление
     users = await conn.fetch(

@@ -124,12 +124,6 @@ async def get_users():
     await conn.close()
     return rows
 
-# Функция для получения 10 пользователей
-async def get_users_limit():
-    conn: Connection = await get_conn()
-    rows = await conn.fetch("SELECT user_id FROM users LIMIT 10")
-    await conn.close()
-    return rows
 
 # Функция для получения информации о пользователе по user_id
 async def get_user(user_id):
