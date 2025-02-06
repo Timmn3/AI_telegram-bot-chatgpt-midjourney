@@ -17,7 +17,6 @@ logging.basicConfig(
     format='%(filename)s:%(lineno)d #%(levelname)-8s '
            '[%(asctime)s] - %(name)s - %(message)s')
 
-logging.disable(logging.WARNING)
 
 async def on_startup(_):
     # Функция, которая выполняется при запуске бота.
