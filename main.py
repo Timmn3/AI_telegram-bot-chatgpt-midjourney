@@ -13,7 +13,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 logging.basicConfig(
-    level=logging.CRITICAL,
+    level=logging.INFO,
     format='%(filename)s:%(lineno)d #%(levelname)-8s '
            '[%(asctime)s] - %(name)s - %(message)s')
 
@@ -23,7 +23,7 @@ async def on_startup(_):
     # Функция, которая выполняется при запуске бота.
     # Здесь вызывается метод start() из модуля db, который инициирует подключение к базе данных.
     await db.start()
-    await bot.send_message(ADMINS_CODER, "Бот NeuronAgent🤖 запущен")
+    # await bot.send_message(ADMINS_CODER, "Бот NeuronAgent🤖 запущен")
     await bot.set_my_commands([
         types.BotCommand("start", "Перезапустить бот"),
         types.BotCommand("midjourney", "MidJourney"),
