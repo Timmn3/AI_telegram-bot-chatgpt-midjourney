@@ -46,5 +46,6 @@ class CheckRegMiddleware(BaseMiddleware):
                 raise CancelHandler()  # Отменяем обработку обновления (middleware останавливает его)
         except ChatNotFound as e:
             # Если канал не найден (ошибка ChatNotFound), уведомляем администратора
-            print(e)
+            pass
+            # print(e)
             # await update.bot.send_message(ADMINS[0], "Проблема с каналом партнером")

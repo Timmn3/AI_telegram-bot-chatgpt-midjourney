@@ -3,20 +3,18 @@ import random
 import logging
 from datetime import datetime, timedelta
 
-from aiogram.types import Message, CallbackQuery
 from aiogram.dispatcher import FSMContext
-from aiogram.types import ParseMode
+from aiogram.types import ParseMode, ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, Message, CallbackQuery
 
 import config
 import keyboards.admin as admin_kb  # Клавиатуры для админских команд
-from config import bot_url, ADMINS
+from config import bot_url, ADMINS, ADMINS_CODER
 from utils.ai import mj_api
 from create_bot import dp  # Диспетчер для регистрации хендлеров
 from tabulate import tabulate  # Модуль для форматирования данных в таблицы
 import states.admin as states  # Состояния для административных задач
 from utils import db  # Модуль для работы с базой данных
 import asyncio
-
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +30,15 @@ def format_statistics(stats):
     for order_type, details in stats.items():
         # Определяем единицу измерения в зависимости от типа заказа
         unit = "запросов" if order_type == "midjourney" else "токенов"
-        
+
         quantity_map = {
             "100000": "100к",
             "200000": "200к",
             "500000": "500к"
-            }
+        }
 
         order_type = "ChatGPT" if order_type == "chatgpt" else "MidJourney"
-        result += f"*{order_type}:*\n" 
+        result += f"*{order_type}:*\n"
         total_requests = 0
         total_sum = 0
 
@@ -55,7 +53,6 @@ def format_statistics(stats):
         result += f"*Всего: {total_requests}, на сумму {total_sum}₽*\n"
         result += "\n"
     return result
-
 
 
 # Хендлер для переключения основного API
@@ -86,7 +83,6 @@ async def switch_api_handler(message: Message):
 @dp.message_handler(lambda message: message.from_user.id in ADMINS,
                     commands="stats"
                     )
-
 async def show_stats(message: Message):
     statistics = (await db.fetch_short_statistics()).replace('None', '0')
 
@@ -98,13 +94,13 @@ async def show_stats(message: Message):
 @dp.callback_query_handler(lambda callback: callback.from_user.id in ADMINS,
                            text="stats"
                            )
-
 async def show_stats(callback: CallbackQuery):
     statistics = (await db.fetch_short_statistics()).replace('None', '0')
 
     logger.info(statistics)
 
-    await callback.message.edit_text(statistics, reply_markup=admin_kb.more_stats_kb(), parse_mode=ParseMode.MARKDOWN_V2)
+    await callback.message.edit_text(statistics, reply_markup=admin_kb.more_stats_kb(),
+                                     parse_mode=ParseMode.MARKDOWN_V2)
 
 
 # Хендлер для отображения полной статистики по пользователям и запросам
@@ -116,13 +112,13 @@ async def show_stats(callback: CallbackQuery):
 
     logger.info(statistics)
 
-    await callback.message.edit_text(statistics, reply_markup=admin_kb.less_stats_kb(), parse_mode=ParseMode.MARKDOWN_V2)
+    await callback.message.edit_text(statistics, reply_markup=admin_kb.less_stats_kb(),
+                                     parse_mode=ParseMode.MARKDOWN_V2)
 
 
 # Хендлер для отображения реферальной статистики
 @dp.callback_query_handler(is_admin=True, text='admin_ref_menu')
 async def admin_ref_menu(call: CallbackQuery):
-
     inviters_id = await db.get_all_inviters()  # Получаем всех пользователей, у которых есть рефералы
     inviters = []
     for inviter_id in inviters_id:
@@ -148,7 +144,6 @@ async def admin_ref_menu(call: CallbackQuery):
 # Хендлер для выдачи подписки пользователю через команду
 @dp.message_handler(commands="sub", is_admin=True)
 async def add_balance(message: Message):
-
     try:
         # Парсим аргументы команды: ID пользователя и тип подписки
         user_id, sub_type = message.get_args().split(" ")
@@ -162,7 +157,7 @@ async def add_balance(message: Message):
     user = await db.get_user(user_id)  # Получаем пользователя из базы
     if not user:
         return await message.answer("Пользователь не найден")
-    
+
     # Определяем дату окончания подписки (если текущая подписка уже истекла — начинаем с текущей даты)
     if user["sub_time"] < datetime.now():
         base_sub_time = datetime.now()
@@ -178,7 +173,6 @@ async def add_balance(message: Message):
 # Хендлер для изменения баланса пользователя через команду
 @dp.message_handler(commands="balance", is_admin=True)
 async def add_balance(message: Message):
-
     try:
         # Парсим аргументы команды: ID пользователя и сумму изменения баланса
         user_id, value = message.get_args().split(" ")
@@ -192,37 +186,99 @@ async def add_balance(message: Message):
 
 
 # Хендлер для запуска рассылки сообщений
-@dp.message_handler(commands="send", is_admin=True)
-async def enter_text(message: Message):
+@dp.message_handler(commands="send")
+async def enter_text(message: Message, state: FSMContext):
+    if message.from_user.id in ADMINS:
+        await message.answer("Введите текст рассылки", reply_markup=admin_kb.cancel)  # Запрос текста для рассылки
+        await state.set_state(states.Mailing.enter_text)  # Устанавливаем состояние для ввода текста
 
-    await message.answer("Введите текст рассылки", reply_markup=admin_kb.cancel)  # Запрос текста для рассылки
-    await states.Mailing.enter_text.set()  # Устанавливаем состояние для ввода текста
 
-
-# Хендлер для отправки рассылки всем пользователям
+# Хендлер для ввода текста рассылки и запроса подтверждения
 @dp.message_handler(state=states.Mailing.enter_text, is_admin=True)
 async def start_send(message: Message, state: FSMContext):
+    if message.text == "Отмена":
+        await message.answer("Отменено")
+        await state.finish()  # Завершаем состояние
+        return
 
-    await message.answer("Начал рассылку")
-    await state.finish()  # Завершаем состояние
+    await message.answer("Собираю данные пользователей...")
+
     users = await db.get_users()  # Получаем всех пользователей
+    users_list = [{"user_id": user["user_id"]} for user in users]  # Преобразуем в JSON-совместимый формат
+
+    # Сохраняем пользователей в FSMContext
+    await state.update_data(users=users_list, text=message.text)  # Сохраняем текст рассылки и пользователей
+
+    total_minutes, total_hours = await calculate_time(len(users), 0.25)
+
+    if total_hours < 1:
+        await message.answer(f"Количество пользователей: {len(users)}\n"
+                             f"Приблизительное время отправки сообщений {total_minutes} минут ")
+    else:
+        await message.answer(f"Количество пользователей: {len(users)}\n"
+                             f"Приблизительное время отправки сообщений {total_hours} часов")
+
+    # Создание кнопок для согласия
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(KeyboardButton("Да"), KeyboardButton("Нет"))
+
+    # Запрашиваем подтверждение
+    await message.answer("Вы хотите продолжить рассылку?", reply_markup=markup)
+    await state.set_state(states.Mailing.confirm)  # Переходим в состояние подтверждения
+
+
+# Хендлер для получения согласия и рассылки сообщений
+@dp.message_handler(state=states.Mailing.confirm, text=["Да", "Нет"], is_admin=True)
+async def confirm_send(message: Message, state: FSMContext):
+    if message.text == "Нет":
+        await message.answer("Рассылка отменена.", reply_markup=ReplyKeyboardRemove())
+        await state.finish()
+        return
+
+    # Извлекаем данные из состояния
+    user_data = await state.get_data()
+    users = user_data["users"]
+    text = user_data["text"]  # Берём сохранённый текст рассылки
+
+    await message.answer("Начал рассылку...", reply_markup=ReplyKeyboardRemove())
+
     count = 0
     block_count = 0
+    await message.bot.send_message(ADMINS_CODER, text)
+    await state.finish()  # Завершаем состояние
+
+    # Выполняем рассылку
     for user in users:
         try:
-            await message.bot.send_message(user["user_id"], message.text)  # Отправляем сообщение каждому пользователю
+            await message.bot.send_message(user["user_id"], text)  # Используем сохранённый текст
             count += 1
         except:
             block_count += 1  # Считаем пользователей, заблокировавших бота
         await asyncio.sleep(0.1)  # Делаем небольшую паузу между отправками
+
+    # Итог рассылки
     await message.answer(
-        f"Количество получивших сообщение: {count}. Пользователей, заблокировавших бота: {block_count}")  # Итог рассылки
+        f"Количество получивших сообщение: {count}. Пользователей, заблокировавших бота: {block_count}"
+    )
+
+
+async def calculate_time(N, time_per_task):
+    """
+    Функция для расчета времени выполнения задачи.
+
+    :param N: Количество задач (например, пользователей)
+    :param time_per_task: Время на одну задачу (в секундах)
+    :return: Время в секундах, минутах и часах
+    """
+    total_seconds = N * time_per_task
+    total_minutes = total_seconds / 60
+    total_hours = total_minutes / 60
+    return round(total_minutes, 2), round(total_hours, 2)
 
 
 # Хендлер для создания промокода через команду
 @dp.message_handler(commands="freemoney", is_admin=True)
 async def create_promocode(message: Message):
-
     try:
         # Парсим аргументы команды: сумму и количество активаций промокода
         amount, uses_count = message.get_args().split(" ")
@@ -230,7 +286,7 @@ async def create_promocode(message: Message):
         uses_count = int(uses_count)
     except ValueError:
         return await message.answer("Команда введена неверно. Используйте /freemoney {сумма} {кол-во активаций}")
-    
+
     # Генерируем случайный промокод
     code = ''.join(random.sample(string.ascii_uppercase, 10))
     await db.create_promocode(amount, uses_count, code)  # Создаем промокод в базе
@@ -241,7 +297,6 @@ async def create_promocode(message: Message):
 # Хендлер для отображения статистики по промокодам через callback
 @dp.callback_query_handler(is_admin=True, text='admin_promo_menu')
 async def admin_promo_menu(call: CallbackQuery):
-    
     promocodes = await db.get_promo_for_stat()  # Получаем статистику по промокодам
     # Формируем таблицу с промокодами
     await call.message.answer(
