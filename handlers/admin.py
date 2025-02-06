@@ -9,6 +9,7 @@ from aiogram.types import ParseMode, ReplyKeyboardRemove, ReplyKeyboardMarkup, K
 import config
 import keyboards.admin as admin_kb  # Клавиатуры для админских команд
 from config import bot_url, ADMINS, ADMINS_CODER
+from states.admin import TokenAdding
 from utils.ai import mj_api
 from create_bot import dp  # Диспетчер для регистрации хендлеров
 from tabulate import tabulate  # Модуль для форматирования данных в таблицы
@@ -194,7 +195,7 @@ async def enter_text(message: Message, state: FSMContext):
 
 
 # Хендлер для ввода текста рассылки и запроса подтверждения
-@dp.message_handler(state=states.Mailing.enter_text, is_admin=True)
+@dp.message_handler(state=states.Mailing.enter_text)
 async def start_send(message: Message, state: FSMContext):
     if message.text == "Отмена":
         await message.answer("Отменено")
@@ -302,3 +303,71 @@ async def admin_promo_menu(call: CallbackQuery):
     await call.message.answer(
         f'<b>Бонус ссылки</b>\n\n<pre>{tabulate(promocodes, tablefmt="jira", numalign="left")}</pre>')
     await call.answer()
+
+
+# Хэндлер для запуска начисления токенов
+@dp.message_handler(commands="add_tokens")
+async def start_token_adding(message: Message, state: FSMContext):
+    if message.from_user.id in ADMINS:
+        await message.answer("Введите ID пользователя", reply_markup=admin_kb.cancel)
+        await TokenAdding.enter_user_id.set()
+
+
+# Хэндлер для ввода user_id
+@dp.message_handler(state=TokenAdding.enter_user_id, is_admin=True)
+async def process_user_id(message: Message, state: FSMContext):
+    if message.text.lower() == "отмена":
+        await message.answer("Отменено")
+        await state.finish()
+        return
+
+    user_id = message.text.strip()
+    user = await db.get_user(int(user_id))
+
+    if not user:
+        await message.answer("Пользователь не найден. Введите корректный user_id или напишите 'Отмена'")
+        return
+
+    balance_info = (f"Текущий баланс пользователя {user_id}\n"
+                    f"tokens_4o: {user['tokens_4o']}\n"
+                    f"tokens_4o_mini: {user['tokens_4o_mini']}\n"
+                    f"tokens_o1_preview: {user['tokens_o1_preview']}\n"
+                    f"tokens_o1_mini: {user['tokens_o1_mini']}")
+
+    await message.answer(balance_info)
+    await message.answer("Введите количество токенов для начисления (одно число для всех моделей):")
+    await state.update_data(user_id=user_id)
+    await TokenAdding.enter_amount.set()
+
+
+# Хэндлер для ввода количества токенов
+@dp.message_handler(state=TokenAdding.enter_amount, is_admin=True)
+async def process_amount(message: Message, state: FSMContext):
+    if message.text.lower() == "отмена":
+        await message.answer("Отменено")
+        await state.finish()
+        return
+
+    try:
+        amount = int(message.text.strip())
+        if amount <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("Введите корректное положительное число или напишите 'Отмена'")
+        return
+
+    data = await state.get_data()
+    user_id = data['user_id']
+
+    await db.add_tokens(user_id, amount)
+
+    user = await db.get_user(int(user_id))
+    balance_info = (f"Теперь баланс пользователя {user_id}\n"
+                    f"tokens_4o: {user['tokens_4o']}\n"
+                    f"tokens_4o_mini: {user['tokens_4o_mini']}\n"
+                    f"tokens_o1_preview: {user['tokens_o1_preview']}\n"
+                    f"tokens_o1_mini: {user['tokens_o1_mini']}")
+
+    await message.answer(balance_info)
+
+    await state.finish()
