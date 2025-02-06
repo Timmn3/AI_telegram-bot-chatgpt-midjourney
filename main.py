@@ -1,13 +1,9 @@
 from aiogram.utils import executor
 from aiogram import types
-
 from config import ADMINS_CODER
 from create_bot import dp, bot
 from utils import db
 from utils.ai import mj_api
-from handlers import admin
-from handlers import users
-from handlers import sub
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,9 +16,9 @@ logging.basicConfig(
 
 async def on_startup(_):
     # Функция, которая выполняется при запуске бота.
+    await bot.send_message(ADMINS_CODER, "Бот NeuronAgent🤖 запущен")
     # Здесь вызывается метод start() из модуля db, который инициирует подключение к базе данных.
     await db.start()
-    # await bot.send_message(ADMINS_CODER, "Бот NeuronAgent🤖 запущен")
     await bot.set_my_commands([
         types.BotCommand("start", "Перезапустить бот"),
         types.BotCommand("midjourney", "MidJourney"),
