@@ -1,0 +1,12 @@
+[Unit]
+Description=My test service
+After=multi-user.target
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=/home/okoloboga/ai_bot/venv2/bin/python3 maintenance.py
+WorkingDirectory=/home/okoloboga/ai_bot
+
+[Install]
+WantedBy=multi-user.target
