@@ -576,13 +576,14 @@ async def gen_img(message: Message, state: FSMContext):
         await not_enough_balance(message.bot, message.from_user.id, "image")  # Сообщаем об исчерпании лимита
         return
 
+    await message.answer("Сейчас наблюдаются неполадки на сервере, генерация изображений временно недоступна, приносим извинения за неудобства")
     # Сообщение с запросом ввода
-    await message.answer("""<b>Введите запрос для генерации изображения</b>
-<i>Например:</i> <code>Замерзшее бирюзовое озеро вокруг заснеженных горных вершин</code>
-
-<u><a href="https://telegra.ph/Kak-polzovatsya-MidJourney-podrobnaya-instrukciya-10-16">Подробная инструкция.</a></u>""",
-                         reply_markup=user_kb.get_menu("image"),
-                         disable_web_page_preview=True)
+#     await message.answer("""<b>Введите запрос для генерации изображения</b>
+# <i>Например:</i> <code>Замерзшее бирюзовое озеро вокруг заснеженных горных вершин</code>
+#
+# <u><a href="https://telegra.ph/Kak-polzovatsya-MidJourney-podrobnaya-instrukciya-10-16">Подробная инструкция.</a></u>""",
+#                          reply_markup=user_kb.get_menu("image"),
+#                          disable_web_page_preview=True)
 
 
 # Хендлер для выбора суммы через callback-запрос
