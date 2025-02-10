@@ -7,5 +7,6 @@ class Mailing(StatesGroup):
 
 # Состояния для начисления токенов
 class TokenAdding(StatesGroup):
-    enter_user_id = State()
-    enter_amount = State()
+    enter_user_id = State()  # Состояние для ввода user_id
+    choose_token_type = State()  # Состояние для выбора типа токенов
+    enter_amount = State()  # Состояние для ввода количества токенов

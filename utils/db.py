@@ -125,14 +125,11 @@ async def get_users():
     return rows
 
 # Функция для начисления токенов
-async def add_tokens(user_id, amount):
+async def add_tokens(user_id: int, token_type, amount):
     conn = await get_conn()
     await conn.execute(
-        "UPDATE users SET tokens_4o = tokens_4o + $1,"
-        "tokens_4o_mini = tokens_4o_mini + $1,"
-        "tokens_o1_preview = tokens_o1_preview + $1,"
-        "tokens_o1_mini = tokens_o1_mini + $1 WHERE user_id = $2",
-        amount, int(user_id)
+        f"UPDATE users SET {token_type} = {token_type} + $1 WHERE user_id = $2",
+        amount, user_id
     )
     await conn.close()
 

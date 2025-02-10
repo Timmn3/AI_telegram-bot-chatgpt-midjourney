@@ -304,6 +304,13 @@ async def admin_promo_menu(call: CallbackQuery):
         f'<b>Бонус ссылки</b>\n\n<pre>{tabulate(promocodes, tablefmt="jira", numalign="left")}</pre>')
     await call.answer()
 
+# Клавиатура для выбора типа токенов
+token_type_kb = ReplyKeyboardMarkup(resize_keyboard=True)
+token_type_kb.add(KeyboardButton("tokens_4o"))
+token_type_kb.add(KeyboardButton("tokens_4o_mini"))
+token_type_kb.add(KeyboardButton("tokens_o1_preview"))
+token_type_kb.add(KeyboardButton("tokens_o1_mini"))
+token_type_kb.add(KeyboardButton("Отмена"))
 
 # Хэндлер для запуска начисления токенов
 @dp.message_handler(commands="add_tokens")
@@ -311,7 +318,6 @@ async def start_token_adding(message: Message, state: FSMContext):
     if message.from_user.id in ADMINS:
         await message.answer("Введите ID пользователя", reply_markup=admin_kb.cancel)
         await TokenAdding.enter_user_id.set()
-
 
 # Хэндлер для ввода user_id
 @dp.message_handler(state=TokenAdding.enter_user_id, is_admin=True)
@@ -335,10 +341,26 @@ async def process_user_id(message: Message, state: FSMContext):
                     f"tokens_o1_mini: {user['tokens_o1_mini']}")
 
     await message.answer(balance_info)
-    await message.answer("Введите количество токенов для начисления (одно число для всех моделей):")
+    await message.answer("Выберите тип токенов для пополнения:", reply_markup=token_type_kb)
     await state.update_data(user_id=user_id)
-    await TokenAdding.enter_amount.set()
+    await TokenAdding.choose_token_type.set()
 
+# Хэндлер для выбора типа токенов
+@dp.message_handler(state=TokenAdding.choose_token_type, is_admin=True)
+async def choose_token_type(message: Message, state: FSMContext):
+    if message.text.lower() == "отмена":
+        await message.answer("Отменено")
+        await state.finish()
+        return
+
+    token_type = message.text.strip()
+    if token_type not in ["tokens_4o", "tokens_4o_mini", "tokens_o1_preview", "tokens_o1_mini"]:
+        await message.answer("Выберите тип токенов из предложенных вариантов или напишите 'Отмена'")
+        return
+
+    await state.update_data(token_type=token_type)
+    await message.answer("Введите количество токенов для начисления:", reply_markup=admin_kb.cancel)
+    await TokenAdding.enter_amount.set()
 
 # Хэндлер для ввода количества токенов
 @dp.message_handler(state=TokenAdding.enter_amount, is_admin=True)
@@ -358,8 +380,9 @@ async def process_amount(message: Message, state: FSMContext):
 
     data = await state.get_data()
     user_id = data['user_id']
+    token_type = data['token_type']
 
-    await db.add_tokens(user_id, amount)
+    await db.add_tokens(int(user_id), token_type, amount)
 
     user = await db.get_user(int(user_id))
     balance_info = (f"Теперь баланс пользователя {user_id}\n"
