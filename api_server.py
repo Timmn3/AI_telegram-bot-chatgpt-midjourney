@@ -121,56 +121,6 @@ async def check_pay_payok(payment_id: Annotated[str, Form()], amount: Annotated[
     raise HTTPException(200)
 
 
-# @app.post('/api/midjourney')
-# async def get_midjourney_test(request: Request):
-#     try:
-#         data = await request.json()
-#         logger.info(f"Получен webhook: {data}")
-
-#         if data['status'] == 'processing':
-#             pass
-#         elif data['status'] == 'finished':
-
-#     except Exception as e:
-#         logger.error(f"Не удалось разобрать JSON: {e}")
-#         raise HTTPException(status_code=400, detail="Invalid JSON")
-
-# # Обработка webhook от MidJourney
-# @app.post('/api/midjourney/{action_id}')
-# async def get_midjourney(action_id: int, request: Request):
-    
-#     action = await db.get_action(action_id)  # Получаем информацию о действии
-#     data = await request.json()  # Получаем данные из запроса
-#     user_id = action["user_id"]  # Идентификатор пользователя
-#     user = await db.get_user(user_id)  # Получаем данные о пользователе
-
-#     if data['status'] != 'failed':
-
-#         image_url = data["task_result"]["image_url"]  # URL сгенерированного изображения
-#         image_path = f'photos/{action_id}.png'  # Путь для сохранения изображения
-#         res = requests.get(image_url)  # Загружаем изображение
-#         with open(image_path, "wb") as f:
-#             f.write(res.content)  # Сохраняем изображение
-
-#         # В зависимости от типа изображения отправляем пользователю разные кнопки
-#         if action["image_type"] in ("imagine", "vary", "zoom"):
-#             await bot.send_photo(user_id, open(image_path, "rb"),
-#                                 reply_markup=user_kb.get_try_prompt_or_choose(data["task_id"],
-#                                                                             include_try=True))
-#             if user["free_image"] > 0:
-#                 await db.remove_free_image(user["user_id"])  # Уменьшаем количество бесплатных изображений
-#             else:
-#                 await db.remove_image(user["user_id"])  # Уменьшаем количество доступных изображений
-#         elif action["image_type"] == "upscale":
-#             await bot.send_photo(user_id, open(image_path, "rb"),
-#                                 reply_markup=user_kb.get_choose(data["task_id"]))
-#         return 200
-
-#     else:
-#         error_messages = ''.join(data['task_result']['error_messages'])
-#         await bot.send_message(user_id, f"Произошла ошибка, подробности ошибки:\n\n{error_messages}")
-#         return 200
-
 @app.post('/api/midjourney/{action_id}')
 async def get_midjourney_with_id(action_id: int, request: Request):
     return await handle_midjourney_webhook(action_id=action_id, request=request)
@@ -210,7 +160,7 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
     user = await db.get_user(user_id)
 
     if data.get('status') != 'failed':
-
+        logger.info(f"Полученные данные в webhook: {data}")
         # Извлекаем правильный URL изображения
         if 'task_result' in data:
             image_url = data["task_result"]["image_url"]
@@ -305,4 +255,4 @@ async def get_midjourney_button(request: Request):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
