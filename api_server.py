@@ -64,13 +64,13 @@ async def send_mj_photo(user_id, photo_url, kb):
 async def process_pay(order_id, amount):
 
     order = await db.get_order(int(order_id[1:]))
-    
+
     if order is None:
         logger.info(f'Order {order_id} not found')
         return
     else:
         user_id = order["user_id"]
-        
+
         # Если покупка была со скидкой:
         discounts_gpt = [139, 224, 381]
         discounts_mj = [246, 550, 989]
@@ -79,7 +79,7 @@ async def process_pay(order_id, amount):
             await db.update_used_discount_gpt(user_id)
         elif amount in discounts_mj:
             await db.update_used_discount_mj(user_id)
-        
+
         await utils.pay.process_purchase(bot, int(order_id[1:])) # Обрабатываем покупку токенов или запросов
 
 
@@ -255,4 +255,4 @@ async def get_midjourney_button(request: Request):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
