@@ -29,10 +29,10 @@ def get_pay_url_tinkoff(order_id, amount):
         "TerminalKey": Tinkoff.terminal_id,
         "Amount": amount * 100,  # Сумма в копейках
         "OrderId": order_id,  # Идентификатор заказа
-        "NotificationURL": "http://91.192.102.250/api/pay/tinkoff"  # URL для уведомлений о статусе оплаты
+        "NotificationURL": "https://91.192.102.250/api/pay/tinkoff"  # URL для уведомлений о статусе оплаты
     }
     # Строка для подписи
-    sing_str = f"{amount * 100}http://91.192.102.250/api/pay/tinkoff{order_id}{Tinkoff.api_token}{Tinkoff.terminal_id}"
+    sing_str = f"{amount * 100}https://91.192.102.250/api/pay/tinkoff{order_id}{Tinkoff.api_token}{Tinkoff.terminal_id}"
     # Генерация подписи (SHA256)
     sign = hashlib.sha256(sing_str.encode('utf-8')).hexdigest()
 

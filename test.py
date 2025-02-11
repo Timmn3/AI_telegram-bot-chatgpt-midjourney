@@ -1,9 +1,15 @@
 import requests
 
-params = {
-    "MERCHANT_ORDER_ID": "1482",
-    "AMOUNT": "199"
+data = {
+    "OrderId": "1482",
+    "Amount": 199,
+    "Status": "CONFIRMED"
 }
 
-response = requests.get("http://127.0.0.1:8000/api/pay/freekassa", params=params)
-print(response.status_code, response.text)
+headers = {
+    "Content-Type": "application/json"
+}
+
+response = requests.post("http://neuronbot.ru/api/pay/tinkoff", json=data, headers=headers, verify=False, allow_redirects=False)
+
+print(response.status_code, response.headers)
