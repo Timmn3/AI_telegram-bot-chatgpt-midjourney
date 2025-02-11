@@ -18,7 +18,7 @@ import config
 from utils import db, ai, more_api, pay # Импорт утилит для взаимодействия с БД и внешними API
 from states import user as states  # Состояния FSM для пользователя
 import keyboards.user as user_kb  # Клавиатуры для взаимодействия с пользователями
-from config import bot_url, TOKEN, NOTIFY_URL, bug_id, PHOTO_PATH, MJ_PHOTO_BASE_URL
+from config import bot_url, TOKEN, NOTIFY_URL, bug_id, PHOTO_PATH, MJ_PHOTO_BASE_URL, ADMINS_CODER
 from create_bot import dp  # Диспетчер из create_bot.py
 from utils.ai import mj_api, text_to_speech, voice_to_text
 
@@ -567,7 +567,7 @@ async def support(message: Message, state: FSMContext):
 @dp.message_handler(state="*", text="🎨Midjourney")
 @dp.message_handler(state="*", commands="midjourney")
 async def gen_img(message: Message, state: FSMContext):
-
+    user_id = message.from_user.id
     await state.finish()  # Завершаем текущее состояние
     await db.change_default_ai(message.from_user.id, "image")  # Устанавливаем MidJourney как основной AI
     user = await db.get_user(message.from_user.id)  # Получаем данные пользователя
@@ -577,13 +577,15 @@ async def gen_img(message: Message, state: FSMContext):
         return
 
     await message.answer("Сейчас наблюдаются неполадки на сервере, генерация изображений временно недоступна, приносим извинения за неудобства")
-    # Сообщение с запросом ввода
-#     await message.answer("""<b>Введите запрос для генерации изображения</b>
-# <i>Например:</i> <code>Замерзшее бирюзовое озеро вокруг заснеженных горных вершин</code>
-#
-# <u><a href="https://telegra.ph/Kak-polzovatsya-MidJourney-podrobnaya-instrukciya-10-16">Подробная инструкция.</a></u>""",
-#                          reply_markup=user_kb.get_menu("image"),
-#                          disable_web_page_preview=True)
+
+    if user_id == ADMINS_CODER:
+        # Сообщение с запросом ввода
+        await message.answer("""<b>Введите запрос для генерации изображения</b>
+    <i>Например:</i> <code>Замерзшее бирюзовое озеро вокруг заснеженных горных вершин</code>
+    
+    <u><a href="https://telegra.ph/Kak-polzovatsya-MidJourney-podrobnaya-instrukciya-10-16">Подробная инструкция.</a></u>""",
+                             reply_markup=user_kb.get_menu("image"),
+                             disable_web_page_preview=True)
 
 
 # Хендлер для выбора суммы через callback-запрос

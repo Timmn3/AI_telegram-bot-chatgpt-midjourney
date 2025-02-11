@@ -7,6 +7,7 @@ from aiogram.types import Message, CallbackQuery, LabeledPrice, PreCheckoutQuery
 import config
 import keyboards.user as user_kb  # Клавиатуры для взаимодействия с пользователями (выбор подписки, оплата)
 import utils
+from config import ADMINS_CODER
 from create_bot import dp  # Диспетчер для регистрации хендлеров
 from utils import db, pay  # Модули для работы с базой данных и платежными сервисами
 
@@ -112,9 +113,11 @@ async def choose_midjourney_requests(call: CallbackQuery):
             )
 
     await call.message.edit_text("Сейчас наблюдаются неполадки на сервере, генерация изображений временно недоступна, приносим извинения за неудобства")
-#     await call.message.edit_text("""
-# Выберите количество запросов⤵️""",
-#     reply_markup=user_kb.get_midjourney_requests_menu())
+
+    if user_id == ADMINS_CODER:
+        await call.message.edit_text("""
+    Выберите количество запросов⤵️""",
+        reply_markup=user_kb.get_midjourney_requests_menu())
 
 
 # Реагирование на нажатие кнопки с выбором количества токенов для GPT
