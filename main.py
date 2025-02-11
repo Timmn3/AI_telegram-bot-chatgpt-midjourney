@@ -30,7 +30,7 @@ async def on_startup(_):
         types.BotCommand("help", "Поддержка"),
         types.BotCommand("partner", "Партнерская программа")
     ])
-    await bot.send_message(ADMINS_CODER, "Бот NeuronAgent🤖 запущен")
+    await bot.send_message(ADMINS_CODER, "Бот NeuronAgent 🤖 запущен")
 
 
 async def on_shutdown(dispatcher: dp):
