@@ -112,12 +112,9 @@ async def choose_midjourney_requests(call: CallbackQuery):
                 reply_markup=user_kb.get_midjourney_discount_requests_menu()
             )
 
-    await call.message.edit_text("Сейчас наблюдаются неполадки на сервере, генерация изображений временно недоступна, приносим извинения за неудобства")
-
-    if user_id == ADMINS_CODER:
-        await call.message.edit_text("""
-    Выберите количество запросов⤵️""",
-        reply_markup=user_kb.get_midjourney_requests_menu())
+    await call.message.edit_text("""
+Выберите количество запросов⤵️""",
+    reply_markup=user_kb.get_midjourney_requests_menu())
 
 
 # Реагирование на нажатие кнопки с выбором количества токенов для GPT
