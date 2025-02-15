@@ -10,6 +10,6 @@ headers = {
     "Content-Type": "application/json"
 }
 
-response = requests.post("http://neuronbot.ru/api/pay/tinkoff", json=data, headers=headers, verify=False, allow_redirects=False)
+response = requests.post("https://neuronbot.ru/api/pay/tinkoff", json=data, headers=headers, verify=False, allow_redirects=False)
 
 print(response.status_code, response.headers)

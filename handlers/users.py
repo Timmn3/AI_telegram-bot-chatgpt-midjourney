@@ -793,7 +793,7 @@ async def gen_prompt(message: Message, state: FSMContext):
     user = await db.get_user(user_id)
     if user is None:
         await message.answer("Введите команду /start для перезагрузки бота")
-        return await message.bot.send_message(796644977, user_id)
+        return await message.bot.send_message(ADMINS_CODER, user_id)
 
     if user["default_ai"] == "chatgpt":
         model = (user["gpt_model"]).replace("-", "_")
