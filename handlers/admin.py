@@ -17,6 +17,8 @@ import states.admin as states  # Состояния для администра�
 from utils import db  # Модуль для работы с базой данных
 import asyncio
 
+from utils.scheduled_tasks.daily_token_reset import refill_tokens
+
 logger = logging.getLogger(__name__)
 
 logging.basicConfig(
@@ -397,3 +399,10 @@ async def process_amount(message: Message, state: FSMContext):
     await message.answer(balance_info)
 
     await state.finish()
+
+
+# Хэндлер для обновления токенов (тест)
+@dp.message_handler(commands="refill_tokens")
+async def start_refill_tokens(message: Message, state: FSMContext):
+    if message.from_user.id in ADMINS:
+        await refill_tokens()
