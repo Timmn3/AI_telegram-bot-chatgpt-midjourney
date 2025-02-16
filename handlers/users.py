@@ -459,7 +459,7 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
         gpt_4o = int(user['tokens_4o']) if int(user['tokens_4o']) >= 0 else 0
         gpt_o3_mini = int(user['tokens_o3_mini']) if int(user['tokens_o3_mini']) >= 0 else 0
 
-        logger.info(f"Колиество токенов и запросов для {user_id}:mj: {mj}, gpt_4o: {gpt_4o}, gpt_4o_mini: {gpt_4o_mini}, gpt_o1_mini: {gpt_o3_mini}")
+        logger.info(f"Колиество токенов и запросов для {user_id}:mj: {mj}, gpt_4o: {gpt_4o}, gpt_4o_mini: {gpt_4o_mini}, gpt_o3_mini: {gpt_o3_mini}")
 
         keyboard = user_kb.get_account(user_lang, "account")
 

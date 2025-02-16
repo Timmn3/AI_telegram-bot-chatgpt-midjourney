@@ -310,8 +310,7 @@ async def admin_promo_menu(call: CallbackQuery):
 token_type_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 token_type_kb.add(KeyboardButton("tokens_4o"))
 token_type_kb.add(KeyboardButton("tokens_4o_mini"))
-token_type_kb.add(KeyboardButton("tokens_o1_preview"))
-token_type_kb.add(KeyboardButton("tokens_o1_mini"))
+token_type_kb.add(KeyboardButton("tokens_o3_mini"))
 token_type_kb.add(KeyboardButton("free_image"))
 token_type_kb.add(KeyboardButton("Отмена"))
 
@@ -340,8 +339,7 @@ async def process_user_id(message: Message, state: FSMContext):
     balance_info = (f"Текущий баланс пользователя {user_id}\n"
                     f"tokens_4o: {user['tokens_4o']}\n"
                     f"tokens_4o_mini: {user['tokens_4o_mini']}\n"
-                    f"tokens_o1_preview: {user['tokens_o1_preview']}\n"
-                    f"tokens_o1_mini: {user['tokens_o1_mini']}\n"
+                    f"tokens_o3_mini: {user['tokens_o3_mini']}\n"
                     f"Генерации 🎨Midjourney: {user['free_image']}")
 
     await message.answer(balance_info)
@@ -358,7 +356,7 @@ async def choose_token_type(message: Message, state: FSMContext):
         return
 
     token_type = message.text.strip()
-    if token_type not in ["tokens_4o", "tokens_4o_mini", "tokens_o1_preview", "tokens_o1_mini", "free_image"]:
+    if token_type not in ["tokens_4o", "tokens_4o_mini", "tokens_o3_mini", "free_image"]:
         await message.answer("Выберите тип токенов из предложенных вариантов или напишите 'Отмена'")
         return
 
@@ -392,8 +390,7 @@ async def process_amount(message: Message, state: FSMContext):
     balance_info = (f"Теперь баланс пользователя {user_id}\n"
                     f"tokens_4o: {user['tokens_4o']}\n"
                     f"tokens_4o_mini: {user['tokens_4o_mini']}\n"
-                    f"tokens_o1_preview: {user['tokens_o1_preview']}\n"
-                    f"tokens_o1_mini: {user['tokens_o1_mini']}\n"
+                    f"tokens_o3_mini: {user['tokens_o3_mini']}\n"
                     f"Генерации 🎨Midjourney: {user['free_image']}")
 
     await message.answer(balance_info)

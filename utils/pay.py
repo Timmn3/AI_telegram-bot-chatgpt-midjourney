@@ -137,7 +137,7 @@ async def process_purchase(bot, order_id):
     total_bonus = user["tokens_4o_mini"] + bonus
 
     # Обновляем токены или запросы в зависимости от типа заказа
-    if model in {'4o', 'o1_preview', 'o1_mini'}:
+    if model in {'4o', 'o3_mini'}:
         new_tokens = int(user[f"tokens_{model}"]) + int(order["quantity"])
         await db.update_tokens(user_id, new_tokens, model)
         await db.update_tokens(user_id, total_bonus, "4o_mini")

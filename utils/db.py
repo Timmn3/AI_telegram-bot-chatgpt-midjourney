@@ -247,7 +247,7 @@ async def remove_chatgpt(user_id, tokens, model):
     dashed_model = model.replace("-", "_")
     column = f'tokens_{dashed_model}'
 
-    if column not in {'tokens_4o', 'tokens_4o_mini', 'tokens_o1_preview', 'tokens_o1_mini'}:
+    if column not in {'tokens_4o', 'tokens_4o_mini', 'tokens_o3_mini'}:
         raise ValueError("Invalid model name")
 
     await conn.execute(
@@ -578,7 +578,7 @@ async def update_tokens(user_id, new_tokens, model):
     conn: Connection = await get_conn()
     dashed_model = model.replace("-", "_")
     column = f'tokens_{dashed_model}'
-    if column not in {'tokens_4o', 'tokens_4o_mini', 'tokens_o1_preview', 'tokens_o1_mini'}:
+    if column not in {'tokens_4o', 'tokens_4o_mini', 'tokens_o3_mini'}:
         raise ValueError("Invalid model name")
 
     await conn.execute(f"UPDATE users SET {column} = $2 WHERE user_id = $1", user_id, new_tokens)
@@ -845,7 +845,7 @@ def format_statistics(statistics: Dict[str, Any]) -> str:
             # Общие суммы и разбивка
             total_chatgpt_count = chatgpt['total_count']
             total_chatgpt_amount = chatgpt['total_amount']
-            lines.append(f"*Всего оплат ChatGPT: {escape_markdown(total_chatgpt_count)}* \(4o \+ o1\-preview \+ o1\-mini\)\n")
+            lines.append(f"*Всего оплат ChatGPT: {escape_markdown(total_chatgpt_count)}* \(4o \+ o3\-mini\)\n")
 
         # Форматирование Midjourney
         midjourney = order_stats.get('Midjourney', {})
