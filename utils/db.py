@@ -44,10 +44,11 @@ async def start():
         "chatgpt_settings VARCHAR(256) DEFAULT '',"  # Настройки ChatGPT
         "sub_time TIMESTAMP DEFAULT NOW(),"  # Время начала подписки
         "sub_type VARCHAR(12),"  # Тип подписки
-        "tokens_4o INTEGER DEFAULT 1000,"  # Количество токенов для ChatGPT
-        "tokens_4o_mini INTEGER DEFAULT 0,"
+        "tokens_4o INTEGER DEFAULT 2000,"  # Количество токенов для ChatGPT
+        "tokens_4o_mini INTEGER DEFAULT 100000,"
         "tokens_o1_preview INTEGER DEFAULT 0,"
         "tokens_o1_mini INTEGER DEFAULT 1000,"
+        "tokens_o3_mini INTEGER DEFAULT 2000,"
         "gpt_model VARCHAR(10) DEFAULT '4o-mini',"
         "voice VARCHAR(64) DEFAULT 'onyx',"
         "chatgpt_character VARCHAR(256) DEFAULT '',"

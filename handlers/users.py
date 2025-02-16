@@ -83,10 +83,13 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
 
         model_map = {'4o-mini': 'ChatGPT',
                      '4o': 'GPT-4o',
-                     'o1-preview': 'GPT-o1-preview',
-                     'o1-mini': 'GPT-o1-mini'}
+                     'o1-mini': 'GPT-o3-mini'} # поменять
 
         user_data = await db.get_user_notified_gpt(user_id)
+
+        if not model == '4o-mini':
+            await db.set_model(user_id, "4o-mini")
+            await bot.send_message(user_id,"✅Модель для ChatGPT изменена на GPT-4o-mini")
 
         if model == '4o-mini':
             keyboard=user_kb.get_chatgpt_models_noback()
@@ -236,7 +239,7 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     user = await db.get_user(user_id)  # Получаем обновленные данные пользователя
     has_purchase = await db.has_matching_orders(user_id)
     
-    if user[f"tokens_{model_dashed}"] <= 3000 and model_dashed != "4o_mini":  # Если осталось 3 тыс или меньше токенов
+    if user[f"tokens_{model_dashed}"] <= 1000 and model_dashed != "4o_mini":  # Если осталось 1 тыс или меньше токенов
 
         logger.info(f"Осталось {user[f'tokens_{model_dashed}']} токенов, было уведомление: {user_notified}, совершал ли покупку: {has_purchase}")
 
@@ -327,8 +330,8 @@ async def start_message(message: Message, state: FSMContext):
 <b>ChatGPT или Midjourney?</b>""", reply_markup=user_kb.get_menu(default_ai))
 
     # Проверка промокода, если он был передан
-    if code is not None:
-        await check_promocode(message.from_user.id, code, message.bot)
+    # if code is not None:
+    #     await check_promocode(message.from_user.id, code, message.bot)
 
 
 # Хендлер настроек ChatGPT
@@ -416,10 +419,9 @@ async def show_profile(message: Message, state: FSMContext):
     mj = int(user['mj']) + int(user['free_image']) if int(user['mj']) + int(user['free_image']) >= 0 else 0
     gpt_4o_mini = int(user['tokens_4o_mini']) if int(user['tokens_4o_mini']) >= 0 else 0
     gpt_4o = int(user['tokens_4o']) if int(user['tokens_4o']) >= 0 else 0
-    gpt_o1_preview = int(user['tokens_o1_preview']) if int(user['tokens_o1_preview']) >= 0 else 0
-    gpt_o1_mini = int(user['tokens_o1_mini']) if int(user['tokens_o1_mini']) >= 0 else 0
+    gpt_o3_mini = int(user['tokens_o3_mini']) if int(user['tokens_o3_mini']) >= 0 else 0
 
-    logger.info(f"Колиество токенов и запросов для {user_id}:mj: {mj}, gpt_4o: {gpt_4o}, gpt_4o_mini: {gpt_4o_mini}, gpt_o1_preview: {gpt_o1_preview}, gpt_o1_mini: {gpt_o1_mini}")
+    logger.info(f"Количество токенов и запросов для {user_id}:mj: {mj}, gpt_4o: {gpt_4o}, gpt_4o_mini: {gpt_4o_mini}, gpt_o3_mini: {gpt_o3_mini}")
 
     # Формируем текст с количеством доступных генераций и токенов
     sub_text = f"""
@@ -427,9 +429,8 @@ async def show_profile(message: Message, state: FSMContext):
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
 Токены 💬GPT-4o:  {format(gpt_4o, ',').replace(',', ' ')}
-Токены 💬GPT-4o-mini:  {format(gpt_4o_mini, ',').replace(',', ' ')}
-Токены 💬GPT-o1-preview:  {format(gpt_o1_preview, ',').replace(',', ' ')}
-Токены 💬GPT-o1-mini:  {format(gpt_o1_mini, ',').replace(',', ' ')}
+Токены 💬GPT-4o-mini:  ♾️
+Токены 💬GPT-o3-mini:  {format(gpt_o3_mini, ',').replace(',', ' ')}
         """
     
     # Отправляем сообщение с обновленными данными аккаунта
@@ -445,21 +446,20 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
     logger.info(f"Back To Profile {call.data}")
 
     src = call.data.split(":")[1]
+    user_id = call.from_user.id
+    user = await db.get_user(user_id)  # Получаем данные пользователя
 
     if src == "acc":
         await state.finish()
-        user_id = call.from_user.id
-        user = await db.get_user(user_id)  # Получаем данные пользователя
         user_lang = user['chat_gpt_lang']
 
         # Формируем текст с количеством доступных генераций и токенов
         mj = int(user['mj']) + int(user['free_image']) if int(user['mj']) + int(user['free_image']) >= 0 else 0
         gpt_4o_mini = int(user['tokens_4o_mini']) if int(user['tokens_4o_mini']) >= 0 else 0
         gpt_4o = int(user['tokens_4o']) if int(user['tokens_4o']) >= 0 else 0
-        gpt_o1_preview = int(user['tokens_o1_preview']) if int(user['tokens_o1_preview']) >= 0 else 0
-        gpt_o1_mini = int(user['tokens_o1_mini']) if int(user['tokens_o1_mini']) >= 0 else 0
+        gpt_o3_mini = int(user['tokens_o3_mini']) if int(user['tokens_o3_mini']) >= 0 else 0
 
-        logger.info(f"Колиество токенов и запросов для {user_id}:mj: {mj}, gpt_4o: {gpt_4o}, gpt_4o_mini: {gpt_4o_mini}, gpt_o1_preview: {gpt_o1_preview}, gpt_o1_mini: {gpt_o1_mini}")
+        logger.info(f"Колиество токенов и запросов для {user_id}:mj: {mj}, gpt_4o: {gpt_4o}, gpt_4o_mini: {gpt_4o_mini}, gpt_o1_mini: {gpt_o3_mini}")
 
         keyboard = user_kb.get_account(user_lang, "account")
 
@@ -469,9 +469,8 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
 Токены 💬GPT-4o:  {format(gpt_4o, ',').replace(',', ' ')}
-Токены 💬GPT-4o-mini:  {format(gpt_4o_mini, ',').replace(',', ' ')}
-Токены 💬GPT-o1-preview:  {format(gpt_o1_preview, ',').replace(',', ' ')}
-Токены 💬GPT-o1-mini:  {format(gpt_o1_mini, ',').replace(',', ' ')}
+Токены 💬GPT-4o-mini:  ♾️
+Токены 💬GPT-o3-mini:  {format(gpt_o3_mini, ',').replace(',', ' ')}
             """
         
         # Отправляем сообщение с обновленными данными аккаунта

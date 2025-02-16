@@ -33,6 +33,15 @@ async def on_startup(_):
     await bot.send_message(ADMINS_CODER, "Бот NeuronAgent 🤖 запущен")
 
 
+def set_scheduled_jobs(scheduler):
+    try:
+        # Добавление сервисов
+        scheduler.add_job(add_services, "cron", hour=3, minute=0)
+    except Exception as e:
+        # Логирование ошибки
+        logger.error(f"Error while adding scheduled jobs: {e}")
+
+
 async def on_shutdown(dispatcher: dp):
     logger.info("Закрытие сессий API и бота...")
     await mj_api.close()  # Закрываем сессии GoAPI и ApiFrame

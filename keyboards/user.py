@@ -76,8 +76,7 @@ def settings(lang, from_msg):
 def model_keyboard(selected_model: str):
     models = {"4o-mini": "GPT-4o-mini",
               "4o": "GPT-4o",
-              "o1-preview": "GPT-o1-preview",
-              "o1-mini": "GPT-o1-mini"}
+              "o1-mini": "GPT-o3-mini"} # поменять здесь o1-mini на o3-mini
     buttons = [
         InlineKeyboardButton(
             f"{value}✅" if key == selected_model else value,
@@ -206,8 +205,7 @@ def get_chatgpt_models():
 
     return InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton("GPT-4o", callback_data="buy_chatgpt_tokens:4o:normal"),
-        InlineKeyboardButton("GPT-o1-preview", callback_data="buy_chatgpt_tokens:o1-preview:normal"),
-        InlineKeyboardButton("GPT-o1-mini", callback_data="buy_chatgpt_tokens:o1-mini:normal"),
+        InlineKeyboardButton("GPT-o3-mini", callback_data="buy_chatgpt_tokens:o3-mini:normal"),
         InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
         InlineKeyboardButton("🔙Назад", callback_data="buy_sub")
     )
@@ -217,8 +215,7 @@ def get_chatgpt_models_noback(discount=None):
     target = 'discount' if discount else 'normal'
     return InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton("GPT-4o", callback_data=f"buy_chatgpt_tokens:4o:{target}"),
-        InlineKeyboardButton("GPT-o1-preview", callback_data=f"buy_chatgpt_tokens:o1-preview:{target}"),
-        InlineKeyboardButton("GPT-o1-mini", callback_data=f"buy_chatgpt_tokens:o1-mini:{target}"),
+        InlineKeyboardButton("GPT-o3-mini", callback_data=f"buy_chatgpt_tokens:o3-mini:{target}"),
         InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
     )
 
@@ -237,17 +234,12 @@ def get_chatgpt_tokens_menu(mode, model):
                                   'price_data' : [189, 315, 412, 628, 5],
                                   'percent': [5, 10, 12, 15, 0]}},
 
-              'o1-preview': {'normal': {'price': [999, 1799, 2549, 3999, 10],
-                                        'percent': [0, 10, 15, 20, 0]},
-                             'discount': {'price': ['999 > 949', '1799 > 1619', '2549 > 2166', '3999 > 3199', '10 > 5'],
-                                          'price_data' : [949, 1619, 2166, 3199, 5],
-                                          'percent': [5, 10, 15, 20, 0]}},
 
-              'o1-mini': {'normal': {'price': [239, 429, 599, 949, 10],
-                                     'percent': [0, 10, 15, 20, 0]},
-                         'discount': {'price': ['239 > 227', '429 > 386', '599 > 509', '949 > 757', '10 > 5'],
-                                      'price_data' : [227, 386, 509, 757, 5],
-                                      'percent': [5, 10, 15, 20, 0]}}}
+              'o3-mini': {'normal': {'price': [199, 349, 469, 739, 10],
+                                'percent': [0, 12, 21, 25, 0]},
+                     'discount': {'price': ['199 > 189', '349 > 315', '469 > 412', '739 > 628', '10 > 5'],
+                                  'price_data' : [189, 315, 412, 628, 5],
+                                  'percent': [5, 10, 12, 15, 0]}}}
 
     return InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton(

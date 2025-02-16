@@ -1,6 +1,7 @@
 from aiogram import Bot, Dispatcher, types, executor
-from config_test import TOKEN
 import logging
+
+from config import TOKEN
 
 # Установите ваш токен здесь
 API_TOKEN = TOKEN
