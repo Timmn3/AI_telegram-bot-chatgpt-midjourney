@@ -76,7 +76,7 @@ def settings(lang, from_msg):
 def model_keyboard(selected_model: str):
     models = {"4o-mini": "GPT-4o-mini",
               "4o": "GPT-4o",
-              "o3-mini": "GPT-o3-mini"} # поменять здесь o1-mini на o3-mini
+              "o3-mini": "GPT-o3-mini"} # поменять на o3-mini
     buttons = [
         InlineKeyboardButton(
             f"{value}✅" if key == selected_model else value,

@@ -5,6 +5,7 @@ from config import ADMINS_CODER
 from create_bot import dp, bot
 from utils import db
 from utils.ai import mj_api
+from handlers import admin, users, sub
 import logging
 
 from utils.scheduled_tasks.daily_token_reset import refill_tokens
