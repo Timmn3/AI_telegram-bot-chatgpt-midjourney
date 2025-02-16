@@ -83,7 +83,7 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
 
         model_map = {'4o-mini': 'ChatGPT',
                      '4o': 'GPT-4o',
-                     'o1-mini': 'GPT-o3-mini'} # поменять
+                     'o3-mini': 'GPT-o3-mini'} # поменять
 
         user_data = await db.get_user_notified_gpt(user_id)
 

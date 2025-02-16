@@ -76,7 +76,7 @@ def settings(lang, from_msg):
 def model_keyboard(selected_model: str):
     models = {"4o-mini": "GPT-4o-mini",
               "4o": "GPT-4o",
-              "o1-mini": "GPT-o3-mini"} # поменять здесь o1-mini на o3-mini
+              "o3-mini": "GPT-o3-mini"} # поменять здесь o1-mini на o3-mini
     buttons = [
         InlineKeyboardButton(
             f"{value}✅" if key == selected_model else value,
@@ -222,7 +222,7 @@ def get_chatgpt_models_noback(discount=None):
 
 # Кнопки выбора количества токенов для ChatGPT
 # Mode - Normal - пользователь решил купить токены, Discount - у него действует скидка, Notification - перешел из уведомления о скидке
-# Model - 4o, o1-preview, o1-mini
+# Model - 4o, o3-mini
 def get_chatgpt_tokens_menu(mode, model):
 
     source = 'acc' if mode == 'normal' else 'not_gpt'

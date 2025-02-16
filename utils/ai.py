@@ -96,8 +96,7 @@ async def get_gpt(messages, model):
         model_map = {
             '4o-mini': 'gpt-4o-mini',
             '4o': 'gpt-4o',
-            'o1-preview': 'o1-preview',
-            'o1-mini': 'o1-mini'
+            'o3-mini': 'o3-mini'
         }
 
         # Проверка и обработка изображений в сообщении пользователя
@@ -141,7 +140,7 @@ async def get_gpt(messages, model):
                 # Заменяем оригинальное сообщение на преобразованное
                 message["content"] = new_content
 
-        if model in {'o1-preview', 'o1-mini'}:
+        if model in {'o3-mini'}:
             if messages and messages[0]["role"] == "system":
                 messages[0] = {"role": "user", "content": "You are a helpful assistant."}
 
