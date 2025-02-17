@@ -140,8 +140,8 @@ async def process_purchase(bot, order_id):
     if model in {'4o', 'o3_mini'}:
         new_tokens = int(user[f"tokens_{model}"]) + int(order["quantity"])
         await db.update_tokens(user_id, new_tokens, model)
-        await db.update_tokens(user_id, total_bonus, "4o_mini")
-        await bot.send_message(user_id, f"✅Добавлено {int(order['quantity'] / 1000)} тыс. токенов для GPT-{model}.\nБлагодарим за покупку!\nВ качестве бонуса 🎁 дарим Вам {int(bonus / 1000)} тыс. токенов GPT-4o-mini")
+        # await db.update_tokens(user_id, total_bonus, "4o_mini")
+        await bot.send_message(user_id, f"✅Добавлено {int(order['quantity'] / 1000)} тыс. токенов для GPT-{model}.\nБлагодарим за покупку!")
     elif order["order_type"] == "midjourney":
         new_requests = user["mj"] + order["quantity"]
         await db.update_requests(user_id, new_requests)
