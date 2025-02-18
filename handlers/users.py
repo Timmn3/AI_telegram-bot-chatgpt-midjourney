@@ -133,7 +133,7 @@ async def get_mj(prompt, user_id, bot: Bot):
         return
 
     await bot.send_message(user_id, "Ожидайте, генерирую изображение..🕙", reply_markup=user_kb.get_menu(user["default_ai"]))
-    await bot.send_message(user_id, "В настоящее время генерация не доступна, попробуйте позже!")
+    # await bot.send_message(user_id, "В настоящее время генерация не доступна, попробуйте позже!")
     await bot.send_chat_action(user_id, ChatActions.UPLOAD_PHOTO)
 
     if '—' in prompt:
