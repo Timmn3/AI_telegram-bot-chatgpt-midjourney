@@ -127,6 +127,8 @@ async def get_midjourney_with_id(action_id: int, request: Request):
 
 @app.post('/api/midjourney')
 async def get_midjourney_without_id(request: Request):
+    body = await request.body()
+    logger.info(f"RAW Webhook request: {body.decode()}")
     return await handle_midjourney_webhook(action_id=None, request=request)
 
 async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
