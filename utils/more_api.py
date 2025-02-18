@@ -5,6 +5,7 @@ import requests  # Для синхронных HTTP-запросов
 import hashlib  # Для создания хешей
 from config import FKWallet, IMGBB_API_KEY  # Импорт данных кошелька и API-ключа для загрузки изображений
 
+import os
 
 # Словарь, который сопоставляет валюты с их кодами для FKWallet (кошелек)
 fkwallet_currencies = {'qiwi': 63, 'bank_card': 94}
@@ -37,15 +38,22 @@ def withdraw_ref_balance(purse, amount, currency):
     return response.json()  # Возвращаем JSON-ответ
 
 
-# Асинхронная функция для загрузки фотографии на фотохостинг IMGBB
-async def upload_photo_to_host(photo):
-    
+UPLOAD_DIR = "/var/www/neuronbot/uploads"  # Папка для хранения фото
+BASE_URL = "https://neuronbot.ru/uploads"  # Базовый URL для доступа к файлам
+
+async def upload_photo_to_host(photo_url):
     async with aiohttp.ClientSession() as session:
-        payload = {"image": photo}  # Формируем данные для загрузки (фотография)
-        # Отправляем запрос на загрузку фотографии на IMGBB
-        async with session.post(
-                f'https://api.imgbb.com/1/upload?key={IMGBB_API_KEY}', data=payload) as resp:
-            data = await resp.json()  # Получаем ответ в формате JSON
-            if "data" not in data:  # Проверяем, есть ли данные в ответе
-                return "error"  # Если данных нет, возвращаем ошибку
-            return data["data"]["url"]  # Возвращаем URL загруженной фотографии
+        # Скачиваем изображение с Telegram
+        async with session.get(photo_url) as resp:
+            if resp.status != 200:
+                return "error"
+
+            photo_bytes = await resp.read()
+            filename = os.path.basename(photo_url)  # Имя файла из URL
+            file_path = os.path.join(UPLOAD_DIR, filename)
+
+        # Сохраняем файл на сервере
+        with open(file_path, "wb") as f:
+            f.write(photo_bytes)
+
+        return f"{BASE_URL}/{filename}"  # Возвращаем ссылку на загруженный файл
