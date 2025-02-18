@@ -839,7 +839,6 @@ async def handle_voice(message: Message, state: FSMContext):
 
     if user is None:
         await message.answer("Введите команду /start для перезагрузки бота")
-        return await message.bot.send_message(796644977, message.from_user.id)
 
     if user["default_ai"] == "chatgpt":
         model = (user["gpt_model"]).replace("-", "_")

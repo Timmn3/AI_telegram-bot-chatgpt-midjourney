@@ -1,24 +1,15 @@
-import random
 import logging
-
-import aiohttp  # Для асинхронных HTTP-запросов
-import requests  # Для синхронных HTTP-запросов
 import openai
 from openai import OpenAI
-from pathlib import Path
 from aiogram import Bot  # Для работы с ботом
 from aiogram.types.input_file import InputFile
-from midjourney_api import TNL  # Импорт библиотеки для взаимодействия с MidJourney
 from googletranslatepy import Translator  # Библиотека для перевода текста
-
 import speech_recognition as sr  # Библиотека для распознавания речи
 from pydub import AudioSegment  # Библиотека для работы с аудио
 import tempfile
 import os
-import re
-
 from config import OPENAPI_TOKEN, midjourney_webhook_url, MJ_API_KEY, TNL_API_KEY, TOKEN, NOTIFY_URL, TNL_API_KEY1, \
-    ADMINS_CODER  # Импорт конфигураций и токенов
+    ADMINS_CODER, PROJECT_MANAGER  # Импорт конфигураций и токенов
 from utils import db  # Работа с базой данных
 from utils.mj_apis import GoAPI, ApiFrame, MidJourneyAPI
 
@@ -56,11 +47,9 @@ async def add_mj_action(user_id, action_type):
         pass
     return action_id
 
-
+my_bot = Bot(TOKEN)
 # Функция для отправки сообщения об ошибке админу бота
 async def send_error(text):
-
-    my_bot = Bot(TOKEN)
     await my_bot.send_message(ADMINS_CODER, text)
 
 
@@ -154,10 +143,15 @@ async def get_gpt(messages, model):
         content = response.choices[0].message.content  # Получаем ответ
         tokens = response.usage.total_tokens  # Получаем количество использованных токенов
 
+
     except openai.OpenAIError as e:
         status = False
-        content = "Генерация текста временно недоступна, повторите запрос позднее"
-        logging.error(f'ChatGPT Error {e}')
+        error_message = str(e)  # Преобразуем исключение в строку
+        logging.error(f'ChatGPT Error {error_message}')
+        if "insufficient_quota" in error_message:
+            await my_bot.send_message(PROJECT_MANAGER, "⚠️ Внимание! Баланс ChatGPT исчерпан. Необходимо его пополнить! 💳")
+        else:
+            content = "Генерация текста временно недоступна, повторите запрос позднее."
 
     return {"status": status, "content": content, "tokens": tokens}  # Возвращаем результат
 
