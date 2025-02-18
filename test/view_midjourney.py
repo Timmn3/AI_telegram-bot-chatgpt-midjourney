@@ -4,12 +4,12 @@ import time
 API_KEY = "a8796714c850e8baddd125dacd8bf4db7b945992d3aa3e9f3c190c0ded7d918a"
 API_URL = "https://api.goapi.ai/mj/v2/imagine"
 
-prompt = input("Введите название изображения: ")
+prompt = "red car"
 
 data = {
     "process_mode": "fast",
     "prompt": prompt,
-    "webhook_endpoint": "https://neuronbot.ru/api/midjourney/205871",
+    "webhook_endpoint": "https://neuronbot.ru/api/midjourney/",
     "notify_progress": True
 }
 
