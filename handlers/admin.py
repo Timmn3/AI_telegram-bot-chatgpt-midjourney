@@ -403,3 +403,30 @@ async def process_amount(message: Message, state: FSMContext):
 async def start_refill_tokens(message: Message, state: FSMContext):
     if message.from_user.id in ADMINS:
         await refill_tokens()
+
+
+
+
+def get_admin_commands():
+    return {
+        "/stats": "Статистика",
+        "#switch_to_goapi": "Переключение на **GoAPI**",
+        "#switch_to_apiframe": "Переключение на **ApiFrame**",
+        "/sub": "Выдать подписку",
+        "/balance": "Изменить баланс пользователя",
+        "/send": "Запустить рассылку сообщений",
+        "/freemoney": "Создать промокод",
+        "/add_tokens": "Начислить токены"
+    }
+
+@dp.message_handler(commands="admin_help")
+async def admin_help(message: Message):
+    if message.from_user.id not in ADMINS:
+        return
+
+    commands = get_admin_commands()
+    response = "Справочник команд для администратора:\n"
+    response += "\n".join([f"{cmd} - {desc}" for cmd, desc in commands.items()])
+
+    await message.answer(response)
+
