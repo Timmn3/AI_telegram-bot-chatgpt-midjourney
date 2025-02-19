@@ -372,15 +372,17 @@ async def get_chat_gpt_lang(user_id):
 # Получение статистики по рефералам для пользователя
 async def get_ref_stat(user_id):
     conn: Connection = await get_conn()
-    row = await conn.fetchrow("SELECT (SELECT CAST(sum(amount) * 0.15 as int) FROM sub_orders WHERE "
-                              "EXISTS(SELECT * FROM users "
-                              "WHERE inviter_id = $1 AND users.user_id = sub_orders.user_id)) as all_income,"
-                              "(SELECT ref_balance FROM users WHERE user_id = $1) as available_for_withdrawal,"
-                              "(SELECT COUNT(user_id) FROM users WHERE inviter_id = $1) as count_refs,"
-                              "(SELECT COUNT(sub_order_id) FROM sub_orders JOIN users u ON sub_orders.user_id = u.user_id WHERE u.inviter_id = $1) as orders_count",
-                              user_id)
+    row = await conn.fetchrow(
+        "SELECT (SELECT CAST(SUM(amount) * 0.15 AS INT) FROM orders "
+        "WHERE EXISTS(SELECT 1 FROM users WHERE inviter_id = $1 AND users.user_id = orders.user_id)) AS all_income,"
+        "(SELECT ref_balance FROM users WHERE user_id = $1) AS available_for_withdrawal,"
+        "(SELECT COUNT(user_id) FROM users WHERE inviter_id = $1) AS count_refs,"
+        "(SELECT COUNT(id) FROM orders JOIN users u ON orders.user_id = u.user_id WHERE u.inviter_id = $1) AS orders_count",
+        user_id
+    )
     await conn.close()
     return row
+
 
 
 # Получение всех пользователей, которые являются пригласившими
