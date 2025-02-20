@@ -374,12 +374,15 @@ async def get_ref_stat(user_id):
     conn: Connection = await get_conn()
     row = await conn.fetchrow(
         "SELECT (SELECT CAST(SUM(amount) * 0.15 AS INT) FROM orders "
-        "WHERE EXISTS(SELECT 1 FROM users WHERE inviter_id = $1 AND users.user_id = orders.user_id)) AS all_income,"
+        "WHERE EXISTS(SELECT 1 FROM users WHERE inviter_id = $1 AND users.user_id = orders.user_id) "
+        "AND pay_time IS NOT NULL) AS all_income,"
         "(SELECT ref_balance FROM users WHERE user_id = $1) AS available_for_withdrawal,"
         "(SELECT COUNT(user_id) FROM users WHERE inviter_id = $1) AS count_refs,"
-        "(SELECT COUNT(id) FROM orders JOIN users u ON orders.user_id = u.user_id WHERE u.inviter_id = $1) AS orders_count",
+        "(SELECT COUNT(id) FROM orders JOIN users u ON orders.user_id = u.user_id "
+        "WHERE u.inviter_id = $1 AND orders.pay_time IS NOT NULL) AS orders_count",
         user_id
     )
+
     await conn.close()
     return row
 
