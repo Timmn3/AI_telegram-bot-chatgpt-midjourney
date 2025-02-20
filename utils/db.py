@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo
 from typing import Dict, Any
 from asyncpg import Connection
 from config import DB_USER, DB_HOST, DB_DATABASE, DB_PASSWORD
+import uuid
+
 
 logger = logging.getLogger(__name__)
 
@@ -84,14 +86,16 @@ async def start():
                        "user_id BIGINT)")  # ID пользователя, связанного с промокодом
 
     await conn.execute(
-        "CREATE TABLE IF NOT EXISTS orders("
+        "CREATE TABLE IF NOT EXISTS orders ("
         "id SERIAL PRIMARY KEY,"  # Уникальный идентификатор заказа
         "user_id BIGINT,"  # ID пользователя
         "amount INT,"  # Сумма покупки
         "order_type VARCHAR(10),"  # Тип заказа: 'chatgpt' или 'midjourney'
         "quantity INT,"  # Количество токенов или запросов
         "create_time TIMESTAMP DEFAULT NOW(),"  # Время создания заказа
-        "pay_time TIMESTAMP)"  # Время оплаты заказа
+        "pay_time TIMESTAMP,"  # Время оплаты заказа
+        "order_id UUID UNIQUE"  # Уникальный идентификатор заказа для платежной системы
+        ")"
     )
 
     await conn.execute(
@@ -552,30 +556,35 @@ having count(up.user_id) < uses_count""")
 
 # Добавление нового заказа на токены/запросы
 async def add_order(user_id, amount, order_type, quantity):
-
     conn: Connection = await get_conn()
+
+    order_id = str(uuid.uuid4())  # Генерируем UUID
+
     row = await conn.fetchrow(
-        "INSERT INTO orders(user_id, amount, order_type, quantity, pay_time) VALUES ($1, $2, $3, $4, NULL) RETURNING *",
-        user_id, amount, order_type, quantity)
+        "INSERT INTO orders(order_id, user_id, amount, order_type, quantity, pay_time) "
+        "VALUES ($1, $2, $3, $4, $5, NULL) RETURNING *",
+        order_id, user_id, amount, order_type, quantity
+    )
+
     await conn.close()
-    return row["id"]
+    return row["order_id"]  # Теперь возвращаем `order_id`
 
 
 # Получение информации о заказе по ID
 async def get_order(order_id):
-
     conn: Connection = await get_conn()
-    row = await conn.fetchrow("SELECT * FROM orders WHERE id = $1", order_id)
+    row = await conn.fetchrow("SELECT * FROM orders WHERE order_id = $1", order_id)
     await conn.close()
     return row
 
 
+
 # Установка времени оплаты для заказа
 async def set_order_pay(order_id):
-
     conn: Connection = await get_conn()
-    await conn.execute("UPDATE orders SET pay_time = NOW() WHERE id = $1", order_id)
+    await conn.execute("UPDATE orders SET pay_time = NOW() WHERE order_id = $1", order_id)
     await conn.close()
+
 
 
 ''' Токены и Запросы '''

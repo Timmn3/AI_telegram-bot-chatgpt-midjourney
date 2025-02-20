@@ -143,7 +143,7 @@ async def handle_chatgpt_tokens_purchase(call: CallbackQuery):
         order_id = await db.add_order(call.from_user.id, amount, model, tokens)
 
         # Генерируем ссылки для оплаты
-        urls = get_pay_urls('s'+str(order_id), amount)
+        urls = get_pay_urls(order_id, amount)
     
         # Отправляем пользователю сообщение с выбором способа оплаты
         await call.message.edit_text(f"✅{int(tokens / 1000)} тыс. токенов для GPT-{model}\n💰Сумма: {amount}₽.",
@@ -172,7 +172,7 @@ async def handle_midjourney_requests_purchase(call: CallbackQuery):
         order_id = await db.add_order(call.from_user.id, amount, "midjourney", requests_count)
 
         # Генерируем ссылки для оплаты
-        urls = get_pay_urls('s'+str(order_id), amount)
+        urls = get_pay_urls(order_id, amount)
 
         # Отправляем пользователю сообщение с выбором способа оплаты
         await call.message.edit_text(f"✅{requests_count} запросов для 🎨MidJourney\n💰Сумма: {amount}₽.",

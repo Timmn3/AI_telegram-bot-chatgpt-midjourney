@@ -5,9 +5,9 @@ import logging
 import random   # Для генерации случайных чисел
 from datetime import datetime, timedelta  # Для работы с датами
 from urllib.parse import urlencode  # Для кодирования URL параметров
-
-import requests  # Для выполнения HTTP-запросов
-
+import hashlib
+import requests
+import uuid
 import config  # Импорт конфигурации
 from config import FreeKassa, LAVA_API_KEY, LAVA_SHOP_ID, PayOK, Tinkoff  # Импорт настроек платежных систем
 from utils import db  # Импорт функций работы с базой данных
@@ -21,27 +21,32 @@ logging.basicConfig(
            '[%(asctime)s] - %(name)s - %(message)s')
 
 
-# Функция для получения ссылки оплаты через Tinkoff
-def get_pay_url_tinkoff(order_id, amount):
 
+
+def get_pay_url_tinkoff(order_id, amount):
+    # Приводим UUID к строке, если он не строка
+    if isinstance(order_id, uuid.UUID):
+        order_id = str(order_id)
     # Формирование данных для запроса на оплату через Tinkoff
     data = {
         "TerminalKey": Tinkoff.terminal_id,
         "Amount": amount * 100,  # Сумма в копейках
-        "OrderId": order_id,  # Идентификатор заказа
+        "OrderId": order_id,  # Уникальный идентификатор заказа
         "NotificationURL": "https://91.192.102.250/api/pay/tinkoff"  # URL для уведомлений о статусе оплаты
     }
+
     # Строка для подписи
-    sing_str = f"{amount * 100}https://91.192.102.250/api/pay/tinkoff{order_id}{Tinkoff.api_token}{Tinkoff.terminal_id}"
-    # Генерация подписи (SHA256)
-    sign = hashlib.sha256(sing_str.encode('utf-8')).hexdigest()
+    sign_str = f"{amount * 100}https://91.192.102.250/api/pay/tinkoff{order_id}{Tinkoff.api_token}{Tinkoff.terminal_id}"
+    sign = hashlib.sha256(sign_str.encode('utf-8')).hexdigest()
 
     data["Token"] = sign  # Добавляем подпись в запрос
 
     # Отправка запроса на инициализацию оплаты
     res = requests.post("https://securepay.tinkoff.ru/v2/Init", json=data)
-    logger.info(f'Tinkoff Response: {res.json()}')
     res_data = res.json()  # Получение ответа в формате JSON
+
+    # Логируем ответ для отладки
+    logger.info(f'Tinkoff Response: {res_data}')
     return res_data["PaymentURL"]  # Возвращаем URL для оплаты
 
 
@@ -124,7 +129,6 @@ async def process_purchase(bot, order_id):
 
     user_id = order["user_id"]  # Получаем ID пользователя
     user = await db.get_user(user_id)  # Получаем информацию о пользователе
-    user_discount = await db.get_user_notified_gpt(user_id)  # Была ли скидка?
     model = (order["order_type"]).replace('-', '_')
     amount = order["amount"]  # Заплаченная сумма
     discounts = {189, 315, 412, 628, 949, 1619, 2166, 3199, 227, 386, 509, 757, 550, 246, 989} # Сумма соответсвующая скидкам

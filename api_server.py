@@ -63,7 +63,7 @@ async def send_mj_photo(user_id, photo_url, kb):
 # Функция для обработки платежей
 async def process_pay(order_id, amount):
 
-    order = await db.get_order(int(order_id[1:]))
+    order = await db.get_order(order_id)
 
     if order is None:
         logger.info(f'Order {order_id} not found')
@@ -80,7 +80,7 @@ async def process_pay(order_id, amount):
         elif amount in discounts_mj:
             await db.update_used_discount_mj(user_id)
 
-        await utils.pay.process_purchase(bot, int(order_id[1:])) # Обрабатываем покупку токенов или запросов
+        await utils.pay.process_purchase(bot, order_id) # Обрабатываем покупку токенов или запросов
 
 
 # Обработка платежей от FreeKassa
