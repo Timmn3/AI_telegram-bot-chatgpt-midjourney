@@ -137,9 +137,9 @@ def get_menu(default_ai):
 
 
 # Кнопки для выбора способа оплаты (Tinkoff, криптовалюта и т.д.)
-def get_pay_urls(urls, order_id, src='acc'):
+def get_pay_urls(urls, order_id, model, src='acc'):
 
-    back = 'back_to_profile' if src == 'acc' else 'back_to_discount'
+    back = f"buy_chatgpt_tokens:{model}:normal" if model != 'midjourney' else 'buy_midjourney_requests'
 
     return InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton("Банковская карта", url=urls["tinkoff"]),
