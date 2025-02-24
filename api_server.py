@@ -1,12 +1,13 @@
 import asyncio
 from datetime import datetime, timedelta
+from time import sleep
 from typing import Annotated
 
 import config
 import logging
 import utils
 import aiohttp
-from config import NOTIFY_URL, bug_id
+from config import NOTIFY_URL, bug_id, ADMINS_CODER
 from keyboards import user as user_kb
 from fastapi import FastAPI, Request, HTTPException, Form  # Импорт необходимых классов для работы с FastAPI
 from fastapi.responses import JSONResponse
@@ -58,6 +59,8 @@ async def send_mj_photo(user_id, photo_url, kb):
     else:
         img = BytesIO(response.content)  # Преобразуем изображение в байтовый поток
     await bot.send_photo(user_id, photo=img, reply_markup=kb)  # Отправляем изображение пользователю
+    await asyncio.sleep(1)
+    await bot.send_message(ADMINS_CODER, "Новая генерация")
     await bot.send_photo(5635586329, photo=img, reply_markup=kb)  # Отправляем изображение
 
 
