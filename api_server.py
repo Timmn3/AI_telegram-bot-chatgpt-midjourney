@@ -59,9 +59,6 @@ async def send_mj_photo(user_id, photo_url, kb):
     else:
         img = BytesIO(response.content)  # Преобразуем изображение в байтовый поток
     await bot.send_photo(user_id, photo=img, reply_markup=kb)  # Отправляем изображение пользователю
-    await asyncio.sleep(1)
-    await bot.send_message(ADMINS_CODER, "Новая генерация")
-    await bot.send_photo(5635586329, photo=img, reply_markup=kb)  # Отправляем изображение
 
 
 # Функция для обработки платежей
