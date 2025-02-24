@@ -451,6 +451,9 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
     user = await db.get_user(user_id)  # Получаем данные пользователя
 
     if src == "acc":
+        # Удаляем старое сообщение с текстом и клавиатурой
+        await call.message.delete()
+
         await state.finish()
         user_lang = user['chat_gpt_lang']
 
@@ -709,6 +712,9 @@ async def try_prompt(call: CallbackQuery, state: FSMContext):
 async def chatgpt_about_me(call: CallbackQuery, state: FSMContext):
 
     user = await db.get_user(call.from_user.id)
+    # Удаляем старое сообщение с текстом и клавиатурой
+    await call.message.delete()
+
     await call.message.answer(
         '<b>Введите запрос</b>\n\nПоделитесь с ChatGPT любой информацией о себе, чтобы получить более качественные ответы⤵️\n\n<u><a href="https://telegra.ph/Tonkaya-nastrojka-ChatGPT-06-30">Инструкция.</a></u>',
         disable_web_page_preview=True,
@@ -733,6 +739,10 @@ async def change_profile_info(message: Message, state: FSMContext):
 async def character_menu(call: CallbackQuery, state: FSMContext):
 
     user = await db.get_user(call.from_user.id)
+
+    # Удаляем старое сообщение с текстом и клавиатурой
+    await call.message.delete()
+
     await call.message.answer(
         '<b>Введите запрос</b>\n\nНастройте ChatGPT как Вам удобно - тон, настроение, эмоциональный окрас сообщений⤵️\n\n<u><a href="https://telegra.ph/Tonkaya-nastrojka-ChatGPT-06-30">Инструкция.</a></u>',
         disable_web_page_preview=True,
@@ -964,7 +974,10 @@ async def model_menu(call: CallbackQuery):
 
     # Динамическое создание клавиатуры с выбранным моделью
     keyboard = user_kb.model_keyboard(selected_model=user_model)
-    
+
+    # Удаляем старое сообщение с текстом и клавиатурой
+    await call.message.delete()
+
     await call.message.answer("Выберите модель GPT для диалогов⤵️:", reply_markup=keyboard)
     await call.answer()
 
@@ -998,6 +1011,9 @@ async def voice_menu(call: CallbackQuery):
 
     user_id = call.from_user.id
     user_voice = await db.get_voice(user_id)
+
+    # Удаляем старое сообщение с текстом и клавиатурой
+    await call.message.delete()
     
     # Динамическое создание клавиатуры с выбранным голосом
     keyboard = user_kb.voice_keyboard(selected_voice=user_voice)
