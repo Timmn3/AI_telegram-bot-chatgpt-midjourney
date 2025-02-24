@@ -19,6 +19,8 @@ import requests  # Для синхронных HTTP-запросов
 import uvicorn  # Для запуска сервера FastAPI
 from typing import Optional
 
+import uuid
+
 
 logger = logging.getLogger(__name__)
 
@@ -107,11 +109,23 @@ async def check_pay_lava(data: LavaWebhook):
 async def check_pay_tinkoff(request: Request):
 
     data = await request.json()  # Получаем данные из запроса
+    logging.debug(f"Received Tinkoff payment data: {data}")
+
     if data["Status"] != "CONFIRMED":  # Если статус не подтвержден, игнорируем
         return "OK"
 
-    await process_pay(data["OrderId"], int(data["Amount"] / 100))  # Обрабатываем платеж
+    order_id = data["OrderId"]
+
+    # Проверка, является ли OrderId валидным UUID
+    try:
+        order_id = str(uuid.UUID(order_id))
+    except ValueError:
+        logging.error(f"Invalid OrderId received: {order_id}")
+        return JSONResponse(content={"error": "Invalid OrderId"}, status_code=400)
+
+    await process_pay(order_id, int(data["Amount"] / 100))  # Обрабатываем платеж
     return "OK"
+
 
 
 # Обработка платежей от PayOK
