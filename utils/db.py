@@ -46,11 +46,11 @@ async def start():
         "chatgpt_settings VARCHAR(256) DEFAULT '',"  # Настройки ChatGPT
         "sub_time TIMESTAMP DEFAULT NOW(),"  # Время начала подписки
         "sub_type VARCHAR(12),"  # Тип подписки
-        "tokens_4o INTEGER DEFAULT 2000,"  # Количество токенов для ChatGPT
+        "tokens_4o INTEGER DEFAULT 5000,"  # Количество токенов для ChatGPT
         "tokens_4o_mini INTEGER DEFAULT 100000,"
         "tokens_o1_preview INTEGER DEFAULT 0,"
         "tokens_o1_mini INTEGER DEFAULT 1000,"
-        "tokens_o3_mini INTEGER DEFAULT 2000,"
+        "tokens_o3_mini INTEGER DEFAULT 5000,"
         "gpt_model VARCHAR(10) DEFAULT '4o-mini',"
         "voice VARCHAR(64) DEFAULT 'onyx',"
         "chatgpt_character VARCHAR(256) DEFAULT '',"
@@ -184,7 +184,7 @@ async def add_user(user_id, username, first_name, inviter_id):
     conn: Connection = await get_conn()
     await conn.execute(
         "INSERT INTO users(user_id, username, first_name, reg_time, inviter_id, free_image, tokens_o3_mini, tokens_4o, tokens_4o_mini) "
-        "VALUES ($1, $2, $3, $4, $5, 3, 2000, 2000, 100000)",
+        "VALUES ($1, $2, $3, $4, $5, 3, 5000, 5000, 100000)",
         user_id, username, first_name, int(datetime.now().timestamp()), inviter_id
     )
     await conn.close()
