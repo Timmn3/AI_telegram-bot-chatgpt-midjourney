@@ -871,7 +871,7 @@ async def handle_voice(message: Message, state: FSMContext):
 # Перевод текста в Аудио
 @dp.callback_query_handler(text="text_to_audio")
 async def return_voice(call: CallbackQuery, state: FSMContext):
-
+    await call.message.answer("⏳Идёт запись голосового, ожидайте")
     user_id = call.from_user.id
 
     # Пытаемся получить текущий голос пользователя
