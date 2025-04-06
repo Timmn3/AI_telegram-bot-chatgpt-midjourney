@@ -24,7 +24,8 @@ async def get_conn() -> Connection:
 
 # Функция для создания необходимых таблиц в базе данных, если они еще не существуют
 async def start():
-
+    # Создание необходимых таблиц
+    await create_tables()
     conn: Connection = await get_conn()
     await conn.execute(
         "CREATE TABLE IF NOT EXISTS users("
@@ -1068,3 +1069,80 @@ def format_short_statistics(all_time: Dict[str, Any], today: Dict[str, Any]) -> 
     all_time_section = format_section("За все время", all_time)
     today_section = format_section("За 24 часа", today)
     return f"{all_time_section}\n\n{today_section}"
+
+
+# Функция для установления соединения с базой данных
+async def get_conn() -> Connection:
+    return await asyncpg.connect(user=DB_USER, password=DB_PASSWORD, database=DB_DATABASE, host=DB_HOST)
+
+
+# Функция для создания необходимых таблиц в базе данных
+async def create_tables():
+    conn: Connection = await get_conn()
+
+    # Создание таблицы chats
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS chats (
+            id SERIAL PRIMARY KEY,            -- Уникальный идентификатор чата
+            user_id BIGINT,                   -- ID пользователя, связанного с чатом
+            name VARCHAR(255),                 -- Название чата (например, тема)
+            summary TEXT,                      -- Краткое описание чата (сводка)
+            created_at TIMESTAMP DEFAULT NOW(), -- Время создания чата
+            updated_at TIMESTAMP DEFAULT NOW()  -- Время последнего обновления чата
+        );
+    """)
+
+    # Создание таблицы messages
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id SERIAL PRIMARY KEY,            -- Уникальный идентификатор сообщения
+            chat_id INT,                      -- ID чата (ссылается на таблицу `chats`)
+            user_id BIGINT,                   -- ID пользователя, отправившего сообщение (NULL для сообщений бота)
+            text TEXT,                        -- Текст сообщения
+            created_at TIMESTAMP DEFAULT NOW() -- Время отправки сообщения
+        );
+    """)
+
+    # Добавление current_chat_id в таблицу users
+    await conn.execute("""
+        ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS current_chat_id INT;
+    """)
+
+    # Создание индекса на user_id в таблице chats
+    await conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id);
+    """)
+
+    await conn.close()
+
+
+# Функция для создания нового чата
+async def create_chat(user_id: int, name: str, summary: str) -> int:
+    conn: Connection = await get_conn()
+    result = await conn.fetchrow("""
+        INSERT INTO chats (user_id, name, summary, created_at, updated_at)
+        VALUES ($1, $2, $3, NOW(), NOW())
+        RETURNING id;
+    """, user_id, name, summary)
+    await conn.close()
+    return result['id']  # Возвращаем ID созданного чата
+
+
+# Функция для добавления сообщения в чат
+async def add_message(chat_id: int, user_id: int, text: str):
+    conn: Connection = await get_conn()
+    await conn.execute("""
+        INSERT INTO messages (chat_id, user_id, text, created_at)
+        VALUES ($1, $2, $3, NOW());
+    """, chat_id, user_id, text)
+    await conn.close()
+
+
+# Функция для обновления активного чата пользователя
+async def set_current_chat(user_id: int, chat_id: int):
+    conn: Connection = await get_conn()
+    await conn.execute("""
+        UPDATE users SET current_chat_id = $2 WHERE user_id = $1;
+    """, user_id, chat_id)
+    await conn.close()
