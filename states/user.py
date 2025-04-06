@@ -23,3 +23,7 @@ class ChangeChatGPTCharacter(StatesGroup):
 # Класс для изменения настроек ChatGPT (например, тон, стиль ответов)
 class ChangeChatGPTSettings(StatesGroup):
     text = State()  # Состояние для ввода текста с настройками для ChatGPT
+
+# Класс для ввода имени нового чата
+class EnterChatName(StatesGroup):
+    chat_name = State()  # Состояние для ввода имени нового чата

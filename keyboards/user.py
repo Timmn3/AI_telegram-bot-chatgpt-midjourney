@@ -47,7 +47,7 @@ def get_clear_or_audio():
     return InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton("⚙️Настройки ChatGPT", callback_data="settings"),
         InlineKeyboardButton("🗣Озвучить текст", callback_data="text_to_audio"),
-        InlineKeyboardButton("✖️Завершить диалог", callback_data="clear_content")
+        InlineKeyboardButton("🗂Мои чаты", callback_data="clear_content")
         )
 
 
@@ -61,7 +61,6 @@ def get_account(lang, from_msg):
 
 # Настройки ChatGPT
 def settings(lang, from_msg):
-
     flag = '🇷🇺' if lang == 'ru' else '🇬🇧'
 
     return InlineKeyboardMarkup(row_width=1).add(
@@ -70,6 +69,7 @@ def settings(lang, from_msg):
         InlineKeyboardButton("✍🏻Рассказать о себе", callback_data="chatgpt_about_me"),
         InlineKeyboardButton("🎭Характер ChatGPT", callback_data="character_menu"),
         InlineKeyboardButton("🗣Изменить голос ChatGPT", callback_data="voice_menu"),
+        InlineKeyboardButton("🗂Мои чаты", callback_data="my_chats"),
         InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
     )
 

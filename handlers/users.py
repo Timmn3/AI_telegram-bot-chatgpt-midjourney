@@ -4,7 +4,8 @@ from typing import List
 
 import requests
 from aiogram import Bot
-from aiogram.types import Message, CallbackQuery, ChatActions, ContentType, MediaGroup, Update
+from aiogram.types import Message, CallbackQuery, ChatActions, ContentType, MediaGroup, Update, InlineKeyboardMarkup, \
+    InlineKeyboardButton
 from aiogram.types.input_file import InputFile
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher import FSMContext
@@ -15,6 +16,7 @@ import re
 import tempfile
 import os
 import config
+from states.user import EnterChatName
 from utils import db, ai, more_api, pay # Импорт утилит для взаимодействия с БД и внешними API
 from states import user as states  # Состояния FSM для пользователя
 import keyboards.user as user_kb  # Клавиатуры для взаимодействия с пользователями
@@ -284,12 +286,12 @@ async def notify_low_midjourney_requests(user_id, bot: Bot):
     """, reply_markup=user_kb.get_midjourney_discount_notification())
 
 
-@dp.errors_handler()
-async def log_all_updates(update: Update, exception: Exception = None):
-    logging.debug(f"Update received: {update.to_python()}")
-    if exception:
-        logging.error(f"Exception: {exception}")
-    return True
+# @dp.errors_handler()
+# async def log_all_updates(update: Update, exception: Exception = None):
+#     logging.debug(f"Update received: {update.to_python()}")
+#     if exception:
+#         logging.error(f"Exception: {exception}")
+#     return True
 
 '''
 @dp.callback_query_handler()
@@ -1083,6 +1085,152 @@ async def check_voice(call: CallbackQuery):
     await call.message.answer(f"Ответы ChatGPT:{'RUS' if user_lang == 'ru' else 'ENG'}")
     await call.message.answer_media_group(media_group)
     await call.answer()
+
+
+@dp.callback_query_handler(text="my_chats")
+async def show_my_chats(call: CallbackQuery):
+    user_id = call.from_user.id
+
+    # Получаем пользователя
+    user = await db.get_user(user_id)
+    if not user:
+        await call.answer("Пользователь не найден.", show_alert=True)
+        return
+
+    # Получаем список чатов пользователя
+    conn = await db.get_conn()
+    chats = await conn.fetch(
+        "SELECT id, name FROM chats WHERE user_id = $1 ORDER BY created_at", user["user_id"]
+    )
+    await conn.close()
+
+    current_chat_id = user["current_chat_id"]
+
+    text = (
+        "🗂 *Меню чатов позволяет:*\n"
+        "-- Создавать новые чаты\n"
+        "-- Переключаться между чатами\n"
+        "-- Изменять настройки и названия чатов\n\n"
+        "*Выберите необходимый чат ⤵️*"
+    )
+
+    kb = InlineKeyboardMarkup(row_width=2)
+
+    # Кнопки: удалить все и создать новый
+    kb.add(
+        InlineKeyboardButton("❌Удалить все чаты", callback_data="delete_all_chats"),
+        InlineKeyboardButton("➕Новый чат", callback_data="create_chat")
+    )
+
+    # Кнопки чатов
+    for chat in chats:
+        chat_name = chat["name"]
+        chat_id = chat["id"]
+        if chat_id == current_chat_id:
+            chat_button_text = f"✅ {chat_name}"
+        else:
+            chat_button_text = chat_name
+        kb.add(InlineKeyboardButton(chat_button_text, callback_data=f"select_chat:{chat_id}"))
+
+    # Пагинация (можешь реализовать позже)
+    kb.row(
+        InlineKeyboardButton("⏮", callback_data="page:first"),
+        InlineKeyboardButton("◀", callback_data="page:prev"),
+        InlineKeyboardButton("▶", callback_data="page:next"),
+        InlineKeyboardButton("⏭", callback_data="page:last")
+    )
+
+    # Назад
+    kb.add(InlineKeyboardButton("🔙 Назад", callback_data="settings"))
+
+    await call.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith('select_chat:'))
+async def select_chat(call: CallbackQuery):
+    # Получаем ID выбранного чата
+    chat_id = int(call.data.split(":")[1])
+    user_id = call.from_user.id
+
+    # Получаем данные пользователя
+    user = await db.get_user(user_id)
+    if not user:
+        await call.answer("Пользователь не найден.", show_alert=True)
+        return
+
+    # Обновляем текущий активный чат
+    conn = await db.get_conn()
+    await conn.execute(
+        "UPDATE users SET current_chat_id = $1 WHERE user_id = $2", chat_id, user["user_id"]
+    )
+    await conn.close()
+
+    # Сообщаем пользователю, что чат успешно переключен
+    # await call.answer(f"Вы перешли в чат: {chat_id}", show_alert=True)
+
+    # Обновляем список чатов
+    await show_my_chats(call)
+
+
+@dp.callback_query_handler(text="delete_all_chats")
+async def delete_all_chats(call: CallbackQuery):
+    user_id = call.from_user.id
+
+    # Удаляем все чаты пользователя
+    conn = await db.get_conn()
+    await conn.execute("DELETE FROM chats WHERE user_id = $1", user_id)
+    await conn.close()
+
+    # Обновляем список чатов
+    await show_my_chats(call)
+
+    await call.answer("Все чаты удалены!", show_alert=True)
+
+
+@dp.callback_query_handler(text="create_chat")
+async def create_chat(call: CallbackQuery):
+    user_id = call.from_user.id
+
+    # Запрашиваем имя нового чата
+    await call.message.answer("Введите название чата:")
+
+    # Переходим в состояние ожидания ввода имени нового чата
+    await EnterChatName.chat_name.set()
+
+@dp.message_handler(state=EnterChatName.chat_name)
+async def process_new_chat_name(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    chat_name = message.text.strip()
+
+    if not chat_name:
+        await message.answer("Название чата не может быть пустым. Пожалуйста, введите название.")
+        return
+
+    # Создаем новый чат в базе данных
+    conn = await db.get_conn()
+    await conn.execute(
+        "INSERT INTO chats (user_id, name, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())",
+        user_id, chat_name
+    )
+    await conn.close()
+
+    # Обновляем текущий чат пользователя
+    conn = await db.get_conn()
+    new_chat_id = await conn.fetchval(
+        "SELECT id FROM chats WHERE user_id = $1 AND name = $2 LIMIT 1", user_id, chat_name
+    )
+    await conn.close()
+
+    # Устанавливаем новый чат как активный
+    await db.set_current_chat(user_id, new_chat_id)
+
+    # Подтверждаем создание чата
+    await message.answer(f"Чат _{chat_name}_ успешно создан!\n\n*Теперь вы можете ввести запрос ⤵️*", parse_mode="Markdown")
+
+
+    # Завершаем состояние
+    await state.finish()
+
 
 
 
