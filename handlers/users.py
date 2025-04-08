@@ -1385,7 +1385,6 @@ async def select_chat(call: CallbackQuery):
 
     # Обновляем сообщение с новым текстом и кнопками
     await call.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
-    await call.answer()
 
 @dp.callback_query_handler(lambda c: c.data.startswith('select_active_chat:'))
 async def select_active_chat(call: CallbackQuery):
@@ -1412,7 +1411,7 @@ async def select_active_chat(call: CallbackQuery):
     await conn.close()
 
     # Отправляем сообщение о том, что чат успешно загружен
-    await call.message.answer("Чат успешно загружен. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
+    await call.message.edit_text("Чат успешно загружен. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
     await call.answer()
 
 
