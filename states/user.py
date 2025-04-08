@@ -27,3 +27,8 @@ class ChangeChatGPTSettings(StatesGroup):
 # Класс для ввода имени нового чата
 class EnterChatName(StatesGroup):
     chat_name = State()  # Состояние для ввода имени нового чата
+
+
+# Класс для ввода имени имеющегося чата
+class EnterChatRename(StatesGroup):
+    chat_name = State()  # Состояние для ввода имени нового чата

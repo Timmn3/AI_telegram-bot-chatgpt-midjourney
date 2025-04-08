@@ -955,13 +955,13 @@ async def fetch_short_statistics() -> str:
         logger.info(f"Midjourney оплат за всё время: {midjourney_payments_all_time}")
 
         # За 24 часа (с начала дня)
-        # Количество пользователей
+        # Количество пользователей, которые зарегистрировались сегодня
         users_today = await conn.fetchval("""
             SELECT COUNT(DISTINCT user_id)
-            FROM orders
-            WHERE pay_time IS NOT NULL AND pay_time >= $1
+            FROM users
+            WHERE to_timestamp(reg_time) >= $1
         """, start_of_day)
-        logger.info(f"Количество пользователей за сегодня: {users_today}")
+        logger.info(f"Количество пользователей, зарегистрировавшихся сегодня: {users_today}")
 
         # Запросов
         total_requests_today = await conn.fetchval("""
@@ -1146,3 +1146,10 @@ async def set_current_chat(user_id: int, chat_id: int):
         UPDATE users SET current_chat_id = $2 WHERE user_id = $1;
     """, user_id, chat_id)
     await conn.close()
+
+# Функция для получения чата по ID
+async def get_chat_by_id(chat_id: int):
+    conn: Connection = await get_conn()
+    row = await conn.fetchrow("SELECT * FROM chats WHERE id = $1", chat_id)
+    await conn.close()
+    return row

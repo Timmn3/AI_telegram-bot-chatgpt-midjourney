@@ -47,7 +47,8 @@ def get_clear_or_audio():
     return InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton("⚙️Настройки ChatGPT", callback_data="settings"),
         InlineKeyboardButton("🗣Озвучить текст", callback_data="text_to_audio"),
-        InlineKeyboardButton("🗂Мои чаты", callback_data="clear_content")
+        InlineKeyboardButton("🗂Мои чаты", callback_data="my_chats"),
+        InlineKeyboardButton("🗑Удалить чат", callback_data="delete_chat")
         )
 
 
