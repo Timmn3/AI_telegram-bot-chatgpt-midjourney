@@ -1243,7 +1243,7 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
     kb.add(InlineKeyboardButton("🔙 Назад", callback_data="settings"))
 
     # Отправляем обновленное сообщение с чатиками и кнопками
-    await call.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
+    await call.message.answer(text, parse_mode="Markdown", reply_markup=kb)
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('page:'))
