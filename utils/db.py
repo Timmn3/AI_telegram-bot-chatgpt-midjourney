@@ -1095,11 +1095,11 @@ async def create_tables():
     # Создание таблицы messages
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS messages (
-            id SERIAL PRIMARY KEY,            -- Уникальный идентификатор сообщения
-            chat_id INT,                      -- ID чата (ссылается на таблицу `chats`)
-            user_id BIGINT,                   -- ID пользователя, отправившего сообщение (NULL для сообщений бота)
-            text TEXT,                        -- Текст сообщения
-            created_at TIMESTAMP DEFAULT NOW() -- Время отправки сообщения
+            id SERIAL PRIMARY KEY,                                -- Уникальный идентификатор сообщения
+            chat_id INT REFERENCES chats(id) ON DELETE CASCADE,   -- ID чата (ссылается на таблицу `chats`)
+            user_id BIGINT NULL,                                  -- ID пользователя, NULL если сообщение от бота
+            text TEXT,                                            -- Текст сообщения
+            created_at TIMESTAMP DEFAULT NOW()                    -- Время отправки сообщения
         );
     """)
 
@@ -1153,3 +1153,10 @@ async def get_chat_by_id(chat_id: int):
     row = await conn.fetchrow("SELECT * FROM chats WHERE id = $1", chat_id)
     await conn.close()
     return row
+
+async def update_chat_summary(chat_id: int, summary: str):
+    conn = await get_conn()
+    await conn.execute("""
+        UPDATE chats SET summary = $2, updated_at = NOW() WHERE id = $1;
+    """, chat_id, summary)
+    await conn.close()

@@ -205,12 +205,31 @@ def formatter(text):
 
 # Генерация ответа от ChatGPT
 async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
-
     user = await db.get_user(user_id)
     lang_text = {"en": "compose an answer in English", "ru": "составь ответ на русском языке"}
-    prompt += f"\n{lang_text[user['chat_gpt_lang']]}"
     model = user['gpt_model']
     model_dashed = model.replace("-", "_")
+
+    # Получаем текущий активный чат
+    current_chat = await db.get_chat_by_id(user["current_chat_id"])
+
+    # Отправляем пользователю имя текущего чата (если есть)
+    if current_chat and current_chat["name"]:
+        await bot.send_message(user_id, f"💬 Активный чат: *{current_chat['name']}*", parse_mode="Markdown")
+
+    print(f'Запрос пользователя:\n\n{prompt}')
+
+    # Вставляем краткое содержание (summary), если есть
+    summary = current_chat["summary"] if current_chat else ""
+    print(f'Краткое содержание:\n\n {summary}')
+    if summary:
+        prompt = f"Ранее в этом чате обсуждалось: {summary.strip()}\n\n" + prompt
+
+    # Добавляем указание языка
+    prompt += f"\n{lang_text[user['chat_gpt_lang']]}"
+    message_user = prompt
+
+    # Формируем список сообщений для GPT
     if messages is None:
         messages = []
     messages.append({"role": "user", "content": prompt})
@@ -219,12 +238,13 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
     await bot.send_chat_action(user_id, ChatActions.TYPING)
 
-    res = await ai.get_gpt(messages, model)  # Отправляем запрос в ChatGPTs
+    # Отправляем запрос в GPT
+    res = await ai.get_gpt(messages, model)
 
+    # Отображаем ответ пользователю
     if len(res["content"]) <= 4096:
         await bot.send_message(user_id, formatter(res["content"]), reply_markup=user_kb.get_clear_or_audio(), parse_mode="MarkdownV2")
     else:
-        # Разделение сообщения на части
         parts = split_message(formatter(res["content"]), 4096)
         for part in parts:
             await bot.send_message(user_id, part, reply_markup=user_kb.get_clear_or_audio(), parse_mode="MarkdownV2")
@@ -233,34 +253,92 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
     if not res["status"]:
         return
-    messages.append({"role": "assistant", "content": res["content"]})
 
-    # Списывание токенов    
-    await db.remove_chatgpt(user_id, res["tokens"], model)  # Уменьшаем токены
+    message_gpt = res["content"]
+    messages.append({"role": "assistant", "content": message_gpt})
 
-    # Проверка на количество оставшихся токенов
+    # Если чата нет — создаём и генерируем имя
+    if not current_chat:
+        generated_name = await generate_chat_name(message_user, model, message_gpt)
+        new_chat_id = await db.create_chat(user_id, name=generated_name, summary="")
+        await db.set_current_chat(user_id, new_chat_id)
+        chat_id = new_chat_id
+    else:
+        chat_id = current_chat["id"]
+
+    # Сохраняем сообщения
+    await db.add_message(chat_id, user_id, message_user)
+    await db.add_message(chat_id, None, message_gpt)
+
+    # Генерируем и сохраняем новую сводку чата
+    old_summary = current_chat["summary"] if current_chat else ""
+    new_summary = await update_chat_summary(chat_id, message_user, message_gpt, model, old_summary)
+    await db.update_chat_summary(chat_id, new_summary)
+
+    # Списание токенов
+    await db.remove_chatgpt(user_id, res["tokens"], model)
+
+    # Проверка на остаток токенов и уведомление
     now = datetime.now()
     user_notified = await db.get_user_notified_gpt(user_id)
-    user = await db.get_user(user_id)  # Получаем обновленные данные пользователя
+    user = await db.get_user(user_id)  # Обновлённый
+
     has_purchase = await db.has_matching_orders(user_id)
-    
-    if user[f"tokens_{model_dashed}"] <= 1000 and model_dashed != "4o_mini":  # Если осталось 1 тыс или меньше токенов
+    if user[f"tokens_{model_dashed}"] <= 1000 and model_dashed != "4o_mini":
+        logger.info(f"Осталось {user[f'tokens_{model_dashed}']} токенов, уведомление: {user_notified}, покупка: {has_purchase}")
 
-        logger.info(f"Осталось {user[f'tokens_{model_dashed}']} токенов, было уведомление: {user_notified}, совершал ли покупку: {has_purchase}")
-
-        if user_notified is None and has_purchase is True:
-            logger.info(f'Скидочное уведомление')
+        if user_notified is None and has_purchase:
             await db.create_user_notification_gpt(user_id)
-            await notify_low_chatgpt_tokens(user_id, bot)  # Отправляем уведомление о низком количестве токенов
-            # await db.set_user_notified(user_id)  # Помечаем, что уведомление отправлено
+            await notify_low_chatgpt_tokens(user_id, bot)
         else:
-            last_notification = user_notified['last_notification'] if user_notified is not None else None
-            if (last_notification is None or now > last_notification + timedelta(days=30)) and has_purchase is True:
+            last_notification = user_notified['last_notification'] if user_notified else None
+            if (last_notification is None or now > last_notification + timedelta(days=30)) and has_purchase:
                 await db.update_user_notification_gpt(user_id)
                 await notify_low_chatgpt_tokens(user_id, bot)
 
-    await db.add_action(user_id, model)  # Логируем действие пользователя
+    await db.add_action(user_id, model)  # Логируем
     return messages
+
+
+
+async def update_chat_summary(chat_id: int, message_user: str, message_gpt: str, model: str, old_summary: str = "") -> str:
+    summary_prompt = (
+        f"Вот краткое описание предыдущей беседы: {old_summary}\n\n"
+        f"Добавь к нему краткое описание следующей части диалога:\n"
+        f"Пользователь: {message_user}\n"
+        f"Ассистент: {message_gpt}\n\n"
+        f"Обновлённая краткая сводка (максимум 500 символов):"
+    )
+
+    response = await ai.get_gpt(
+        messages=[
+            {"role": "system",
+             "content": "Ты ассистент, умеющий сжимать диалоги в краткое описание. Пиши коротко и по делу."},
+            {"role": "user", "content": summary_prompt}
+        ],
+        model=model
+    )
+
+    return response["content"].strip()
+
+
+async def generate_chat_name(message_user: str, model: str, message_gpt: str) -> str:
+    prompt = (
+        f"Пользователь задал вопрос: \"{message_user}\"\n"
+        f"Ассистент ответил: \"{message_gpt}\"\n\n"
+        f"На основе этого диалога придумай короткое, осмысленное название чата (до 50 символов):"
+    )
+
+    response = await ai.get_gpt(
+        messages=[
+            {"role": "system", "content": "Ты генерируешь короткие и содержательные заголовки диалогов."},
+            {"role": "user", "content": prompt}
+        ],
+        model=model
+    )
+
+    return response["content"].strip().strip('"')[:50]
+
 
 
 ''' Новые две функции - уведомления об заканчивающихся токенах '''
@@ -558,6 +636,12 @@ async def ask_question(message: Message, state: FSMContext):
 <u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
                          reply_markup=user_kb.get_menu("chatgpt"),
                          disable_web_page_preview=True)
+    # Получаем текущий активный чат
+    current_chat = await db.get_chat_by_id(user["current_chat_id"])
+
+    # Отправляем пользователю имя текущего чата (если есть)
+    if current_chat and current_chat["name"]:
+        await message.answer(f"💬 Активный чат: *{current_chat['name']}*", parse_mode="Markdown")
 
 
 # Хендлер для вывода информации о поддержке
@@ -1092,6 +1176,13 @@ async def check_voice(call: CallbackQuery):
 
 @dp.callback_query_handler(text="my_chats")
 async def show_my_chats(call: CallbackQuery, page: int = 0):
+    """
+    Обработчик команды "my_chats", который отображает список чатов пользователя
+    с пагинацией и предоставляет возможность управления чатами.
+
+    :param call: Объект CallbackQuery, содержащий данные вызова.
+    :param page: Номер страницы для отображения чатов.
+    """
     user_id = call.from_user.id
 
     # Получаем данные пользователя
@@ -1114,6 +1205,7 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
 
     current_chat_id = user["current_chat_id"]
 
+    # Формируем текст сообщения
     text = (
         "🗂 *Меню чатов позволяет:*\n"
         "-- Создавать новые чаты\n"
@@ -1122,6 +1214,7 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
         "*Выберите необходимый чат ⤵️*"
     )
 
+    # Формируем клавиатуру с кнопками
     kb = InlineKeyboardMarkup(row_width=2)
 
     # Кнопки: удалить все и создать новый
@@ -1134,6 +1227,7 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
     for chat in chats:
         chat_name = chat["name"]
         chat_id = chat["id"]
+        # Отметка активного чата
         if chat_id == current_chat_id:
             chat_button_text = f"✅ {chat_name}"
         else:
@@ -1154,20 +1248,28 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
     # Отправляем обновленное сообщение с чатиками и кнопками
     await call.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
 
+
 @dp.callback_query_handler(lambda c: c.data.startswith('page:'))
 async def paginate_chats(call: CallbackQuery):
+    """
+    Обработчик пагинации чатов. Позволяет пользователю переходить между страницами
+    списка чатов (первая, предыдущая, следующая, последняя).
+
+    :param call: Объект CallbackQuery, содержащий данные вызова.
+    """
     # Получаем данные из callback_data
     page_data = call.data.split(":")
     action = page_data[1]  # first, prev, next, last
     current_page = int(page_data[2])  # Текущая страница
 
     # Получаем данные пользователя
-    # Получаем данные пользователя
     user_id = call.from_user.id
     user = await db.get_user(user_id)
     if not user:
         await call.answer("Пользователь не найден.", show_alert=True)
         return
+
+    # Получаем количество чатов пользователя
     conn = await db.get_conn()
     total_chats = await conn.fetchval(
         "SELECT COUNT(*) FROM chats WHERE user_id = $1", user_id
@@ -1176,19 +1278,15 @@ async def paginate_chats(call: CallbackQuery):
 
     # Количество чатов на одной странице
     chats_per_page = 4
-
     total_pages = (total_chats // chats_per_page) + (1 if total_chats % chats_per_page > 0 else 0) - 1
 
-    # Переход на первую страницу
+    # Определяем номер новой страницы
     if action == 'first':
         new_page = 0
-    # Переход на предыдущую страницу
     elif action == 'prev' and current_page > 0:
         new_page = current_page - 1
-    # Переход на следующую страницу, но не выходим за пределы
     elif action == 'next' and current_page < total_pages:
         new_page = current_page + 1
-    # Переход на последнюю страницу
     elif action == 'last':
         new_page = total_pages
     else:
@@ -1205,6 +1303,7 @@ async def paginate_chats(call: CallbackQuery):
 
     current_chat_id = user["current_chat_id"]
 
+    # Формируем текст для обновленного списка чатов
     text = (
         "🗂 *Меню чатов позволяет:*\n"
         "-- Создавать новые чаты\n"
@@ -1213,6 +1312,7 @@ async def paginate_chats(call: CallbackQuery):
         "*Выберите необходимый чат ⤵️*"
     )
 
+    # Формируем клавиатуру с кнопками
     kb = InlineKeyboardMarkup(row_width=2)
 
     # Кнопки: удалить все и создать новый
@@ -1248,11 +1348,18 @@ async def paginate_chats(call: CallbackQuery):
     except Exception as e:
         pass
 
-    await call.answer()  # Закрытие всплывающего окна
+    # Закрытие всплывающего окна
+    await call.answer()
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('select_chat:'))
 async def select_chat(call: CallbackQuery):
+    """
+    Обработчик выбора чата. Позволяет пользователю выбрать чат для переключения
+    и отображения дополнительных настроек чата.
+
+    :param call: Объект CallbackQuery, содержащий данные вызова.
+    """
     # Получаем ID выбранного чата
     chat_id = int(call.data.split(":")[1])
     user_id = call.from_user.id
@@ -1270,10 +1377,8 @@ async def select_chat(call: CallbackQuery):
     # Текст для выбранного чата
     text = f'Управление чатом\n"*{chat_name}*"'
 
-    # Если выбранный чат текущий, показываем "✅ Выбран", иначе "▶️ Выбрать этот чат"
-    select_button_text = "✅ Выбран" if chat_id == user["current_chat_id"] else "▶️ Выбрать этот чат"
-
     # Формируем кнопки для управления выбранным чатом
+    select_button_text = "✅ Выбран" if chat_id == user["current_chat_id"] else "▶️ Выбрать этот чат"
     kb = InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton(select_button_text, callback_data=f"select_active_chat:{chat_id}"),
         InlineKeyboardButton("✏️ Переименовать чат", callback_data=f"rename_chat:{chat_id}"),
@@ -1283,51 +1388,70 @@ async def select_chat(call: CallbackQuery):
 
     # Обновляем сообщение с новым текстом и кнопками
     await call.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
-    await call.answer()  # Закрытие всплывающего окна
+    await call.answer()
 
 @dp.callback_query_handler(lambda c: c.data.startswith('select_active_chat:'))
 async def select_active_chat(call: CallbackQuery):
-    # Получаем ID выбранного чата
-    chat_id = int(call.data.split(":")[1])
-    # Получаем данные пользователя
-    user_id = call.from_user.id
-    user = await db.get_user(user_id)
+    """
+    Обрабатывает выбор активного чата пользователем.
+
+    При получении callback-запроса с выбранным чатом обновляется текущий активный чат
+    пользователя и отправляется сообщение о том, что чат успешно загружен.
+    """
+    chat_id = int(call.data.split(":")[1])  # Извлекаем ID выбранного чата
+    user_id = call.from_user.id  # Получаем ID пользователя
+    user = await db.get_user(user_id)  # Получаем данные пользователя из базы данных
+
     if not user:
+        # Если пользователь не найден, показываем ошибку
         await call.answer("Пользователь не найден.", show_alert=True)
         return
-    # Обновляем текущий активный чат
+
+    # Обновляем текущий активный чат для пользователя в базе данных
     conn = await db.get_conn()
     await conn.execute(
         "UPDATE users SET current_chat_id = $1 WHERE user_id = $2", chat_id, user["user_id"]
     )
     await conn.close()
 
+    # Отправляем сообщение о том, что чат успешно загружен
     await call.message.edit_text("Чат успешно загружен. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
     await call.answer()
 
 
-
 @dp.callback_query_handler(lambda c: c.data.startswith('rename_chat:'))
 async def rename_chat(call: CallbackQuery, state: FSMContext):
-    chat_id = int(call.data.split(":")[1])
-    user_id = call.from_user.id
+    """
+    Обрабатывает запрос на переименование чата.
 
-    # Сохраняем chat_id в состоянии для дальнейшего использования
+    При получении callback-запроса с ID чата сохраняет его в состоянии для дальнейшего использования,
+    затем запрашивает новое имя чата у пользователя.
+    """
+    chat_id = int(call.data.split(":")[1])  # Извлекаем ID чата
+    user_id = call.from_user.id  # Получаем ID пользователя
+
+    # Сохраняем chat_id в состояние FSM для дальнейшего использования
     await state.update_data(chat_id=chat_id)
 
-    # Запрашиваем новое имя чата
+    # Запрашиваем новое имя чата у пользователя
     await call.message.answer("Введите новое имя для чата:")
 
-    # Переходим в состояние для ввода нового имени чата
+    # Переходим в состояние ожидания нового имени чата
     await EnterChatRename.chat_name.set()
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('delete_selected_chat:'))
 async def delete_selected_chat(call: CallbackQuery):
-    chat_id = int(call.data.split(":")[1])
-    user_id = call.from_user.id
+    """
+    Обрабатывает запрос на удаление выбранного чата.
 
-    # Удаляем выбранный чат
+    При получении callback-запроса с ID чата удаляет соответствующий чат из базы данных и
+    обновляет список чатов, показывая пользователю уведомление об успешном удалении.
+    """
+    chat_id = int(call.data.split(":")[1])  # Извлекаем ID чата
+    user_id = call.from_user.id  # Получаем ID пользователя
+
+    # Удаляем выбранный чат из базы данных
     conn = await db.get_conn()
     await conn.execute("DELETE FROM chats WHERE id = $1", chat_id)
     await conn.close()
@@ -1335,32 +1459,35 @@ async def delete_selected_chat(call: CallbackQuery):
     # Обновляем список чатов
     await show_my_chats(call)
 
-    # Отправляем сообщение о успешном удалении
-    await call.message.edit_text("Чат успешно удалён. \n\n*Введите новый запрос ⤵️*", parse_mode="Markdown")
+    # Отправляем сообщение об успешном удалении
+    await call.message.edit_text("Чат успешно удалён. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
     await call.answer()  # Закрытие всплывающего окна
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('select_chat:'))
 async def select_chat(call: CallbackQuery):
-    # Получаем ID выбранного чата
-    chat_id = int(call.data.split(":")[1])
-    user_id = call.from_user.id
+    """
+    Обрабатывает выбор чата пользователем.
 
-    # Получаем данные пользователя
+    При получении callback-запроса с ID выбранного чата обновляется текущий активный чат
+    пользователя и отображается обновлённый список чатов.
+    """
+    chat_id = int(call.data.split(":")[1])  # Извлекаем ID чата
+    user_id = call.from_user.id  # Получаем ID пользователя
+
+    # Получаем данные пользователя из базы данных
     user = await db.get_user(user_id)
     if not user:
+        # Если пользователь не найден, показываем ошибку
         await call.answer("Пользователь не найден.", show_alert=True)
         return
 
-    # Обновляем текущий активный чат
+    # Обновляем текущий активный чат пользователя в базе данных
     conn = await db.get_conn()
     await conn.execute(
         "UPDATE users SET current_chat_id = $1 WHERE user_id = $2", chat_id, user["user_id"]
     )
     await conn.close()
-
-    # Сообщаем пользователю, что чат успешно переключен
-    # await call.answer(f"Вы перешли в чат: {chat_id}", show_alert=True)
 
     # Обновляем список чатов
     await show_my_chats(call)
@@ -1368,24 +1495,36 @@ async def select_chat(call: CallbackQuery):
 
 @dp.callback_query_handler(text="delete_all_chats")
 async def confirm_delete_all_chats(call: CallbackQuery):
-    user_id = call.from_user.id
+    """
+    Запрашивает подтверждение на удаление всех чатов.
 
-    # Показываем подтверждение
+    При получении callback-запроса с текстом подтверждения, отправляется сообщение с запросом
+    на подтверждение удаления всех чатов. Если пользователь подтверждает, чаты будут удалены.
+    """
+    user_id = call.from_user.id  # Получаем ID пользователя
+
+    # Формируем текст для подтверждения удаления
     confirmation_text = "Вы действительно хотите удалить все чаты?"
     kb = InlineKeyboardMarkup(row_width=2).add(
         InlineKeyboardButton("❌ Удалить все чаты", callback_data="confirm_delete_all_chats"),
         InlineKeyboardButton("🔙 Назад", callback_data="my_chats")
     )
 
+    # Отправляем сообщение с кнопками подтверждения
     await call.message.edit_text(confirmation_text, reply_markup=kb)
     await call.answer()  # Закрытие всплывающего окна
 
-
 @dp.callback_query_handler(text="confirm_delete_all_chats")
 async def delete_all_chats(call: CallbackQuery):
-    user_id = call.from_user.id
+    """
+    Обрабатывает запрос на удаление всех чатов пользователя.
 
-    # Удаляем все чаты пользователя
+    При получении callback-запроса с подтверждением, удаляет все чаты пользователя из базы данных,
+    обновляет список чатов и отправляет уведомление об успешном удалении.
+    """
+    user_id = call.from_user.id  # Получаем ID пользователя
+
+    # Удаляем все чаты пользователя из базы данных
     conn = await db.get_conn()
     await conn.execute("DELETE FROM chats WHERE user_id = $1", user_id)
     await conn.close()
@@ -1400,20 +1539,34 @@ async def delete_all_chats(call: CallbackQuery):
 
 @dp.callback_query_handler(text="create_chat")
 async def create_chat(call: CallbackQuery):
-    user_id = call.from_user.id
+    """
+    Запрашивает у пользователя название для нового чата.
 
-    # Запрашиваем имя нового чата
+    При получении callback-запроса с командой создания чата, запрашивает у пользователя название для нового чата
+    и переходит в состояние ожидания ввода.
+    """
+    user_id = call.from_user.id  # Получаем ID пользователя
+
+    # Запрашиваем название нового чата
     await call.message.answer("Введите название чата:")
 
-    # Переходим в состояние ожидания ввода имени нового чата
+    # Переходим в состояние ожидания ввода названия нового чата
     await EnterChatName.chat_name.set()
+
 
 @dp.message_handler(state=EnterChatName.chat_name)
 async def process_new_chat_name(message: Message, state: FSMContext):
-    user_id = message.from_user.id
-    chat_name = message.text.strip()
+    """
+    Обрабатывает введённое пользователем название нового чата.
+
+    При получении нового имени чата, проверяет его на пустоту, затем создает новый чат в базе данных,
+    обновляет текущий чат пользователя и отправляет уведомление об успешном создании чата.
+    """
+    user_id = message.from_user.id  # Получаем ID пользователя
+    chat_name = message.text.strip()  # Получаем название чата
 
     if not chat_name:
+        # Если название пустое, запрашиваем ввод заново
         await message.answer("Название чата не может быть пустым. Пожалуйста, введите название.")
         return
 
@@ -1425,7 +1578,7 @@ async def process_new_chat_name(message: Message, state: FSMContext):
     )
     await conn.close()
 
-    # Обновляем текущий чат пользователя
+    # Получаем ID нового чата
     conn = await db.get_conn()
     new_chat_id = await conn.fetchval(
         "SELECT id FROM chats WHERE user_id = $1 AND name = $2 LIMIT 1", user_id, chat_name
@@ -1438,25 +1591,31 @@ async def process_new_chat_name(message: Message, state: FSMContext):
     # Подтверждаем создание чата
     await message.answer(f'Чат "_{chat_name}_" успешно создан!\n\n*Введите запрос ⤵️*', parse_mode="Markdown")
 
-
     # Завершаем состояние
     await state.finish()
 
 
 @dp.message_handler(state=EnterChatRename.chat_name)
 async def process_rename_chat_name(message: Message, state: FSMContext):
-    user_id = message.from_user.id
-    chat_name = message.text.strip()
+    """
+    Обрабатывает запрос на переименование чата.
+
+    При получении нового имени для чата, проверяет его на пустоту, затем обновляет имя чата в базе данных
+    и отправляет уведомление о том, что переименование успешно завершено.
+    """
+    user_id = message.from_user.id  # Получаем ID пользователя
+    chat_name = message.text.strip()  # Получаем новое имя чата
 
     if not chat_name:
+        # Если название пустое, запрашиваем ввод заново
         await message.answer("Название чата не может быть пустым. Пожалуйста, введите название.")
         return
 
     # Получаем данные из состояния (chat_id)
     data = await state.get_data()
-    chat_id = data["chat_id"]
+    chat_id = data["chat_id"]  # Получаем ID чата из состояния
 
-    # Обновляем имя текущего чата в базе данных
+    # Обновляем имя чата в базе данных
     conn = await db.get_conn()
     await conn.execute(
         "UPDATE chats SET name = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3",
@@ -1464,7 +1623,7 @@ async def process_rename_chat_name(message: Message, state: FSMContext):
     )
     await conn.close()
 
-    # Подтверждаем успешное переименование
+    # Подтверждаем успешное переименование чата
     await message.answer(f'Чат успешно переименован в "_{chat_name}_".\n\n*Введите запрос ⤵️*', parse_mode="Markdown")
 
     # Завершаем состояние
@@ -1473,56 +1632,72 @@ async def process_rename_chat_name(message: Message, state: FSMContext):
 
 @dp.callback_query_handler(text="delete_chat")
 async def delete_chat(call: CallbackQuery):
-    user_id = call.from_user.id
+    """
+    Обрабатывает запрос на удаление текущего чата пользователя.
 
-    # Получаем данные пользователя
+    При получении запроса, запрашивает у пользователя подтверждение на удаление чата.
+    Если пользователь подтверждает удаление, удаляет чат из базы данных.
+    """
+    user_id = call.from_user.id  # Получаем ID пользователя
+
+    # Получаем данные пользователя из базы данных
     user = await db.get_user(user_id)
     if not user:
         await call.answer("Пользователь не найден.", show_alert=True)
         return
 
-    # Получаем имя текущего чата
+    # Получаем имя текущего чата пользователя
     conn = await db.get_conn()
     chat = await conn.fetchrow("SELECT name FROM chats WHERE id = $1", user["current_chat_id"])
     await conn.close()
 
     if not chat:
-        await call.message.edit_text("Активных чатов нет. \n\n*Введите новый запрос ⤵️*", parse_mode="Markdown")
+        # Если чатов нет, сообщаем пользователю
+        await call.message.edit_text("Активных чатов нет. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
         return
 
-    chat_name = chat["name"]
+    chat_name = chat["name"]  # Извлекаем название чата
 
-    # Запрашиваем подтверждение удаления чата
+    # Запрашиваем у пользователя подтверждение удаления
     confirmation_text = f'Вы действительно хотите удалить чат: "*{chat_name}*?"'
     kb = InlineKeyboardMarkup(row_width=2).add(
         InlineKeyboardButton("✅ Удалить чат", callback_data="confirm_delete_chat"),
         InlineKeyboardButton("🔙 Назад", callback_data="my_chats")
     )
 
+    # Отправляем сообщение с запросом подтверждения удаления
     await call.message.edit_text(confirmation_text, parse_mode="Markdown", reply_markup=kb)
     await call.answer()  # Закрытие всплывающего окна
 
 
 @dp.callback_query_handler(text="confirm_delete_chat")
 async def confirm_delete_chat(call: CallbackQuery):
-    user_id = call.from_user.id
+    """
+    Подтверждает удаление чата пользователя.
 
-    # Получаем данные пользователя
+    При получении запроса на подтверждение удаления, удаляет текущий чат пользователя из базы данных
+    и отправляет уведомление об успешном удалении.
+    """
+    user_id = call.from_user.id  # Получаем ID пользователя
+
+    # Получаем данные пользователя из базы данных
     user = await db.get_user(user_id)
     if not user:
         await call.answer("Пользователь не найден.", show_alert=True)
         return
 
-    # Удаляем текущий чат
+    # Удаляем текущий чат пользователя из базы данных
     conn = await db.get_conn()
     await conn.execute(
         "DELETE FROM chats WHERE id = $1", user["current_chat_id"]
+
     )
     await conn.close()
 
-    # Подтверждаем удаление
+    # Подтверждаем успешное удаление чата
     await call.message.edit_text("Чат успешно удален. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
     await call.answer()
+
 
 
 
