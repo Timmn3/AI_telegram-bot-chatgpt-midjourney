@@ -1341,7 +1341,7 @@ async def paginate_chats(call: CallbackQuery):
 
     # Отправляем обновленное сообщение с чатиками и кнопками
     try:
-        await call.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
+        await call.message.answer(text, parse_mode="Markdown", reply_markup=kb)
     except Exception as e:
         pass
 
@@ -1412,7 +1412,7 @@ async def select_active_chat(call: CallbackQuery):
     await conn.close()
 
     # Отправляем сообщение о том, что чат успешно загружен
-    await call.message.edit_text("Чат успешно загружен. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
+    await call.message.answer("Чат успешно загружен. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
     await call.answer()
 
 
