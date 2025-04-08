@@ -214,8 +214,8 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     current_chat = await db.get_chat_by_id(user["current_chat_id"])
 
     # Отправляем пользователю имя текущего чата (если есть)
-    if current_chat and current_chat["name"]:
-        await bot.send_message(user_id, f"💬 Активный чат: *{current_chat['name']}*", parse_mode="Markdown")
+    # if current_chat and current_chat["name"]:
+    #     await bot.send_message(user_id, f"💬 Активный чат: *{current_chat['name']}*", parse_mode="Markdown")
 
     # Вставляем краткое содержание (summary), если есть
     summary = current_chat["summary"] if current_chat else ""
