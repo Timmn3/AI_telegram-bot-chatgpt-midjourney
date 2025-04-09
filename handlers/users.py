@@ -191,8 +191,18 @@ def split_message(text: str, max_length: int) -> list:
 
     return parts
 
+# Функция для форматирования LaTeX-выражений в HTML
+def format_math_in_text(text: str) -> str:
+    # Находим все LaTeX-формулы, заключенные в \(...\) и \(...\)
+    formulas = re.findall(r'\\\((.*?)\\\)', text)
 
-import re
+    # Преобразуем найденные формулы в HTML-блоки <pre> для отправки
+    formatted_text = text
+    for formula in formulas:
+        # Заменяем формулы в оригинальном тексте на форматированные в <pre>
+        formatted_text = formatted_text.replace(f'\\({formula}\\)', f'<pre>{formula}</pre>')
+
+    return formatted_text
 
 
 def format_html_math_block(text: str) -> str:
@@ -234,6 +244,7 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     if summary:
         prompt = f"Ранее в этом чате обсуждалось: {summary.strip()}\n\n" + prompt
     prompt += f"\n{lang_text[user['chat_gpt_lang']]}"
+
     message_user = prompt
 
     if messages is None:
@@ -241,11 +252,16 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     messages.append({"role": "user", "content": prompt})
 
     logger.info(f"Текстовый запрос к ChatGPT. User: {user}, Model: {model}, tokens: {user[f'tokens_{model_dashed}']}")
+
     await bot.send_chat_action(user_id, ChatActions.TYPING)
 
     res = await ai.get_gpt(messages, model)
 
-    html_content = format_html_math_block(res["content"])
+    # Форматируем ответ с математическими выражениями
+    html_content = format_math_in_text(res["content"])  # Применяем функцию для форматирования
+
+    # Далее, обрабатываем HTML-форматирование
+    html_content = format_html_math_block(html_content)
 
     if len(html_content) <= 4096:
         await bot.send_message(
@@ -295,7 +311,8 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     has_purchase = await db.has_matching_orders(user_id)
 
     if user[f"tokens_{model_dashed}"] <= 1000 and model_dashed != "4o_mini":
-        logger.info(f"Осталось {user[f'tokens_{model_dashed}']} токенов, уведомление: {user_notified}, покупка: {has_purchase}")
+        logger.info(
+            f"Осталось {user[f'tokens_{model_dashed}']} токенов, уведомление: {user_notified}, покупка: {has_purchase}")
         if user_notified is None and has_purchase:
             await db.create_user_notification_gpt(user_id)
             await notify_low_chatgpt_tokens(user_id, bot)
@@ -307,7 +324,6 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
     await db.add_action(user_id, model)
     return messages
-
 
 
 async def update_chat_summary(chat_id: int, message_user: str, message_gpt: str, model: str, old_summary: str = "") -> str:
