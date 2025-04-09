@@ -200,22 +200,27 @@ def process_formula(match):
     formula = formula.replace(r"\times", "×").replace(r"\cdot", "·")  # Умножение: \times → ×, \cdot → ·
     formula = formula.replace(r"\implies", "⇒").replace(r"\approx", "≈")  # Логические и математические символы
     formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)  # Квадратный корень: \sqrt{a} → √(a)
+    formula = re.sub(r"([a-zA-Z])\^([0-9]+)", lambda m: f"{m.group(1)}{chr(8304 + int(m.group(2)))}", formula)  # Степени (например, x^2 → x²)
+    formula = re.sub(r"([a-zA-Z])_([0-9]+)", lambda m: f"{m.group(1)}{chr(8320 + int(m.group(2)))}", formula)  # Индексы: t_1 → t₁
 
-    # Обработка системы уравнений (например, \begin{cases} ... \end{cases})
-    formula = re.sub(r"\\begin{cases}(.*?)\\end{cases}", r"\n{\1}\n", formula, flags=re.DOTALL)
-    formula = re.sub(r"\\\\", r"\n", formula)  # Заменяем \\\\ на новую строку
+    # Обработка символов углов (например, 30^\circ → 30°)
+    formula = re.sub(r"\\degree", "°", formula)
 
-    # Степени (например, x^2 → x²)
-    formula = re.sub(r"([a-zA-Z])\^([0-9]+)", lambda m: f"{m.group(1)}{chr(8304 + int(m.group(2)))}", formula)
-
-    # Индексы: t_1 → t₁
-    formula = re.sub(r"([a-zA-Z])_([0-9]+)", lambda m: f"{m.group(1)}{chr(8320 + int(m.group(2)))}", formula)
+    # Замена символов для греческих букв (например, \alpha → α)
+    greek_letters = {
+        r"\alpha": "α", r"\beta": "β", r"\gamma": "γ", r"\delta": "δ", r"\epsilon": "ε",
+        r"\zeta": "ζ", r"\eta": "η", r"\theta": "θ", r"\iota": "ι", r"\kappa": "κ",
+        r"\lambda": "λ", r"\mu": "μ", r"\nu": "ν", r"\xi": "ξ", r"\omicron": "ο",
+        r"\pi": "π", r"\rho": "ρ", r"\sigma": "σ", r"\tau": "τ", r"\upsilon": "υ",
+        r"\phi": "φ", r"\chi": "χ", r"\psi": "ψ", r"\omega": "ω"
+    }
+    for latex, symbol in greek_letters.items():
+        formula = formula.replace(latex, symbol)
 
     # Убираем лишние символы LaTeX (например, \)
     formula = formula.replace("\\", "")
 
     return f"<pre>{formula.strip()}</pre>"
-
 
 def format_math_in_text(text: str) -> str:
     # Обработка формул внутри \[ ... \] или \( ... \)
