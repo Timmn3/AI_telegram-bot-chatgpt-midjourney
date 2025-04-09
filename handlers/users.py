@@ -198,11 +198,10 @@ def format_math_in_text(text: str) -> str:
     преобразуя степени, корни и умножение.
     """
 
-    # Экранируем HTML в обычном тексте, кроме формул
     def escape_html_except_formulas(text):
-        parts = re.split(r'(\\\(.*?\\\))', text)  # отделяем формулы
+        parts = re.split(r'(\\\(.*?\\\))', text, flags=re.DOTALL)  # добавлено flags
         for i in range(len(parts)):
-            if not parts[i].startswith('\\('):  # это обычный текст
+            if not parts[i].startswith('\\('):
                 parts[i] = (
                     parts[i].replace("&", "&amp;")
                             .replace("<", "&lt;")
@@ -212,7 +211,6 @@ def format_math_in_text(text: str) -> str:
 
     text = escape_html_except_formulas(text)
 
-    # Обработка формулы
     def process_formula(match):
         formula = match.group(1)
         formula = re.sub(r"\^2", "²", formula)
@@ -221,9 +219,9 @@ def format_math_in_text(text: str) -> str:
         formula = re.sub(r"sqrt\{(.*?)\}", r"√(\1)", formula)
         formula = re.sub(r"sqrt\((.*?)\)", r"√(\1)", formula)
         formula = formula.replace("*", "·")
-        return f"<pre>{formula}</pre>"
+        return f"<pre>{formula.strip()}</pre>"
 
-    return re.sub(r'\\\((.*?)\\\)', process_formula, text)
+    return re.sub(r'\\\((.*?)\\\)', process_formula, text, flags=re.DOTALL)
 
 
 # Генерация ответа от ChatGPT
