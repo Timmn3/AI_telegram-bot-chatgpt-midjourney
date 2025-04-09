@@ -207,21 +207,27 @@ def replace_powers(formula):
 def process_formula(match):
     formula = match.group(1)
 
-    # Обработка дробей: \frac{a}{b} -> a / b
+    # \frac{a}{b} → a / b
     formula = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1 / \2", formula)
 
-    # Замена знаков умножения и корней
+    # \text{...} → просто текст
+    formula = re.sub(r"\\text\{(.*?)\}", r"\1", formula)
+
+    # Замены: \times → ×, \cdot → ·
     formula = formula.replace(r"\times", "×").replace(r"\cdot", "·")
+
+    # Корни: \sqrt{...} → √(...)
     formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)
     formula = re.sub(r"\\sqrt\((.*?)\)", r"√(\1)", formula)
 
-    # Замена степеней на надстрочные
+    # Степени
     formula = replace_powers(formula)
 
-    # Удаление оставшихся слэшей
+    # Удаляем оставшиеся \
     formula = formula.replace("\\", "")
 
     return f"<pre>{formula.strip()}</pre>"
+
 
 def format_math_in_text(text: str) -> str:
     # Обработка формул внутри \( ... \)
