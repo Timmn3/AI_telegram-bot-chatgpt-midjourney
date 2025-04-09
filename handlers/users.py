@@ -1,24 +1,27 @@
 import logging
 from datetime import datetime, timedelta
 from typing import List
+import requests
 from aiogram import Bot
 from aiogram.types import Message, CallbackQuery, ChatActions, ContentType, MediaGroup, Update, InlineKeyboardMarkup, \
     InlineKeyboardButton
 from aiogram.types.input_file import InputFile
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher import FSMContext
-import asyncio
+
+import matplotlib.pyplot as plt
+import io
 import re
 import tempfile
 import os
+import config
 from states.user import EnterChatName, EnterChatRename
-from utils import db, ai, more_api, pay # Импорт утилит для взаимодействия с БД и внешними API
+from utils import db, ai, more_api, pay  # Импорт утилит для взаимодействия с БД и внешними API
 from states import user as states  # Состояния FSM для пользователя
 import keyboards.user as user_kb  # Клавиатуры для взаимодействия с пользователями
 from config import bot_url, TOKEN, NOTIFY_URL, bug_id, PHOTO_PATH, MJ_PHOTO_BASE_URL, ADMINS_CODER
 from create_bot import dp  # Диспетчер из create_bot.py
 from utils.ai import mj_api, text_to_speech, voice_to_text
-
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +42,7 @@ async def check_promocode(user_id, code, bot: Bot):
     # Проверяем, использовал ли пользователь этот промокод ранее
     user_promocode = await db.get_user_promocode_by_promocode_id_and_user_id(promocode["promocode_id"], user_id)
     all_user_promocode = await db.get_all_user_promocode_by_promocode_id(promocode["promocode_id"])
-    
+
     # Если пользователь не использовал промокод и есть свободные активации, применяем его
     if user_promocode is None and len(all_user_promocode) < promocode["uses_count"]:
         await db.create_user_promocode(promocode["promocode_id"], user_id)
@@ -56,20 +59,18 @@ async def check_promocode(user_id, code, bot: Bot):
 
 # Снижение баланса пользователя
 async def remove_balance(bot: Bot, user_id):
-
     await db.remove_balance(user_id)
     user = await db.get_user(user_id)
     # Если баланс меньше 50, отправляем уведомление о необходимости пополнения
     if user["balance"] <= 50:
         await db.update_stock_time(user_id, int(datetime.now().timestamp()))
         await bot.send_message(user_id, """⚠️Заканчивается баланс!
-Успей пополнить в течении 24 часов и получи на счёт +10% от суммы пополнения ⤵️""", 
+Успей пополнить в течении 24 часов и получи на счёт +10% от суммы пополнения ⤵️""",
                                reply_markup=user_kb.get_pay(user_id, 10))  # Кнопка пополнения баланса
 
 
 # Функция для уведомления пользователя о недостатке средств
 async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
-
     now = datetime.now()
 
     if ai_type == "chatgpt":
@@ -80,21 +81,22 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
 
         model_map = {'4o-mini': 'ChatGPT',
                      '4o': 'GPT-4o',
-                     'o3-mini': 'GPT-o3-mini'} # поменять
+                     'o3-mini': 'GPT-o3-mini'}  # поменять
 
         user_data = await db.get_user_notified_gpt(user_id)
 
         if not model == '4o-mini':
             await db.set_model(user_id, "4o-mini")
-            await bot.send_message(user_id,"✅Модель для ChatGPT изменена на GPT-4o-mini")
+            await bot.send_message(user_id, "✅Модель для ChatGPT изменена на GPT-4o-mini")
 
         if model == '4o-mini':
-            keyboard=user_kb.get_chatgpt_models_noback()
+            keyboard = user_kb.get_chatgpt_models_noback()
         else:
-            keyboard=user_kb.get_chatgpt_tokens_menu('normal', model)
+            keyboard = user_kb.get_chatgpt_tokens_menu('normal', model)
 
-        await bot.send_message(user_id, f"⚠️Токены для {model_map[model]} закончились!\n\nВыберите интересующий вас вариант⤵️", 
-            reply_markup=keyboard)  # Отправляем уведомление с клавиатурой для пополнения токенов
+        await bot.send_message(user_id,
+                               f"⚠️Токены для {model_map[model]} закончились!\n\nВыберите интересующий вас вариант⤵️",
+                               reply_markup=keyboard)  # Отправляем уведомление с клавиатурой для пополнения токенов
 
     elif ai_type == "image":
         user_data = await db.get_user_notified_mj(user_id)
@@ -109,19 +111,19 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
 
 Выберите интересующий вас вариант⤵️
                 """,
-                    reply_markup=user_kb.get_midjourney_discount_requests_menu()
-                )
+                                       reply_markup=user_kb.get_midjourney_discount_requests_menu()
+                                       )
                 return
         await bot.send_message(user_id, """
 ⚠️Запросы для Midjourney закончились!
 
 Выберите интересующий вас вариант⤵️
-        """, reply_markup=user_kb.get_midjourney_requests_menu())  # Отправляем уведомление с клавиатурой для пополнения запросов
+        """,
+                               reply_markup=user_kb.get_midjourney_requests_menu())  # Отправляем уведомление с клавиатурой для пополнения запросов
 
 
 # Генерация изображения через MidJourney
 async def get_mj(prompt, user_id, bot: Bot):
-
     user = await db.get_user(user_id)
 
     # Проверяем наличие запросов и отправляем уведомление, если запросы исчерпаны
@@ -129,7 +131,8 @@ async def get_mj(prompt, user_id, bot: Bot):
         await not_enough_balance(bot, user_id, "image")  # Отправляем уведомление о недостатке средств
         return
 
-    await bot.send_message(user_id, "Ожидайте, генерирую изображение..🕙", reply_markup=user_kb.get_menu(user["default_ai"]))
+    await bot.send_message(user_id, "Ожидайте, генерирую изображение..🕙",
+                           reply_markup=user_kb.get_menu(user["default_ai"]))
     # await bot.send_message(user_id, "В настоящее время генерация не доступна, попробуйте позже!")
     await bot.send_chat_action(user_id, ChatActions.UPLOAD_PHOTO)
 
@@ -157,7 +160,7 @@ async def get_mj(prompt, user_id, bot: Bot):
     now = datetime.now()
     user_notified = await db.get_user_notified_mj(user_id)
     user = await db.get_user(user_id)  # Получаем обновленные данные пользователя
-    
+
     if 1 < user["mj"] <= 3:  # Если осталось 3 или меньше запросов
         if user_notified is None:
             await db.create_user_notification_mj(user_id)
@@ -212,6 +215,7 @@ def process_formula(match):
     formula = formula.replace("\\", "")
 
     return f"<pre>{formula.strip()}</pre>"
+
 
 def format_math_in_text(text: str) -> str:
     # Обработка формул внутри \[ ... \] или \( ... \)
@@ -314,7 +318,8 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     return messages
 
 
-async def update_chat_summary(chat_id: int, message_user: str, message_gpt: str, model: str, old_summary: str = "") -> str:
+async def update_chat_summary(chat_id: int, message_user: str, message_gpt: str, model: str,
+                              old_summary: str = "") -> str:
     summary_prompt = (
         f"Вот краткое описание предыдущей беседы: {old_summary}\n\n"
         f"Добавь к нему краткое описание следующей части диалога:\n"
@@ -353,12 +358,11 @@ async def generate_chat_name(message_user: str, model: str, message_gpt: str) ->
     return response["content"].strip().strip('"')[:50]
 
 
-
 ''' Новые две функции - уведомления об заканчивающихся токенах '''
+
 
 # Уведомение о низком количестве токенов GPT
 async def notify_low_chatgpt_tokens(user_id, bot: Bot):
-
     logger.info('Внутри скидочного уведомления - выбираем модель')
 
     await bot.send_message(user_id, """
@@ -370,7 +374,6 @@ async def notify_low_chatgpt_tokens(user_id, bot: Bot):
 
 # Уведомление о низком количестве запросов MidJourney
 async def notify_low_midjourney_requests(user_id, bot: Bot):
-
     await bot.send_message(user_id, """
 У вас заканчиваются запросы для 🎨Midjourney
 Специально для вас мы подготовили <b>персональную скидку</b>!
@@ -393,10 +396,10 @@ async def all_callback_handler(call: CallbackQuery):
     await call.message.answer("Callback received")
 '''
 
+
 # Хэндлер команды /start
 @dp.message_handler(state="*", commands='start')
 async def start_message(message: Message, state: FSMContext):
-
     await state.finish()  # Завершаем любое текущее состояние
 
     # Обрабатываем параметры команды /start (например, реферальные коды)
@@ -416,7 +419,8 @@ async def start_message(message: Message, state: FSMContext):
     user = await db.get_user(message.from_user.id)
 
     if user is None:
-        await db.add_user(message.from_user.id, message.from_user.username, message.from_user.first_name, int(inviter_id))
+        await db.add_user(message.from_user.id, message.from_user.username, message.from_user.first_name,
+                          int(inviter_id))
         default_ai = "chatgpt"
     else:
         default_ai = user["default_ai"]
@@ -433,7 +437,6 @@ async def start_message(message: Message, state: FSMContext):
 # Хендлер настроек ChatGPT
 @dp.callback_query_handler(text="settings")
 async def settings(call: CallbackQuery):
-
     user = await db.get_user(call.from_user.id)
     user_lang = user["chat_gpt_lang"]
 
@@ -445,7 +448,6 @@ ChatGPT⤵️""", reply_markup=user_kb.settings(user_lang, 'acc'))
 # Хендлер для проверки подписки через callback-запрос
 @dp.callback_query_handler(text="check_sub")
 async def check_sub(call: CallbackQuery):
-
     user = await db.get_user(call.from_user.id)  # Получаем данные пользователя из базы
     if user is None:
         # Если пользователь новый, создаем запись
@@ -459,31 +461,29 @@ async def check_sub(call: CallbackQuery):
 # Хендлер для удаления сообщения через callback-запрос
 @dp.callback_query_handler(text="delete_msg")
 async def delete_msg(call: CallbackQuery, state: FSMContext):
-
     await call.message.delete()  # Удаляем сообщение
 
 
 # Хендлер для возврата к главному меню через callback-запрос
 @dp.callback_query_handler(text="back_to_menu")
 async def back_to_menu(call: CallbackQuery):
-
     user = await db.get_user(call.from_user.id)  # Получаем данные пользователя
     await call.message.answer("""NeuronAgent🤖 - 2 нейросети в одном месте!
 
 ChatGPT или Midjourney?""", reply_markup=user_kb.get_menu(user["default_ai"]))  # Меню выбора AI
     await call.message.delete()  # Удаляем предыдущее сообщение
 
+
 # Хендлер для партнерской программы
 @dp.message_handler(state="*", text="🤝Партнерская программа")
 @dp.message_handler(commands='partner')
 async def ref_menu(message: Message):
-
     ref_data = await db.get_ref_stat(message.from_user.id)  # Получаем данные по рефералам
     if ref_data['all_income'] is None:
         all_income = 0
     else:
         all_income = ref_data['all_income']
-    
+
     # Отправляем пользователю QR-код и информацию о партнерской программе
     await message.answer_photo(more_api.get_qr_photo(bot_url + '?start=' + str(message.from_user.id)),
                                caption=f'''<b>🤝 Партнёрская программа</b>
@@ -502,11 +502,11 @@ async def ref_menu(message: Message):
 Ваша реферальная ссылка: ''',
                                reply_markup=user_kb.get_ref_menu(f'{bot_url}?start=r{message.from_user.id}'))
 
+
 # Хендлер для показа профиля пользователя (страница аккаунта)
 @dp.message_handler(state="*", text="⚙Аккаунт")
 @dp.message_handler(state="*", commands="account")
 async def show_profile(message: Message, state: FSMContext):
-
     await state.finish()
     user_id = message.from_user.id
     user = await db.get_user(user_id)  # Получаем данные пользователя
@@ -517,7 +517,8 @@ async def show_profile(message: Message, state: FSMContext):
     gpt_4o = int(user['tokens_4o']) if int(user['tokens_4o']) >= 0 else 0
     gpt_o3_mini = int(user['tokens_o3_mini']) if int(user['tokens_o3_mini']) >= 0 else 0
 
-    logger.info(f"Количество токенов и запросов для {user_id}:mj: {mj}, gpt_4o: {gpt_4o}, gpt_4o_mini: {gpt_4o_mini}, gpt_o3_mini: {gpt_o3_mini}")
+    logger.info(
+        f"Количество токенов и запросов для {user_id}:mj: {mj}, gpt_4o: {gpt_4o}, gpt_4o_mini: {gpt_4o_mini}, gpt_o3_mini: {gpt_o3_mini}")
 
     # Формируем текст с количеством доступных генераций и токенов
     sub_text = f"""
@@ -528,17 +529,15 @@ async def show_profile(message: Message, state: FSMContext):
 Токены 💬GPT-4o-mini:  ♾️
 Токены 💬GPT-o3-mini:  {format(gpt_o3_mini, ',').replace(',', ' ')}
         """
-    
+
     # Отправляем сообщение с обновленными данными аккаунта
     await message.answer(f"""🆔: <code>{user_id}</code>
 {sub_text}""", reply_markup=user_kb.get_account(user_lang, "account"))
 
 
-
 # Хендлер для возврата к профилю пользователя через callback-запрос
 @dp.callback_query_handler(Text(startswith="back_to_profile"), state="*")
 async def back_to_profile(call: CallbackQuery, state: FSMContext):
-
     logger.info(f"Back To Profile {call.data}")
 
     src = call.data.split(":")[1]
@@ -558,7 +557,8 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
         gpt_4o = int(user['tokens_4o']) if int(user['tokens_4o']) >= 0 else 0
         gpt_o3_mini = int(user['tokens_o3_mini']) if int(user['tokens_o3_mini']) >= 0 else 0
 
-        logger.info(f"Колиество токенов и запросов для {user_id}:mj: {mj}, gpt_4o: {gpt_4o}, gpt_4o_mini: {gpt_4o_mini}, gpt_o3_mini: {gpt_o3_mini}")
+        logger.info(
+            f"Колиество токенов и запросов для {user_id}:mj: {mj}, gpt_4o: {gpt_4o}, gpt_4o_mini: {gpt_4o_mini}, gpt_o3_mini: {gpt_o3_mini}")
 
         keyboard = user_kb.get_account(user_lang, "account")
 
@@ -571,7 +571,7 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
 Токены 💬GPT-4o-mini:  ♾️
 Токены 💬GPT-o3-mini:  {format(gpt_o3_mini, ',').replace(',', ' ')}
             """
-        
+
         # Отправляем сообщение с обновленными данными аккаунта
         await call.message.answer(f"""🆔: <code>{user_id}</code>
     {sub_text}""", reply_markup=keyboard)
@@ -580,7 +580,6 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
         await state.finish()
 
         if src == "not_gpt":
-        
             await call.message.edit_text("""
 У вас заканчиваются токены для 💬ChatGPT
 Специально для вас мы подготовили <b>персональную скидку</b>!
@@ -597,12 +596,11 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
             """, reply_markup=user_kb.get_midjourney_discount_notification())
 
     await call.answer()
-    
+
 
 # Хендлер для смены языка через callback-запрос
 @dp.callback_query_handler(Text(startswith="change_lang:"))
 async def change_lang(call: CallbackQuery):
-
     curr_lang = call.data.split(":")[1]  # Текущий язык
     from_msg = call.data.split(":")[2]  # Источник сообщения (откуда был вызван callback)
     new_lang = "en" if curr_lang == "ru" else "ru"  # Смена языка
@@ -621,11 +619,10 @@ async def change_lang(call: CallbackQuery):
 @dp.message_handler(state="*", text="💬ChatGPT")
 @dp.message_handler(state="*", commands="chatgpt")
 async def ask_question(message: Message, state: FSMContext):
-
     if state:
         await state.finish()  # Завершаем текущее состояние
     await db.change_default_ai(message.from_user.id, "chatgpt")  # Устанавливаем ChatGPT как основной AI
-    
+
     user_id = message.from_user.id
     user = await db.get_user(user_id)  # Получаем данные пользователя
     model = (user["gpt_model"]).replace("-", "_")
@@ -661,7 +658,6 @@ async def ask_question(message: Message, state: FSMContext):
 @dp.message_handler(state="*", text="👨🏻‍💻Поддержка")
 @dp.message_handler(state="*", commands="help")
 async def support(message: Message, state: FSMContext):
-    
     await state.finish()  # Завершаем текущее состояние
     await message.answer('Ответы на многие вопросы можно найти в нашем <a href="https://t.me/NeuronAgent">канале</a>.',
                          disable_web_page_preview=True, reply_markup=user_kb.about)  # Кнопка с инструкцией
@@ -681,7 +677,6 @@ async def gen_img(message: Message, state: FSMContext):
         await not_enough_balance(message.bot, message.from_user.id, "image")  # Сообщаем об исчерпании лимита
         return
 
-
     # Сообщение с запросом ввода
     await message.answer("""<b>Введите запрос для генерации изображения</b>
 <i>Например:</i> <code>Замерзшее бирюзовое озеро вокруг заснеженных горных вершин</code>
@@ -694,7 +689,6 @@ async def gen_img(message: Message, state: FSMContext):
 # Хендлер для выбора суммы через callback-запрос
 @dp.callback_query_handler(Text(startswith="select_amount"))
 async def select_amount(call: CallbackQuery):
-
     amount = int(call.data.split(":")[1])  # Получаем сумму из callback
     # Генерация ссылок для пополнения
     urls = {
@@ -711,7 +705,6 @@ async def select_amount(call: CallbackQuery):
 # Хендлер для отмены текущего состояния
 @dp.message_handler(state="*", text="Отмена")
 async def cancel(message: Message, state: FSMContext):
-
     await state.finish()  # Завершаем текущее состояние
     user = await db.get_user(message.from_user.id)  # Получаем данные пользователя
     await message.answer("Ввод остановлен", reply_markup=user_kb.get_menu(user["default_ai"]))  # Возвращаем меню
@@ -720,7 +713,6 @@ async def cancel(message: Message, state: FSMContext):
 # Хендлер для выбора изображения через callback
 @dp.callback_query_handler(Text(startswith="choose_image:"))
 async def choose_image(call: CallbackQuery):
-
     await call.answer()  # Закрываем callback уведомление
     user = await db.get_user(call.from_user.id)
 
@@ -730,19 +722,19 @@ async def choose_image(call: CallbackQuery):
     action_id = call.data.split(":")[1]
     image_id = call.data.split(":")[2]
     task_id = (await db.get_task_by_action_id(int(action_id)))["external_task_id"]
-    await call.message.answer("Ожидайте, сохраняю изображение в отличном качестве…⏳", 
+    await call.message.answer("Ожидайте, сохраняю изображение в отличном качестве…⏳",
                               reply_markup=user_kb.get_menu(user["default_ai"]))
     res = await ai.get_choose_mdjrny(task_id, image_id, call.from_user.id)  # Запрос к MidJourney API
 
     if res is not None and "success" not in res:
         if "message" in res and res["message"] == "repeat task":
-            return await call.message.answer("Вы уже сохраняли это изображение!")  # Сообщение, если изображение уже сохранялось
+            return await call.message.answer(
+                "Вы уже сохраняли это изображение!")  # Сообщение, если изображение уже сохранялось
 
 
 # Хендлер для изменения изображения через callback
 @dp.callback_query_handler(Text(startswith="change_image:"))
 async def change_image(call: CallbackQuery):
-
     await call.answer()  # Закрываем callback уведомление
     user_id = call.from_user.id
     user_notified = await db.get_user_notified_mj(user_id)
@@ -755,7 +747,7 @@ async def change_image(call: CallbackQuery):
     button_type = call.data.split(":")[1]
     value = call.data.split(":")[2]
     task_id = (await db.get_task_by_action_id(int(action)))["external_task_id"]
-    await call.message.answer("Ожидайте, обрабатываю изображение⏳", 
+    await call.message.answer("Ожидайте, обрабатываю изображение⏳",
                               reply_markup=user_kb.get_menu(user["default_ai"]))
 
     action_id = await db.add_action(user_id, "image", button_type)
@@ -765,7 +757,8 @@ async def change_image(call: CallbackQuery):
 
         if user_notified is None:
             await db.create_user_notification_mj(user_id)
-            await notify_low_midjourney_requests(user_id, call.bot)  # Отправляем уведомление о низком количестве токенов
+            await notify_low_midjourney_requests(user_id,
+                                                 call.bot)  # Отправляем уведомление о низком количестве токенов
             # await db.set_user_notified(user_id)  # Помечаем, что уведомление отправлено
         else:
             last_notification = user_notified['last_notification']
@@ -782,10 +775,10 @@ async def change_image(call: CallbackQuery):
 # Хендлер для очистки контента через callback
 @dp.callback_query_handler(text="clear_content")
 async def clear_content(call: CallbackQuery, state: FSMContext):
-
     user = await db.get_user(call.from_user.id)
     await state.finish()  # Завершаем текущее состояние
-    await call.message.answer("Диалог завершен", reply_markup=user_kb.get_menu(user["default_ai"]))  # Сообщение о завершении диалога
+    await call.message.answer("Диалог завершен",
+                              reply_markup=user_kb.get_menu(user["default_ai"]))  # Сообщение о завершении диалога
     try:
         await call.answer()  # Закрываем callback уведомление
     except:
@@ -795,7 +788,6 @@ async def clear_content(call: CallbackQuery, state: FSMContext):
 # Хендлер для повторного ввода запроса через callback
 @dp.callback_query_handler(Text(startswith="try_prompt"))
 async def try_prompt(call: CallbackQuery, state: FSMContext):
-
     data = await state.get_data()
 
     if "prompt" not in data:
@@ -812,7 +804,6 @@ async def try_prompt(call: CallbackQuery, state: FSMContext):
 # Хендлер для настроек ChatGPT: ввод данных о пользователе через callback
 @dp.callback_query_handler(text="chatgpt_about_me", state="*")
 async def chatgpt_about_me(call: CallbackQuery, state: FSMContext):
-
     user = await db.get_user(call.from_user.id)
     # Удаляем старое сообщение с текстом и клавиатурой
     await call.message.delete()
@@ -828,7 +819,6 @@ async def chatgpt_about_me(call: CallbackQuery, state: FSMContext):
 # Хендлер для сохранения введенной информации о пользователе в ChatGPT
 @dp.message_handler(state=states.ChangeChatGPTAboutMe.text)
 async def change_profile_info(message: Message, state: FSMContext):
-
     if len(message.text) > 256:
         return await message.answer("Максимальная длина 256 символов")
     await db.update_chatgpt_about_me(message.from_user.id, message.text)  # Обновляем данные в базе
@@ -839,7 +829,6 @@ async def change_profile_info(message: Message, state: FSMContext):
 # Хэндлер ввода характерий ChatGPT
 @dp.callback_query_handler(text="character_menu", state="*")
 async def character_menu(call: CallbackQuery, state: FSMContext):
-
     user = await db.get_user(call.from_user.id)
 
     # Удаляем старое сообщение с текстом и клавиатурой
@@ -855,7 +844,6 @@ async def character_menu(call: CallbackQuery, state: FSMContext):
 # Хендлер для сохранения характера ChatGPT
 @dp.message_handler(state=states.ChangeChatGPTCharacter.text)
 async def change_character(message: Message, state: FSMContext):
-
     if len(message.text) > 256:
         return await message.answer("Максимальная длина 256 символов")
     await db.update_chatgpt_character(message.from_user.id, message.text)  # Обновляем данные в базе
@@ -866,7 +854,6 @@ async def change_character(message: Message, state: FSMContext):
 # Хендлер для сброса настроек ChatGPT
 @dp.callback_query_handler(text="reset_chatgpt_settings", state="*")
 async def reset_chatgpt_settings(call: CallbackQuery, state: FSMContext):
-
     await db.update_chatgpt_character(call.from_user.id, "")
     await db.update_chatgpt_about_me(call.from_user.id, "")  # Сброс данных
     await call.answer("Описание удалено", show_alert=True)
@@ -875,7 +862,6 @@ async def reset_chatgpt_settings(call: CallbackQuery, state: FSMContext):
 # Хендлер для изменения настроек ChatGPT
 @dp.callback_query_handler(text="chatgpt_settings", state="*")
 async def chatgpt_setting(call: CallbackQuery, state: FSMContext):
-
     user = await db.get_user(call.from_user.id)
     await call.message.answer(
         '<b>Введите запрос</b>\n\nНастройте ChatGPT как вам удобно - тон, настроение, эмоциональный окрас сообщений ⤵️\n\n<u><a href="https://telegra.ph/Tonkaya-nastrojka-ChatGPT-06-30">Инструкция.</a></u>',
@@ -888,76 +874,41 @@ async def chatgpt_setting(call: CallbackQuery, state: FSMContext):
 # Хендлер для сохранения новых настроек ChatGPT
 @dp.message_handler(state=states.ChangeChatGPTSettings.text)
 async def change_profile_settings(message: Message, state: FSMContext):
-
     if len(message.text) > 256:
         return await message.answer("Максимальная длина 256 символов")
     await db.update_chatgpt_settings(message.from_user.id, message.text)  # Обновляем настройки в базе
     await message.answer("Описание обновлено!")
     await state.finish()
 
+
 from aiogram.utils.exceptions import CantParseEntities
 
 
-import asyncio
-
-# Функция для экранирования специальных символов
-def escape_special_chars(text):
-    # Заменяем специальные символы, которые могут вызвать ошибку в Telegram
-    text = text.replace("&", "&amp;")
-    text = text.replace("<", "&lt;")
-    text = text.replace(">", "&gt;")
-    return text
-
-# Функция для безопасной отправки сообщения
 async def safe_send_message(bot, user_id, text, **kwargs):
     try:
-        # Попытаться отправить сообщение
         await bot.send_message(user_id, text, **kwargs)
     except CantParseEntities as e:
         logger.error(f"Невозможно обработать сущности в сообщении для пользователя {user_id}: {e}")
 
-        # Экранируем спецсимволы, чтобы избежать проблем с Telegram
-        escaped_text = escape_special_chars(text)
+        # Отправим запрос в GPT на исправление форматирования
+        prompt = f"Исправь форматирование этого текста для Telegram, чтобы он был корректным: {text}"
 
-        try:
-            # Попробуем отправить экранированный текст
-            await bot.send_message(user_id, escaped_text, **kwargs)
-            return  # Выход после успешной отправки
-        except CantParseEntities as e:
-            logger.error(f"Не удалось отправить экранированный текст для пользователя {user_id}: {e}")
+        # Получим ответ от GPT
+        corrected_text_response = await ai.get_gpt(
+            messages=[{"role": "user", "content": prompt}],
+            model="4o-mini"  # Или используйте нужную модель
+        )
 
-            # Попробуем исправить текст через GPT
-            attempts = 3
-            for attempt in range(attempts):
-                try:
-                    prompt = f"Исправь форматирование этого текста для Telegram, чтобы он был корректным: {escaped_text}"
+        # Извлекаем исправленный текст от GPT
+        corrected_text = corrected_text_response["content"]
 
-                    # Получаем ответ от GPT
-                    corrected_text_response = await ai.get_gpt(
-                        messages=[{"role": "user", "content": prompt}],
-                        model="4o-mini"  # Или используйте нужную модель
-                    )
+        # Отправляем исправленный текст пользователю
+        await bot.send_message(user_id, corrected_text, **kwargs)
 
-                    corrected_text = corrected_text_response["content"]
-                    corrected_text = escape_special_chars(corrected_text)  # Экранируем спецсимволы
-
-                    # Отправляем исправленный текст
-                    await bot.send_message(user_id, corrected_text, **kwargs)
-                    return  # Выход после успешной отправки
-                except Exception as gpt_error:
-                    logger.error(f"Ошибка при запросе GPT: {gpt_error}")
-                    if attempt < attempts - 1:
-                        logger.info(f"Попытка {attempt + 1} не удалась. Повторяем...")
-                        await asyncio.sleep(2)  # Немного задержки перед повторной попыткой
-
-            # Если все попытки не удались, отправим упрощённое сообщение
-            simple_message = "Извините, произошла ошибка при форматировании сообщения. Пожалуйста, попробуйте снова."
-            await bot.send_message(user_id, simple_message, **kwargs)
 
 # Основной хендлер для обработки сообщений и генерации запросов
 @dp.message_handler()
 async def gen_prompt(message: Message, state: FSMContext):
-
     await state.update_data(prompt=message.text)  # Сохраняем запрос пользователя
     user_id = message.from_user.id
     user = await db.get_user(user_id)
@@ -995,7 +946,6 @@ async def gen_prompt(message: Message, state: FSMContext):
 # Хэндлер для работы с голосовыми сообщениями
 @dp.message_handler(content_types=['voice'])
 async def handle_voice(message: Message, state: FSMContext):
-
     file_info = await message.bot.get_file(message.voice.file_id)
     file_path = file_info.file_path
     file = await message.bot.download_file(file_path)
@@ -1003,7 +953,7 @@ async def handle_voice(message: Message, state: FSMContext):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as temp_ogg_file:
         temp_ogg_file.write(file.getbuffer())
         temp_ogg_path = temp_ogg_file.nameF
-    
+
     text = voice_to_text(temp_ogg_path)
     os.remove(temp_ogg_path)
     await state.update_data(prompt=text)  # Сохраняем запрос пользователя
@@ -1069,7 +1019,6 @@ async def return_voice(call: CallbackQuery, state: FSMContext):
 # Хендлер для обработки фотографий
 @dp.message_handler(is_media_group=False, content_types="photo")
 async def photo_imagine(message: Message, state: FSMContext):
-
     user_id = message.from_user.id
 
     if message.caption is None:
@@ -1107,7 +1056,6 @@ async def photo_imagine(message: Message, state: FSMContext):
 # Хендлер для обработки альбомов (групповых фото)
 @dp.message_handler(is_media_group=True, content_types=ContentType.ANY)
 async def handle_albums(message: Message, album: List[Message], state: FSMContext):
-    
     if len(album) != 2 or not (album[0].photo and album[1].photo):
         return await message.answer("Пришлите два фото, чтобы их склеить")
 
@@ -1129,10 +1077,9 @@ async def handle_albums(message: Message, album: List[Message], state: FSMContex
 # Вход в меню выбора модели GPT
 @dp.callback_query_handler(text="model_menu")
 async def model_menu(call: CallbackQuery):
-
     user_id = call.from_user.id
     user_model = await db.get_model(user_id)
-    
+
     logger.info(f"User ID: {user_id}, текущая модель: {user_model}")
 
     # Динамическое создание клавиатуры с выбранным моделью
@@ -1148,9 +1095,8 @@ async def model_menu(call: CallbackQuery):
 # Выбор модели GPT
 @dp.callback_query_handler(text_contains="select_model")
 async def select_model(call: CallbackQuery):
-
     user_id = call.from_user.id
-    selected_model = call.data.split(":")[1]  # Извлечение выбранной модели из данных 
+    selected_model = call.data.split(":")[1]  # Извлечение выбранной модели из данных
 
     logger.info(f"User ID: {user_id}, выбранная модель: {selected_model}")
 
@@ -1162,7 +1108,7 @@ async def select_model(call: CallbackQuery):
         keyboard = user_kb.model_keyboard(selected_model=selected_model)
 
         await call.message.edit_text("Выберите модель GPT для диалогов⤵️:", reply_markup=keyboard)
-        await call.message.answer(f"✅Модель для ChatGPT изменена на GPT-{selected_model}")   
+        await call.message.answer(f"✅Модель для ChatGPT изменена на GPT-{selected_model}")
     except Exception as e:
         logger.error(f"Ошибка при выборе модели GPT: {e}")
         await call.answer()
@@ -1171,16 +1117,15 @@ async def select_model(call: CallbackQuery):
 # Вход в меню выбора голоса
 @dp.callback_query_handler(text="voice_menu")
 async def voice_menu(call: CallbackQuery):
-
     user_id = call.from_user.id
     user_voice = await db.get_voice(user_id)
 
     # Удаляем старое сообщение с текстом и клавиатурой
     await call.message.delete()
-    
+
     # Динамическое создание клавиатуры с выбранным голосом
     keyboard = user_kb.voice_keyboard(selected_voice=user_voice)
-    
+
     await call.message.answer("Выберите голос для ChatGPT⤵️:", reply_markup=keyboard)
     await call.answer()
 
@@ -1211,7 +1156,6 @@ async def select_voice(call: CallbackQuery):
 # Хэндлер для отправки всех голосов
 @dp.callback_query_handler(text="check_voice")
 async def check_voice(call: CallbackQuery):
-    
     user_id = call.from_user.id
     user_lang = await db.get_chat_gpt_lang(user_id)
 
@@ -1225,22 +1169,22 @@ async def check_voice(call: CallbackQuery):
     if not os.path.exists(voices_path):
         await call.message.answer("⚠️ Папка с голосами не найдена.")
         return
-    
+
     # Получаем список файлов .mp3
     voice_files = [f for f in os.listdir(voices_path) if f.endswith(".mp3")]
-    
+
     # Если файлов нет, отправляем сообщение
     if not voice_files:
         await call.message.answer("⚠️ В папке 'voices' нет доступных файлов.")
         return
-    
+
     # Создаем медиа-группу
     media_group = MediaGroup()
     for voice_file in voice_files:
         file_path = os.path.join(voices_path, voice_file)
         audio = InputFile(file_path)
         media_group.attach_audio(audio)
-    
+
     # Отправляем файлы одним сообщением
     await call.message.answer(f"Ответы ChatGPT:{'RUS' if user_lang == 'ru' else 'ENG'}")
     await call.message.answer_media_group(media_group)
@@ -1464,6 +1408,7 @@ async def select_chat(call: CallbackQuery):
     await call.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
     await call.answer()
 
+
 @dp.callback_query_handler(lambda c: c.data.startswith('select_active_chat:'))
 async def select_active_chat(call: CallbackQuery):
     """
@@ -1584,6 +1529,7 @@ async def confirm_delete_all_chats(call: CallbackQuery):
     # Отправляем сообщение с кнопками подтверждения
     await call.message.edit_text(confirmation_text, reply_markup=kb)
     await call.answer()  # Закрытие всплывающего окна
+
 
 @dp.callback_query_handler(text="confirm_delete_all_chats")
 async def delete_all_chats(call: CallbackQuery):
