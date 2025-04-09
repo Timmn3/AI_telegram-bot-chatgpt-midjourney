@@ -192,6 +192,8 @@ def split_message(text: str, max_length: int) -> list:
     return parts
 
 
+import re
+
 
 def format_html_math_block(text: str) -> str:
     # Экранирование HTML-символов
@@ -201,24 +203,21 @@ def format_html_math_block(text: str) -> str:
         .replace(">", "&gt;")
     )
 
-    # Замена степеней (вместо <sup> используем символы)
-    text = re.sub(r"\^2", "²", text)  # Для x^2 заменяем на ²
-    text = re.sub(r"\^3", "³", text)  # Для x^3 заменяем на ³
-    text = re.sub(r"\^(\d+)", r"\1", text)  # Для любых других степеней
+    # Заменяем степени на символы, без использования <sup>
+    text = re.sub(r"\^2", "²", text)  # x^2 заменяется на ²
+    text = re.sub(r"\^3", "³", text)  # x^3 заменяется на ³
+    text = re.sub(r"\^(\d+)", r"\1", text)  # для других степеней заменяем на числа, например x^4 -> 4
 
-    # Обработка корней (заменяем на символы корня)
-    text = re.sub(r"sqrt\((.*?)\)", r"√(\1)", text)  # Например, sqrt(25) -> √(25)
+    # Заменяем sqrt() на символ корня
+    text = re.sub(r"sqrt\((.*?)\)", r"√(\1)", text)
 
-    # Замена умножения на символ "·" для математических выражений
+    # Преобразуем умножение на "·"
     text = re.sub(r'(?<=\w)\*(?=\w)', '·', text)
     text = re.sub(r'(?<=\d)\*(?=\()', '·', text)
     text = re.sub(r'(?<=\))\*(?=\w)', '·', text)
 
-    # Поддержка дробей, заменяем на формат с <sup> и <sub>
-    text = re.sub(r"(\d+)/(\d+)", r"<sup>\1</sup>&#8260;<sub>\2</sub>", text)
-
-    # Обработка символов, таких как π, e и другие
-    text = text.replace("pi", "π").replace("e", "e")
+    # Если в тексте присутствует дробь, заменяем её на разметку для дробей с использованием <sup> и <sub>
+    text = re.sub(r"(\d+)/(\d+)", r"\1/ \2", text)  # Пример: 1/2
 
     return f"<pre>{text}</pre>"
 
