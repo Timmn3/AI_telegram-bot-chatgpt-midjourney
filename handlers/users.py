@@ -1578,8 +1578,8 @@ async def create_chat(call: CallbackQuery):
     chat_count = await conn.fetchval("SELECT COUNT(*) FROM chats WHERE user_id = $1", user_id)
     await conn.close()
 
-    if chat_count >= 5:
-        await call.answer("Вы уже создали максимум 5 чатов. Удалите один, чтобы создать новый.", show_alert=True)
+    if chat_count >= 10:
+        await call.answer("Вы уже создали максимум 10 чатов. Удалите один, чтобы создать новый.", show_alert=True)
         return
 
     # Запрашиваем название нового чата
