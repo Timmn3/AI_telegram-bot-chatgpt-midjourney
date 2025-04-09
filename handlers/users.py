@@ -882,7 +882,7 @@ from aiogram.utils.exceptions import CantParseEntities
 async def safe_send_message(bot, user_id, text, **kwargs):
     try:
         logger.info(f"Попытка отправить сообщение пользователю {user_id}: {text[:500]}...")  # Логирование части сообщения
-        await bot.send_message(user_id, text, **kwargs)
+        # await bot.send_message(user_id, text, **kwargs)
     except CantParseEntities as e:
         logger.error(f"Ошибка обработки сущностей в сообщении для пользователя {user_id}: {e}")
         # Отправка упрощённого сообщения
