@@ -324,7 +324,7 @@ async def update_chat_summary(chat_id: int, message_user: str, message_gpt: str,
         f"Добавь к нему краткое описание следующей части диалога:\n"
         f"Пользователь: {message_user}\n"
         f"Ассистент: {message_gpt}\n\n"
-        f"Обновлённая краткая сводка (максимум 500 символов):"
+        f"Обновлённая краткая сводка (максимум 3000 символов):"
     )
 
     response = await ai.get_gpt(
@@ -899,6 +899,30 @@ async def change_profile_settings(message: Message, state: FSMContext):
     await message.answer("Описание обновлено!")
     await state.finish()
 
+from aiogram.utils.exceptions import CantParseEntities
+
+
+async def safe_send_message(bot, user_id, text, **kwargs):
+    try:
+        await bot.send_message(user_id, text, **kwargs)
+    except CantParseEntities as e:
+        logger.error(f"Невозможно обработать сущности в сообщении для пользователя {user_id}: {e}")
+
+        # Отправим запрос в GPT на исправление форматирования
+        prompt = f"Исправь форматирование этого текста для Telegram, чтобы он был корректным: {text}"
+
+        # Получим ответ от GPT
+        corrected_text_response = await ai.get_gpt(
+            messages=[{"role": "user", "content": prompt}],
+            model="4o-mini"  # Или используйте нужную модель
+        )
+
+        # Извлекаем исправленный текст от GPT
+        corrected_text = corrected_text_response["content"]
+
+        # Отправляем исправленный текст пользователю
+        await bot.send_message(user_id, corrected_text, **kwargs)
+
 
 # Основной хендлер для обработки сообщений и генерации запросов
 @dp.message_handler()
@@ -908,8 +932,7 @@ async def gen_prompt(message: Message, state: FSMContext):
     user_id = message.from_user.id
     user = await db.get_user(user_id)
     if user is None:
-        await message.answer("Введите команду /start для перезагрузки бота")
-        # return await message.bot.send_message(ADMINS_CODER, user_id)
+        await safe_send_message(message.bot, user_id, "Введите команду /start для перезагрузки бота")
 
     if user["default_ai"] == "chatgpt":
         model = (user["gpt_model"]).replace("-", "_")
@@ -920,7 +943,7 @@ async def gen_prompt(message: Message, state: FSMContext):
             logger.info("Модель 4o-mini закончилась - переключаем")
             await db.set_model(user_id, "4o")
             model = "4o"
-            await message.answer("✅Модель для ChatGPT изменена на GPT-4o")
+            await safe_send_message(message.bot, user_id, "✅Модель для ChatGPT изменена на GPT-4o")
 
         if user[f"tokens_{model}"] <= 0:
             return await not_enough_balance(message.bot, user_id, "chatgpt")
@@ -930,10 +953,14 @@ async def gen_prompt(message: Message, state: FSMContext):
         messages = [{"role": "system", "content": system_msg}] if "messages" not in data else data["messages"]
         update_messages = await get_gpt(prompt=message.text, messages=messages, user_id=user_id,
                                         bot=message.bot, state=state)  # Генерация ответа от ChatGPT
+
+        # Отправка сообщения через безопасную функцию
         await state.update_data(messages=update_messages)
+        await safe_send_message(message.bot, user_id, update_messages[-1]['content'], parse_mode="HTML")
 
     elif user["default_ai"] == "image":
         await get_mj(message.text, user_id, message.bot)  # Генерация изображения через MidJourney
+
 
 
 # Хэндлер для работы с голосовыми сообщениями
