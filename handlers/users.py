@@ -192,42 +192,26 @@ def split_message(text: str, max_length: int) -> list:
     return parts
 
 
-# Словарь надстрочных степеней для 1–10 (где есть Unicode)
-superscript_map = {
-    '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
-    '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '10': '¹⁰'
-}
-
-def replace_powers(formula):
-    # Заменяет ^1, ^2, ..., ^10 на надстрочные
-    for i in range(10, 0, -1):  # от 10 до 1, чтобы ^10 не превратилось в ^1⁰
-        formula = formula.replace(f'^{i}', superscript_map[str(i)])
-    return formula
-
 def process_formula(match):
     formula = match.group(1)
 
-    # \frac{a}{b} → a / b
-    formula = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1 / \2", formula)
+    # Замены для наиболее популярных команд
+    formula = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1 / \2", formula)  # \frac{a}{b} → a / b
+    formula = re.sub(r"\\text\{(.*?)\}", r"\1", formula)  # \text{...} → текст без LaTeX
+    formula = formula.replace(r"\times", "×").replace(r"\cdot", "·")  # Умножение: \times → ×, \cdot → ·
+    formula = formula.replace(r"\implies", "⇒").replace(r"\approx", "≈")  # Логические и математические символы
+    formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)  # Квадратный корень: \sqrt{a} → √(a)
 
-    # \text{...} → просто текст
-    formula = re.sub(r"\\text\{(.*?)\}", r"\1", formula)
+    # Степени (например, x^2 → x²)
+    formula = re.sub(r"([a-zA-Z])\^([0-9]+)", lambda m: f"{m.group(1)}{chr(8304 + int(m.group(2)))}", formula)
 
-    # Замены: \times → ×, \cdot → ·
-    formula = formula.replace(r"\times", "×").replace(r"\cdot", "·")
+    # Индексы: t_1 → t₁
+    formula = re.sub(r"([a-zA-Z])_([0-9]+)", lambda m: f"{m.group(1)}{chr(8320 + int(m.group(2)))}", formula)
 
-    # Корни: \sqrt{...} → √(...)
-    formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)
-    formula = re.sub(r"\\sqrt\((.*?)\)", r"√(\1)", formula)
-
-    # Степени
-    formula = replace_powers(formula)
-
-    # Удаляем оставшиеся \
+    # Убираем лишние символы LaTeX (например, \)
     formula = formula.replace("\\", "")
 
     return f"<pre>{formula.strip()}</pre>"
-
 
 def format_math_in_text(text: str) -> str:
     # Обработка формул внутри \( ... \)
