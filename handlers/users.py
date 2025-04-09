@@ -269,8 +269,14 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
     current_chat = await db.get_chat_by_id(user["current_chat_id"])
     summary = current_chat["summary"] if current_chat else ""
+    keywords = current_chat["keywords"] if current_chat and current_chat.get("keywords") else []
+
     if summary:
         prompt = f"Ранее в этом чате обсуждалось: {summary.strip()}\n\n" + prompt
+    if keywords:
+        joined_keywords = ', '.join(keywords)
+        prompt = f"Ключевые слова, которые стоит учитывать: {joined_keywords}\n\n" + prompt
+
     prompt += f"\n{lang_text[user['chat_gpt_lang']]}"
 
     message_user = prompt
@@ -326,6 +332,8 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
     await db.add_message(chat_id, user_id, message_user)
     await db.add_message(chat_id, None, message_gpt)
+    keywords = await extract_keywords_from_message(message_user, chat_id, model)
+    await update_chat_keywords(chat_id, keywords)
 
     old_summary = current_chat["summary"] if current_chat else ""
     new_summary = await update_chat_summary(chat_id, message_user, message_gpt, model, old_summary)
@@ -352,6 +360,61 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
     await db.add_action(user_id, model)
     return messages
+
+async def update_chat_keywords(chat_id: int, new_keywords: list[str]):
+    if not new_keywords:
+        return
+    conn = await db.get_conn()
+
+    row = await conn.fetchrow("SELECT keywords FROM chats WHERE id = $1", chat_id)
+    existing_keywords = row["keywords"] if row and row["keywords"] else []
+
+    # Объединяем списки, удаляем дубли
+    combined_keywords = list(set(existing_keywords + new_keywords))[:20]  # максимум 20 слов
+
+    await conn.execute(
+        "UPDATE chats SET keywords = $1, updated_at = NOW() WHERE id = $2",
+        combined_keywords, chat_id
+    )
+    await conn.close()
+
+async def extract_keywords_from_message(message: str, chat_id: int, model: str) -> list[str]:
+    # Проверка на наличие слова "запомни"
+    must_extract = "запомни" in message.lower()
+
+    prompt = (
+        f"Пользователь написал сообщение:\n"
+        f"{message}\n\n"
+    )
+
+    if must_extract:
+        prompt += (
+            "Так как пользователь просит 'запомни', обязательно выдели до 5 ключевых слов или фраз, "
+            "даже если они кажутся незначительными. "
+            "Ответ верни строго в формате Python-списка строк, например:\n"
+            "['важное', 'запомнить', 'инструкция']\n"
+        )
+    else:
+        prompt += (
+            "Выдели до 5 ключевых слов или фраз (если они есть), описывающих суть или важные темы в сообщении. "
+            "Если ключевых слов нет — верни пустой список []. Ответ верни строго в формате Python-списка строк."
+        )
+
+    response = await ai.get_gpt(
+        messages=[
+            {"role": "system", "content": "Ты извлекаешь ключевые слова из пользовательских сообщений."},
+            {"role": "user", "content": prompt}
+        ],
+        model=model
+    )
+
+    try:
+        keywords = eval(response["content"])
+        if isinstance(keywords, list) and all(isinstance(k, str) for k in keywords):
+            return keywords
+    except Exception:
+        pass
+    return []
 
 
 async def update_chat_summary(chat_id: int, message_user: str, message_gpt: str, model: str,
