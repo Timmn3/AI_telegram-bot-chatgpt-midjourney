@@ -194,24 +194,27 @@ def split_message(text: str, max_length: int) -> list:
 def process_formula(match):
     formula = match.group(1)
 
-    try:
-        # Замены для LaTeX формул
-        formula = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1 / \2", formula)
-        formula = re.sub(r"\\text\{(.*?)\}", r"\1", formula)
-        formula = formula.replace(r"\times", "×").replace(r"\cdot", "·")
-        formula = formula.replace(r"\implies", "⇒").replace(r"\approx", "≈")
-        formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)
-        formula = re.sub(r"\\begin{cases}(.*?)\\end{cases}", r"\n{\1}\n", formula, flags=re.DOTALL)
-        formula = re.sub(r"\\\\", r"\n", formula)
-        formula = re.sub(r"([a-zA-Z])\^([0-9]+)", lambda m: f"{m.group(1)}{chr(8304 + int(m.group(2)))}", formula)
-        formula = re.sub(r"([a-zA-Z])_([0-9]+)", lambda m: f"{m.group(1)}{chr(8320 + int(m.group(2)))}", formula)
-        formula = formula.replace("\\", "")
-    except Exception as e:
-        logger.error(f"Ошибка обработки формулы: {e}")
-        formula = "Ошибка при обработке формулы"
+    # Замены для наиболее популярных команд
+    formula = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1 / \2", formula)  # \frac{a}{b} → a / b
+    formula = re.sub(r"\\text\{(.*?)\}", r"\1", formula)  # \text{...} → текст без LaTeX
+    formula = formula.replace(r"\times", "×").replace(r"\cdot", "·")  # Умножение: \times → ×, \cdot → ·
+    formula = formula.replace(r"\implies", "⇒").replace(r"\approx", "≈")  # Логические и математические символы
+    formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)  # Квадратный корень: \sqrt{a} → √(a)
+
+    # Обработка системы уравнений (например, \begin{cases} ... \end{cases})
+    formula = re.sub(r"\\begin{cases}(.*?)\\end{cases}", r"\n{\1}\n", formula, flags=re.DOTALL)
+    formula = re.sub(r"\\\\", r"\n", formula)  # Заменяем \\\\ на новую строку
+
+    # Степени (например, x^2 → x²)
+    formula = re.sub(r"([a-zA-Z])\^([0-9]+)", lambda m: f"{m.group(1)}{chr(8304 + int(m.group(2)))}", formula)
+
+    # Индексы: t_1 → t₁
+    formula = re.sub(r"([a-zA-Z])_([0-9]+)", lambda m: f"{m.group(1)}{chr(8320 + int(m.group(2)))}", formula)
+
+    # Убираем лишние символы LaTeX (например, \)
+    formula = formula.replace("\\", "")
 
     return f"<pre>{formula.strip()}</pre>"
-
 
 
 def format_math_in_text(text: str) -> str:
@@ -877,33 +880,16 @@ async def change_profile_settings(message: Message, state: FSMContext):
     await message.answer("Описание обновлено!")
     await state.finish()
 
-from aiogram.utils.exceptions import CantParseEntities
-
-async def safe_send_message(bot, user_id, text, **kwargs):
-    try:
-        logger.info(f"Попытка отправить сообщение пользователю {user_id}: {text[:500]}...")  # Логирование части сообщения
-        # await bot.send_message(user_id, text, **kwargs)
-    except CantParseEntities as e:
-        logger.error(f"Ошибка обработки сущностей в сообщении для пользователя {user_id}: {e}")
-        # Отправка упрощённого сообщения
-        simple_message = "Извините, произошла ошибка при форматировании сообщения. Пожалуйста, попробуйте снова."
-        await bot.send_message(user_id, simple_message)
-
-import html
-
-def sanitize_html(content: str) -> str:
-    # Применяем стандартный санитайзер
-    return html.escape(content)
 
 # Основной хендлер для обработки сообщений и генерации запросов
 @dp.message_handler()
 async def gen_prompt(message: Message, state: FSMContext):
-
     await state.update_data(prompt=message.text)  # Сохраняем запрос пользователя
     user_id = message.from_user.id
     user = await db.get_user(user_id)
     if user is None:
-        await safe_send_message(message.bot, user_id, "Введите команду /start для перезагрузки бота")
+        await message.answer("Введите команду /start для перезагрузки бота")
+        # return await message.bot.send_message(ADMINS_CODER, user_id)
 
     if user["default_ai"] == "chatgpt":
         model = (user["gpt_model"]).replace("-", "_")
@@ -914,7 +900,7 @@ async def gen_prompt(message: Message, state: FSMContext):
             logger.info("Модель 4o-mini закончилась - переключаем")
             await db.set_model(user_id, "4o")
             model = "4o"
-            await safe_send_message(message.bot, user_id, "✅Модель для ChatGPT изменена на GPT-4o")
+            await message.answer("✅Модель для ChatGPT изменена на GPT-4o")
 
         if user[f"tokens_{model}"] <= 0:
             return await not_enough_balance(message.bot, user_id, "chatgpt")
@@ -923,18 +909,11 @@ async def gen_prompt(message: Message, state: FSMContext):
         system_msg = user["chatgpt_about_me"] + "\n" + user["chatgpt_character"]
         messages = [{"role": "system", "content": system_msg}] if "messages" not in data else data["messages"]
         update_messages = await get_gpt(prompt=message.text, messages=messages, user_id=user_id,
-                                       bot=message.bot, state=state)  # Генерация ответа от ChatGPT
-
-        # Санитизируем HTML
-        clean_content = sanitize_html(update_messages[-1]['content'])  # Санитизируем перед отправкой
-
-        # Отправка только одного сообщения
+                                        bot=message.bot, state=state)  # Генерация ответа от ChatGPT
         await state.update_data(messages=update_messages)
-        await safe_send_message(message.bot, user_id, clean_content, parse_mode="HTML")
 
     elif user["default_ai"] == "image":
         await get_mj(message.text, user_id, message.bot)  # Генерация изображения через MidJourney
-
 
 
 # Хэндлер для работы с голосовыми сообщениями
