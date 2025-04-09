@@ -1,20 +1,16 @@
 import logging
 from datetime import datetime, timedelta
 from typing import List
-import requests
 from aiogram import Bot
 from aiogram.types import Message, CallbackQuery, ChatActions, ContentType, MediaGroup, Update, InlineKeyboardMarkup, \
     InlineKeyboardButton
 from aiogram.types.input_file import InputFile
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher import FSMContext
-
-import matplotlib.pyplot as plt
-import io
+import asyncio
 import re
 import tempfile
 import os
-import config
 from states.user import EnterChatName, EnterChatRename
 from utils import db, ai, more_api, pay # Импорт утилит для взаимодействия с БД и внешними API
 from states import user as states  # Состояния FSM для пользователя
@@ -902,27 +898,58 @@ async def change_profile_settings(message: Message, state: FSMContext):
 from aiogram.utils.exceptions import CantParseEntities
 
 
+# Функция для очистки HTML-тегов
+def clean_html(text):
+    # Удаляем пустые или некорректные HTML теги
+    text = re.sub(r'<.*?>', '', text)  # Убирает все HTML-теги
+    return text
+
+# Функция для безопасной отправки сообщения
 async def safe_send_message(bot, user_id, text, **kwargs):
     try:
+        # Попытаться отправить сообщение
         await bot.send_message(user_id, text, **kwargs)
     except CantParseEntities as e:
         logger.error(f"Невозможно обработать сущности в сообщении для пользователя {user_id}: {e}")
 
-        # Отправим запрос в GPT на исправление форматирования
-        prompt = f"Исправь форматирование этого текста для Telegram, чтобы он был корректным: {text}"
+        # Очистим текст от некорректных HTML тегов
+        cleaned_text = clean_html(text)
 
-        # Получим ответ от GPT
-        corrected_text_response = await ai.get_gpt(
-            messages=[{"role": "user", "content": prompt}],
-            model="4o-mini"  # Или используйте нужную модель
-        )
+        try:
+            # Попробуем отправить очищенный текст
+            await bot.send_message(user_id, cleaned_text, **kwargs)
+            return  # Выход после успешной отправки
+        except CantParseEntities as e:
+            logger.error(f"Не удалось отправить очищенный текст для пользователя {user_id}: {e}")
 
-        # Извлекаем исправленный текст от GPT
-        corrected_text = corrected_text_response["content"]
+            # Очистим и отправим исправленный текст через GPT
+            attempts = 3
+            for attempt in range(attempts):
+                try:
+                    # Отправим запрос в GPT на исправление форматирования
+                    prompt = f"Исправь форматирование этого текста для Telegram, чтобы он был корректным: {cleaned_text}"
 
-        # Отправляем исправленный текст пользователю
-        await bot.send_message(user_id, corrected_text, **kwargs)
+                    # Получим ответ от GPT
+                    corrected_text_response = await ai.get_gpt(
+                        messages=[{"role": "user", "content": prompt}],
+                        model="4o-mini"  # Или используйте нужную модель
+                    )
 
+                    # Извлекаем исправленный текст от GPT
+                    corrected_text = corrected_text_response["content"]
+
+                    # Отправляем исправленный текст пользователю
+                    await bot.send_message(user_id, corrected_text, **kwargs)
+                    return  # Выход после успешной отправки
+                except Exception as gpt_error:
+                    logger.error(f"Ошибка при запросе GPT: {gpt_error}")
+                    if attempt < attempts - 1:
+                        logger.info(f"Попытка {attempt + 1} не удалась. Повторяем...")
+                        await asyncio.sleep(2)  # Немного задержки перед повторной попыткой
+
+            # Если все попытки не удались, отправим упрощённое сообщение
+            simple_message = "Извините, произошла ошибка при форматировании сообщения. Пожалуйста, попробуйте снова."
+            await bot.send_message(user_id, simple_message, **kwargs)
 
 # Основной хендлер для обработки сообщений и генерации запросов
 @dp.message_handler()
