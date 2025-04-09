@@ -1696,7 +1696,7 @@ async def confirm_delete_chat(call: CallbackQuery):
     await conn.close()
 
     # Подтверждаем успешное удаление чата
-    await call.message.edit_text("Чат успешно удален. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
+    await call.message.answer("Чат успешно удален. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
     await call.answer()
 
 
