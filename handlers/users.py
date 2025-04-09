@@ -191,45 +191,39 @@ def split_message(text: str, max_length: int) -> list:
 
     return parts
 
-# Функция для форматирования LaTeX-выражений в HTML
+
 def format_math_in_text(text: str) -> str:
-    # Находим все LaTeX-формулы, заключенные в \(...\) и \(...\)
-    formulas = re.findall(r'\\\((.*?)\\\)', text)
+    """
+    Форматирует только LaTeX-подобные выражения в виде \( ... \) в отдельный <pre> блок,
+    преобразуя степени, корни и умножение.
+    """
 
-    # Преобразуем найденные формулы в HTML-блоки <pre> для отправки
-    formatted_text = text
-    for formula in formulas:
-        # Заменяем формулы в оригинальном тексте на форматированные в <pre>
-        formatted_text = formatted_text.replace(f'\\({formula}\\)', f'<pre>{formula}</pre>')
+    # Экранируем HTML в обычном тексте, кроме формул
+    def escape_html_except_formulas(text):
+        parts = re.split(r'(\\\(.*?\\\))', text)  # отделяем формулы
+        for i in range(len(parts)):
+            if not parts[i].startswith('\\('):  # это обычный текст
+                parts[i] = (
+                    parts[i].replace("&", "&amp;")
+                            .replace("<", "&lt;")
+                            .replace(">", "&gt;")
+                )
+        return ''.join(parts)
 
-    return formatted_text
+    text = escape_html_except_formulas(text)
 
+    # Обработка формулы
+    def process_formula(match):
+        formula = match.group(1)
+        formula = re.sub(r"\^2", "²", formula)
+        formula = re.sub(r"\^3", "³", formula)
+        formula = re.sub(r"\^(\d+)", r"\1", formula)
+        formula = re.sub(r"sqrt\{(.*?)\}", r"√(\1)", formula)
+        formula = re.sub(r"sqrt\((.*?)\)", r"√(\1)", formula)
+        formula = formula.replace("*", "·")
+        return f"<pre>{formula}</pre>"
 
-def format_html_math_block(text: str) -> str:
-    # Экранирование HTML-символов
-    text = (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
-
-    # Заменяем степени на символы, без использования <sup>
-    text = re.sub(r"\^2", "²", text)  # x^2 заменяется на ²
-    text = re.sub(r"\^3", "³", text)  # x^3 заменяется на ³
-    text = re.sub(r"\^(\d+)", r"\1", text)  # для других степеней заменяем на числа, например x^4 -> 4
-
-    # Заменяем sqrt() на символ корня
-    text = re.sub(r"sqrt\((.*?)\)", r"√(\1)", text)
-
-    # Преобразуем умножение на "·"
-    text = re.sub(r'(?<=\w)\*(?=\w)', '·', text)
-    text = re.sub(r'(?<=\d)\*(?=\()', '·', text)
-    text = re.sub(r'(?<=\))\*(?=\w)', '·', text)
-
-    # Если в тексте присутствует дробь, заменяем её на разметку для дробей с использованием <sup> и <sub>
-    text = re.sub(r"(\d+)/(\d+)", r"\1/ \2", text)  # Пример: 1/2
-
-    return f"<pre>{text}</pre>"
+    return re.sub(r'\\\((.*?)\\\)', process_formula, text)
 
 
 # Генерация ответа от ChatGPT
@@ -257,12 +251,12 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
     res = await ai.get_gpt(messages, model)
 
-    # Форматируем ответ с математическими выражениями
-    html_content = format_math_in_text(res["content"])  # Применяем функцию для форматирования
+    # Шаг 1: форматируем математические формулы внутри \( \)
+    html_content = format_math_in_text(res["content"])
 
-    # Далее, обрабатываем HTML-форматирование
-    html_content = format_html_math_block(html_content)
+    # Шаг 2: если нужно, можно ещё как-то обрабатывать, но второй раз экранировать HTML — нельзя!
 
+    # Отправка пользователю
     if len(html_content) <= 4096:
         await bot.send_message(
             user_id,
