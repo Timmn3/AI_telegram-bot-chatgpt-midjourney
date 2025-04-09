@@ -214,18 +214,18 @@ def format_math_in_text(text: str) -> str:
     def process_formula(match):
         formula = match.group(1)
 
-        # Удаляем лишние слэши перед знаком √ и \times
+        # Замены LaTeX -> обычный текст
+        formula = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1 / \2", formula)  # дроби
         formula = formula.replace(r"\times", "×")
         formula = formula.replace(r"\cdot", "·")
         formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)
         formula = re.sub(r"\\sqrt\((.*?)\)", r"√(\1)", formula)
 
-        # Степени
-        formula = re.sub(r"\^2", "²", formula)
-        formula = re.sub(r"\^3", "³", formula)
-        formula = re.sub(r"\^(\d+)", r"\1", formula)
+        # Степени: только ² и ³ — остальные оставить как ^n
+        formula = formula.replace("^2", "²")
+        formula = formula.replace("^3", "³")
 
-        # Удалим оставшиеся ненужные \ перед функциями, скобками и цифрами
+        # Удалить оставшиеся \
         formula = formula.replace("\\", "")
 
         return f"<pre>{formula.strip()}</pre>"
