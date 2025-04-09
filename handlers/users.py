@@ -1568,16 +1568,26 @@ async def create_chat(call: CallbackQuery):
     """
     Запрашивает у пользователя название для нового чата.
 
-    При получении callback-запроса с командой создания чата, запрашивает у пользователя название для нового чата
-    и переходит в состояние ожидания ввода.
+    При получении callback-запроса с командой создания чата, проверяет лимит чатов,
+    затем запрашивает у пользователя название для нового чата и переходит в состояние ожидания ввода.
     """
     user_id = call.from_user.id  # Получаем ID пользователя
+
+    # Проверка количества уже созданных чатов
+    conn = await db.get_conn()
+    chat_count = await conn.fetchval("SELECT COUNT(*) FROM chats WHERE user_id = $1", user_id)
+    await conn.close()
+
+    if chat_count >= 5:
+        await call.answer("Вы уже создали максимум 5 чатов. Удалите один, чтобы создать новый.", show_alert=True)
+        return
 
     # Запрашиваем название нового чата
     await call.message.answer("Введите название чата:")
 
     # Переходим в состояние ожидания ввода названия нового чата
     await EnterChatName.chat_name.set()
+
 
 
 @dp.message_handler(state=EnterChatName.chat_name)
