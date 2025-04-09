@@ -1085,11 +1085,18 @@ async def create_tables():
         CREATE TABLE IF NOT EXISTS chats (
             id SERIAL PRIMARY KEY,            -- Уникальный идентификатор чата
             user_id BIGINT,                   -- ID пользователя, связанного с чатом
-            name VARCHAR(255),                 -- Название чата (например, тема)
-            summary TEXT,                      -- Краткое описание чата (сводка)
+            name VARCHAR(255),                -- Название чата (например, тема)
+            summary TEXT,                     -- Краткое описание чата (сводка)
+            keywords TEXT[],                  -- Список ключевых слов
             created_at TIMESTAMP DEFAULT NOW(), -- Время создания чата
             updated_at TIMESTAMP DEFAULT NOW()  -- Время последнего обновления чата
         );
+    """)
+
+    # На случай, если таблица уже есть, добавляем колонку keywords отдельно
+    await conn.execute("""
+        ALTER TABLE chats
+        ADD COLUMN IF NOT EXISTS keywords TEXT[];
     """)
 
     # Создание таблицы messages
