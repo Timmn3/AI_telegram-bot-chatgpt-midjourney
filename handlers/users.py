@@ -192,45 +192,41 @@ def split_message(text: str, max_length: int) -> list:
     return parts
 
 
+# Словарь надстрочных степеней для 1–10 (где есть Unicode)
+superscript_map = {
+    '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+    '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '10': '¹⁰'
+}
+
+def replace_powers(formula):
+    # Заменяет ^1, ^2, ..., ^10 на надстрочные
+    for i in range(10, 0, -1):  # от 10 до 1, чтобы ^10 не превратилось в ^1⁰
+        formula = formula.replace(f'^{i}', superscript_map[str(i)])
+    return formula
+
+def process_formula(match):
+    formula = match.group(1)
+
+    # Обработка дробей: \frac{a}{b} -> a / b
+    formula = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1 / \2", formula)
+
+    # Замена знаков умножения и корней
+    formula = formula.replace(r"\times", "×").replace(r"\cdot", "·")
+    formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)
+    formula = re.sub(r"\\sqrt\((.*?)\)", r"√(\1)", formula)
+
+    # Замена степеней на надстрочные
+    formula = replace_powers(formula)
+
+    # Удаление оставшихся слэшей
+    formula = formula.replace("\\", "")
+
+    return f"<pre>{formula.strip()}</pre>"
+
 def format_math_in_text(text: str) -> str:
-    """
-    Форматирует только LaTeX-подобные выражения в виде \( ... \) в отдельный <pre> блок,
-    преобразуя степени, корни и умножение.
-    """
+    # Обработка формул внутри \( ... \)
+    return re.sub(r"\\\((.*?)\\\)", process_formula, text)
 
-    def escape_html_except_formulas(text):
-        parts = re.split(r'(\\\(.*?\\\))', text, flags=re.DOTALL)  # добавлено flags
-        for i in range(len(parts)):
-            if not parts[i].startswith('\\('):
-                parts[i] = (
-                    parts[i].replace("&", "&amp;")
-                            .replace("<", "&lt;")
-                            .replace(">", "&gt;")
-                )
-        return ''.join(parts)
-
-    text = escape_html_except_formulas(text)
-
-    def process_formula(match):
-        formula = match.group(1)
-
-        # Замены LaTeX -> обычный текст
-        formula = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1 / \2", formula)  # дроби
-        formula = formula.replace(r"\times", "×")
-        formula = formula.replace(r"\cdot", "·")
-        formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)
-        formula = re.sub(r"\\sqrt\((.*?)\)", r"√(\1)", formula)
-
-        # Степени: только ² и ³ — остальные оставить как ^n
-        formula = formula.replace("^2", "²")
-        formula = formula.replace("^3", "³")
-
-        # Удалить оставшиеся \
-        formula = formula.replace("\\", "")
-
-        return f"<pre>{formula.strip()}</pre>"
-
-    return re.sub(r'\\\((.*?)\\\)', process_formula, text, flags=re.DOTALL)
 
 
 # Генерация ответа от ChatGPT
