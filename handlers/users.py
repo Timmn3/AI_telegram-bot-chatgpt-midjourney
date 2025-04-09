@@ -900,9 +900,17 @@ from aiogram.utils.exceptions import CantParseEntities
 
 # Функция для очистки HTML-тегов
 def clean_html(text):
-    # Удаляем пустые или некорректные HTML теги
-    text = re.sub(r'<.*?>', '', text)  # Убирает все HTML-теги
+    # Убираем только не поддерживаемые HTML теги
+    text = re.sub(r'<(?!pre).*?>', '', text)  # Убирает все теги, кроме <pre>
     return text
+
+def escape_special_chars(text):
+    # Заменяем специальные символы, которые могут вызвать ошибку в Telegram
+    text = text.replace("&", "&amp;")
+    text = text.replace("<", "&lt;")
+    text = text.replace(">", "&gt;")
+    return text
+
 
 # Функция для безопасной отправки сообщения
 async def safe_send_message(bot, user_id, text, **kwargs):
@@ -912,8 +920,9 @@ async def safe_send_message(bot, user_id, text, **kwargs):
     except CantParseEntities as e:
         logger.error(f"Невозможно обработать сущности в сообщении для пользователя {user_id}: {e}")
 
-        # Очистим текст от некорректных HTML тегов
+        # Очистим текст от некорректных HTML тегов и экранируем спецсимволы
         cleaned_text = clean_html(text)
+        cleaned_text = escape_special_chars(cleaned_text)
 
         try:
             # Попробуем отправить очищенный текст
@@ -922,23 +931,22 @@ async def safe_send_message(bot, user_id, text, **kwargs):
         except CantParseEntities as e:
             logger.error(f"Не удалось отправить очищенный текст для пользователя {user_id}: {e}")
 
-            # Очистим и отправим исправленный текст через GPT
+            # Попробуем исправить текст через GPT
             attempts = 3
             for attempt in range(attempts):
                 try:
-                    # Отправим запрос в GPT на исправление форматирования
                     prompt = f"Исправь форматирование этого текста для Telegram, чтобы он был корректным: {cleaned_text}"
 
-                    # Получим ответ от GPT
+                    # Получаем ответ от GPT
                     corrected_text_response = await ai.get_gpt(
                         messages=[{"role": "user", "content": prompt}],
                         model="4o-mini"  # Или используйте нужную модель
                     )
 
-                    # Извлекаем исправленный текст от GPT
                     corrected_text = corrected_text_response["content"]
+                    corrected_text = escape_special_chars(corrected_text)  # Экранируем спецсимволы
 
-                    # Отправляем исправленный текст пользователю
+                    # Отправляем исправленный текст
                     await bot.send_message(user_id, corrected_text, **kwargs)
                     return  # Выход после успешной отправки
                 except Exception as gpt_error:
@@ -950,6 +958,7 @@ async def safe_send_message(bot, user_id, text, **kwargs):
             # Если все попытки не удались, отправим упрощённое сообщение
             simple_message = "Извините, произошла ошибка при форматировании сообщения. Пожалуйста, попробуйте снова."
             await bot.send_message(user_id, simple_message, **kwargs)
+
 
 # Основной хендлер для обработки сообщений и генерации запросов
 @dp.message_handler()
