@@ -196,17 +196,41 @@ def process_formula(match):
 
     # Замены для наиболее популярных команд
     formula = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1 / \2", formula)  # \frac{a}{b} → a / b
-    formula = re.sub(r"\\text\{(.*?)\}", r"\1", formula)  # \text{...} → текст без LaTeX
-    formula = formula.replace(r"\times", "×").replace(r"\cdot", "·")  # Умножение: \times → ×, \cdot → ·
-    formula = formula.replace(r"\implies", "⇒").replace(r"\approx", "≈")  # Логические и математические символы
-    formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)  # Квадратный корень: \sqrt{a} → √(a)
-    formula = re.sub(r"([a-zA-Z])\^([0-9]+)", lambda m: f"{m.group(1)}{chr(8304 + int(m.group(2)))}", formula)  # Степени (например, x^2 → x²)
-    formula = re.sub(r"([a-zA-Z])_([0-9]+)", lambda m: f"{m.group(1)}{chr(8320 + int(m.group(2)))}", formula)  # Индексы: t_1 → t₁
+    formula = re.sub(r"\\text\{(.*?)\}", r"\1", formula)  # \text{...} → обычный текст
+    formula = formula.replace(r"\times", "×").replace(r"\cdot", "·")  # Умножение
+    formula = formula.replace(r"\implies", "⇒").replace(r"\approx", "≈")  # Символы логики
+    formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)  # Корень: \sqrt{a} → √(a)
 
-    # Обработка символов углов (например, 30^\circ → 30°)
+    # Обработка степеней: x^2 → x² (для цифр 0–9)
+    def replace_power(m):
+        base, exp = m.group(1), m.group(2)
+        try:
+            exp_int = int(exp)
+            if 0 <= exp_int <= 9:
+                return f"{base}{chr(8304 + exp_int)}"
+            else:
+                return f"{base}^{exp}"  # для более сложных степеней
+        except ValueError:
+            return f"{base}^{exp}"
+    formula = re.sub(r"([a-zA-Z])\^([0-9]+)", replace_power, formula)
+
+    # Индексы: t_1 → t₁
+    def replace_subscript(m):
+        base, sub = m.group(1), m.group(2)
+        try:
+            sub_int = int(sub)
+            if 0 <= sub_int <= 9:
+                return f"{base}{chr(8320 + sub_int)}"
+            else:
+                return f"{base}_{sub}"
+        except ValueError:
+            return f"{base}_{sub}"
+    formula = re.sub(r"([a-zA-Z])_([0-9]+)", replace_subscript, formula)
+
+    # Углы: \degree → °
     formula = re.sub(r"\\degree", "°", formula)
 
-    # Замена символов для греческих букв (например, \alpha → α)
+    # Греческие буквы
     greek_letters = {
         r"\alpha": "α", r"\beta": "β", r"\gamma": "γ", r"\delta": "δ", r"\epsilon": "ε",
         r"\zeta": "ζ", r"\eta": "η", r"\theta": "θ", r"\iota": "ι", r"\kappa": "κ",
@@ -217,10 +241,17 @@ def process_formula(match):
     for latex, symbol in greek_letters.items():
         formula = formula.replace(latex, symbol)
 
-    # Убираем лишние символы LaTeX (например, \)
+    # Замена потенциально нечитабельных символов
+    formula = formula.replace("⁲", "²")
+
+    # Убираем все оставшиеся неизвестные надстрочные символы, кроме ² и ³
+    formula = re.sub(r"[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿ]", lambda m: m.group(0) if m.group(0) in "²³" else "", formula)
+
+    # Убираем лишние \ (после всех замен)
     formula = formula.replace("\\", "")
 
     return f"<pre>{formula.strip()}</pre>"
+
 
 def format_math_in_text(text: str) -> str:
     # Обработка формул внутри \[ ... \] или \( ... \)
