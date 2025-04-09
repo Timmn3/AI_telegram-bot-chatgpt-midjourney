@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime, timedelta
 from typing import List
-
 import requests
 from aiogram import Bot
 from aiogram.types import Message, CallbackQuery, ChatActions, ContentType, MediaGroup, Update, InlineKeyboardMarkup, \
@@ -203,6 +202,10 @@ def formatter(text):
     return text
 
 
+def escape_markdown(text: str) -> str:
+    escape_chars = r'\_*[]()~`>#+-=|{}.!'
+    return re.sub(rf'([{"".join(re.escape(c) for c in escape_chars)}])', r'\\\1', text)
+
 # Генерация ответа от ChatGPT
 async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     user = await db.get_user(user_id)
@@ -210,23 +213,15 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     model = user['gpt_model']
     model_dashed = model.replace("-", "_")
 
-    # Получаем текущий активный чат
     current_chat = await db.get_chat_by_id(user["current_chat_id"])
 
-    # Отправляем пользователю имя текущего чата (если есть)
-    # if current_chat and current_chat["name"]:
-    #     await bot.send_message(user_id, f"💬 Активный чат: *{current_chat['name']}*", parse_mode="Markdown")
-
-    # Вставляем краткое содержание (summary), если есть
     summary = current_chat["summary"] if current_chat else ""
     if summary:
         prompt = f"Ранее в этом чате обсуждалось: {summary.strip()}\n\n" + prompt
 
-    # Добавляем указание языка
     prompt += f"\n{lang_text[user['chat_gpt_lang']]}"
     message_user = prompt
 
-    # Формируем список сообщений для GPT
     if messages is None:
         messages = []
     messages.append({"role": "user", "content": prompt})
@@ -235,16 +230,26 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
     await bot.send_chat_action(user_id, ChatActions.TYPING)
 
-    # Отправляем запрос в GPT
     res = await ai.get_gpt(messages, model)
 
-    # Отображаем ответ пользователю
-    if len(res["content"]) <= 4096:
-        await bot.send_message(user_id, formatter(res["content"]), reply_markup=user_kb.get_clear_or_audio(), parse_mode="MarkdownV2")
+    escaped_content = escape_markdown(res["content"])
+
+    if len(escaped_content) <= 4096:
+        await bot.send_message(
+            user_id,
+            escaped_content,
+            reply_markup=user_kb.get_clear_or_audio(),
+            parse_mode="MarkdownV2"
+        )
     else:
-        parts = split_message(formatter(res["content"]), 4096)
+        parts = split_message(escaped_content, 4096)
         for part in parts:
-            await bot.send_message(user_id, part, reply_markup=user_kb.get_clear_or_audio(), parse_mode="MarkdownV2")
+            await bot.send_message(
+                user_id,
+                part,
+                reply_markup=user_kb.get_clear_or_audio(),
+                parse_mode="MarkdownV2"
+            )
 
     await state.update_data(content=res["content"])
 
@@ -254,7 +259,6 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     message_gpt = res["content"]
     messages.append({"role": "assistant", "content": message_gpt})
 
-    # Если чата нет — создаём и генерируем имя
     if not current_chat:
         generated_name = await generate_chat_name(message_user, model, message_gpt)
         new_chat_id = await db.create_chat(user_id, name=generated_name, summary="")
@@ -263,22 +267,18 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     else:
         chat_id = current_chat["id"]
 
-    # Сохраняем сообщения
     await db.add_message(chat_id, user_id, message_user)
     await db.add_message(chat_id, None, message_gpt)
 
-    # Генерируем и сохраняем новую сводку чата
     old_summary = current_chat["summary"] if current_chat else ""
     new_summary = await update_chat_summary(chat_id, message_user, message_gpt, model, old_summary)
     await db.update_chat_summary(chat_id, new_summary)
 
-    # Списание токенов
     await db.remove_chatgpt(user_id, res["tokens"], model)
 
-    # Проверка на остаток токенов и уведомление
     now = datetime.now()
     user_notified = await db.get_user_notified_gpt(user_id)
-    user = await db.get_user(user_id)  # Обновлённый
+    user = await db.get_user(user_id)
 
     has_purchase = await db.has_matching_orders(user_id)
     if user[f"tokens_{model_dashed}"] <= 1000 and model_dashed != "4o_mini":
@@ -293,7 +293,7 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
                 await db.update_user_notification_gpt(user_id)
                 await notify_low_chatgpt_tokens(user_id, bot)
 
-    await db.add_action(user_id, model)  # Логируем
+    await db.add_action(user_id, model)
     return messages
 
 
@@ -1205,9 +1205,9 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
     # Формируем текст сообщения
     text = (
         "🗂 *Меню чатов позволяет:*\n"
-        "-- Создавать новые чаты\n"
-        "-- Переключаться между чатами\n"
-        "-- Изменять настройки и названия чатов\n\n"
+        "- Создавать новые чаты\n"
+        "- Переключаться между чатами\n"
+        "- Изменять настройки и названия чатов\n\n"
         "*Выберите необходимый чат ⤵️*"
     )
 
@@ -1244,6 +1244,7 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
 
     # Отправляем обновленное сообщение с чатиками и кнопками
     await call.message.answer(text, parse_mode="Markdown", reply_markup=kb)
+    await call.answer()
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith('page:'))
@@ -1303,9 +1304,9 @@ async def paginate_chats(call: CallbackQuery):
     # Формируем текст для обновленного списка чатов
     text = (
         "🗂 *Меню чатов позволяет:*\n"
-        "-- Создавать новые чаты\n"
-        "-- Переключаться между чатами\n"
-        "-- Изменять настройки и названия чатов\n\n"
+        "- Создавать новые чаты\n"
+        "- Переключаться между чатами\n"
+        "- Изменять настройки и названия чатов\n\n"
         "*Выберите необходимый чат ⤵️*"
     )
 
@@ -1341,7 +1342,7 @@ async def paginate_chats(call: CallbackQuery):
 
     # Отправляем обновленное сообщение с чатиками и кнопками
     try:
-        await call.message.answer(text, parse_mode="Markdown", reply_markup=kb)
+        await call.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
     except Exception as e:
         pass
 
@@ -1385,6 +1386,7 @@ async def select_chat(call: CallbackQuery):
 
     # Обновляем сообщение с новым текстом и кнопками
     await call.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
+    await call.answer()
 
 @dp.callback_query_handler(lambda c: c.data.startswith('select_active_chat:'))
 async def select_active_chat(call: CallbackQuery):
