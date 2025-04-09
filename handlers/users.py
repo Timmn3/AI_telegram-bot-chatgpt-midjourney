@@ -923,15 +923,18 @@ async def gen_prompt(message: Message, state: FSMContext):
         system_msg = user["chatgpt_about_me"] + "\n" + user["chatgpt_character"]
         messages = [{"role": "system", "content": system_msg}] if "messages" not in data else data["messages"]
         update_messages = await get_gpt(prompt=message.text, messages=messages, user_id=user_id,
-                                        bot=message.bot, state=state)  # Генерация ответа от ChatGPT
+                                       bot=message.bot, state=state)  # Генерация ответа от ChatGPT
 
-        # Отправка сообщения через безопасную функцию с санитацией HTML
+        # Санитизируем HTML
+        clean_content = sanitize_html(update_messages[-1]['content'])  # Санитизируем перед отправкой
+
+        # Отправка только одного сообщения
         await state.update_data(messages=update_messages)
-        clean_content = sanitize_html(update_messages[-1]['content'])  # Санитизируем HTML перед отправкой
         await safe_send_message(message.bot, user_id, clean_content, parse_mode="HTML")
 
     elif user["default_ai"] == "image":
         await get_mj(message.text, user_id, message.bot)  # Генерация изображения через MidJourney
+
 
 
 # Хэндлер для работы с голосовыми сообщениями
