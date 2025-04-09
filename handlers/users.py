@@ -1457,9 +1457,6 @@ async def delete_selected_chat(call: CallbackQuery):
     await conn.execute("DELETE FROM chats WHERE id = $1", chat_id)
     await conn.close()
 
-    # Обновляем список чатов
-    await show_my_chats(call)
-
     # Отправляем сообщение об успешном удалении
     await call.message.edit_text("Чат успешно удалён. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
     await call.answer()  # Закрытие всплывающего окна
@@ -1696,7 +1693,7 @@ async def confirm_delete_chat(call: CallbackQuery):
     await conn.close()
 
     # Подтверждаем успешное удаление чата
-    await call.message.answer("Чат успешно удален. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
+    await call.message.edit_text("Чат успешно удален. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
     await call.answer()
 
 
