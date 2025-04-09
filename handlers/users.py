@@ -202,6 +202,10 @@ def process_formula(match):
     formula = formula.replace(r"\implies", "⇒").replace(r"\approx", "≈")  # Логические и математические символы
     formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)  # Квадратный корень: \sqrt{a} → √(a)
 
+    # Обработка системы уравнений (например, \begin{cases} ... \end{cases})
+    formula = re.sub(r"\\begin{cases}(.*?)\\end{cases}", r"\n{\1}\n", formula, flags=re.DOTALL)
+    formula = re.sub(r"\\\\", r"\n", formula)  # Заменяем \\\\ на новую строку
+
     # Степени (например, x^2 → x²)
     formula = re.sub(r"([a-zA-Z])\^([0-9]+)", lambda m: f"{m.group(1)}{chr(8304 + int(m.group(2)))}", formula)
 
@@ -218,8 +222,6 @@ def format_math_in_text(text: str) -> str:
     text = re.sub(r"\\\[(.*?)\\\]", process_formula, text)  # Обработка формул внутри \[...\]
     text = re.sub(r"\\\((.*?)\\\)", process_formula, text)  # Обработка формул внутри \(...\)
     return text
-
-
 
 
 # Генерация ответа от ChatGPT
