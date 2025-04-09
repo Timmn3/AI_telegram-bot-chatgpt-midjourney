@@ -213,12 +213,21 @@ def format_math_in_text(text: str) -> str:
 
     def process_formula(match):
         formula = match.group(1)
+
+        # Удаляем лишние слэши перед знаком √ и \times
+        formula = formula.replace(r"\times", "×")
+        formula = formula.replace(r"\cdot", "·")
+        formula = re.sub(r"\\sqrt\{(.*?)\}", r"√(\1)", formula)
+        formula = re.sub(r"\\sqrt\((.*?)\)", r"√(\1)", formula)
+
+        # Степени
         formula = re.sub(r"\^2", "²", formula)
         formula = re.sub(r"\^3", "³", formula)
         formula = re.sub(r"\^(\d+)", r"\1", formula)
-        formula = re.sub(r"sqrt\{(.*?)\}", r"√(\1)", formula)
-        formula = re.sub(r"sqrt\((.*?)\)", r"√(\1)", formula)
-        formula = formula.replace("*", "·")
+
+        # Удалим оставшиеся ненужные \ перед функциями, скобками и цифрами
+        formula = formula.replace("\\", "")
+
         return f"<pre>{formula.strip()}</pre>"
 
     return re.sub(r'\\\((.*?)\\\)', process_formula, text, flags=re.DOTALL)
