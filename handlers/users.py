@@ -202,10 +202,6 @@ def formatter(text):
     return text
 
 
-def escape_markdown(text: str) -> str:
-    escape_chars = r'\_*[]()~`>#+-=|{}.!'
-    return re.sub(rf'([{"".join(re.escape(c) for c in escape_chars)}])', r'\\\1', text)
-
 # Генерация ответа от ChatGPT
 async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     user = await db.get_user(user_id)
@@ -232,23 +228,30 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
     res = await ai.get_gpt(messages, model)
 
-    escaped_content = escape_markdown(res["content"])
+    def escape_html(text: str) -> str:
+        return (
+            text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+        )
 
-    if len(escaped_content) <= 4096:
+    html_content = f"<pre>{escape_html(res['content'])}</pre>"
+
+    if len(html_content) <= 4096:
         await bot.send_message(
             user_id,
-            escaped_content,
+            html_content,
             reply_markup=user_kb.get_clear_or_audio(),
-            parse_mode="MarkdownV2"
+            parse_mode="HTML"
         )
     else:
-        parts = split_message(escaped_content, 4096)
+        parts = split_message(html_content, 4096)
         for part in parts:
             await bot.send_message(
                 user_id,
                 part,
                 reply_markup=user_kb.get_clear_or_audio(),
-                parse_mode="MarkdownV2"
+                parse_mode="HTML"
             )
 
     await state.update_data(content=res["content"])
