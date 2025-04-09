@@ -192,8 +192,6 @@ def split_message(text: str, max_length: int) -> list:
     return parts
 
 
-import re
-
 
 def format_html_math_block(text: str) -> str:
     # Экранирование HTML-символов
@@ -203,15 +201,12 @@ def format_html_math_block(text: str) -> str:
         .replace(">", "&gt;")
     )
 
-    # Замена степеней (любые числа после ^ или **)
-    text = re.sub(r"\^(\d+)", r"<sup>\1</sup>", text)  # Степени вида x^n
-    text = re.sub(r"\*\*(\d+)", r"<sup>\1</sup>", text)  # Степени вида x**n
+    # Замена степеней (вместо <sup> используем символы)
+    text = re.sub(r"\^2", "²", text)  # Для x^2 заменяем на ²
+    text = re.sub(r"\^3", "³", text)  # Для x^3 заменяем на ³
+    text = re.sub(r"\^(\d+)", r"\1", text)  # Для любых других степеней
 
-    # Замена 2 и 3, как у вас было раньше
-    text = text.replace("^2", "²").replace("**2", "²")
-    text = text.replace("^3", "³").replace("**3", "³")
-
-    # Обработка корней
+    # Обработка корней (заменяем на символы корня)
     text = re.sub(r"sqrt\((.*?)\)", r"√(\1)", text)  # Например, sqrt(25) -> √(25)
 
     # Замена умножения на символ "·" для математических выражений
