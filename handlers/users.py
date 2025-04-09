@@ -214,8 +214,11 @@ def process_formula(match):
     return f"<pre>{formula.strip()}</pre>"
 
 def format_math_in_text(text: str) -> str:
-    # Обработка формул внутри \( ... \)
-    return re.sub(r"\\\((.*?)\\\)", process_formula, text)
+    # Обработка формул внутри \[ ... \] или \( ... \)
+    text = re.sub(r"\\\[(.*?)\\\]", process_formula, text)  # Обработка формул внутри \[...\]
+    text = re.sub(r"\\\((.*?)\\\)", process_formula, text)  # Обработка формул внутри \(...\)
+    return text
+
 
 
 
