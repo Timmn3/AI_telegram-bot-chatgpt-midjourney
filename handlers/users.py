@@ -192,14 +192,38 @@ def split_message(text: str, max_length: int) -> list:
     return parts
 
 
-def formatter(text):
+def format_html_math_block(text: str) -> str:
+    # Экранирование HTML-символов
+    text = (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
 
-    escape_chars = r'[]()~>#+-=|{}.!'
-    text = ''.join(['\\' + char if char in escape_chars else char for char in text])
+    # Замена степеней (любые числа после ^ или **)
+    text = re.sub(r"\^(\d+)", r"<sup>\1</sup>", text)  # Степени вида x^n
+    text = re.sub(r"\*\*(\d+)", r"<sup>\1</sup>", text)  # Степени вида x**n
 
-    text = text.replace("**", "*")
-    
-    return text
+    # Замена 2 и 3, как у вас было раньше
+    text = text.replace("^2", "²").replace("**2", "²")
+    text = text.replace("^3", "³").replace("**3", "³")
+
+    # Обработка корней
+    text = re.sub(r"sqrt\((.*?)\)", r"√(\1)", text)  # Например, sqrt(25) -> √(25)
+
+    # Замена умножения на символ "·" для математических выражений
+    text = re.sub(r'(?<=\w)\*(?=\w)', '·', text)
+    text = re.sub(r'(?<=\d)\*(?=\()', '·', text)
+    text = re.sub(r'(?<=\))\*(?=\w)', '·', text)
+
+    # Поддержка дробей
+    text = re.sub(r"(\d+)/(\d+)",
+                  r"<span style='text-align: center; display: inline-block;'><sup>\1</sup>/<sub>\2</sub></span>", text)
+
+    # Обработка символов, таких как π, e и другие
+    text = text.replace("pi", "π").replace("e", "e")
+
+    return f"<pre>{text}</pre>"
 
 
 # Генерация ответа от ChatGPT
@@ -210,11 +234,9 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     model_dashed = model.replace("-", "_")
 
     current_chat = await db.get_chat_by_id(user["current_chat_id"])
-
     summary = current_chat["summary"] if current_chat else ""
     if summary:
         prompt = f"Ранее в этом чате обсуждалось: {summary.strip()}\n\n" + prompt
-
     prompt += f"\n{lang_text[user['chat_gpt_lang']]}"
     message_user = prompt
 
@@ -223,19 +245,11 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     messages.append({"role": "user", "content": prompt})
 
     logger.info(f"Текстовый запрос к ChatGPT. User: {user}, Model: {model}, tokens: {user[f'tokens_{model_dashed}']}")
-
     await bot.send_chat_action(user_id, ChatActions.TYPING)
 
     res = await ai.get_gpt(messages, model)
 
-    def escape_html(text: str) -> str:
-        return (
-            text.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-        )
-
-    html_content = f"<pre>{escape_html(res['content'])}</pre>"
+    html_content = format_html_math_block(res["content"])
 
     if len(html_content) <= 4096:
         await bot.send_message(
@@ -282,11 +296,10 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     now = datetime.now()
     user_notified = await db.get_user_notified_gpt(user_id)
     user = await db.get_user(user_id)
-
     has_purchase = await db.has_matching_orders(user_id)
+
     if user[f"tokens_{model_dashed}"] <= 1000 and model_dashed != "4o_mini":
         logger.info(f"Осталось {user[f'tokens_{model_dashed}']} токенов, уведомление: {user_notified}, покупка: {has_purchase}")
-
         if user_notified is None and has_purchase:
             await db.create_user_notification_gpt(user_id)
             await notify_low_chatgpt_tokens(user_id, bot)
