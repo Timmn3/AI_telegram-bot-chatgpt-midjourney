@@ -192,76 +192,84 @@ async def add_balance(message: Message):
 @dp.message_handler(commands="send")
 async def enter_text(message: Message, state: FSMContext):
     if message.from_user.id in ADMINS:
-        await message.answer("Введите текст рассылки", reply_markup=admin_kb.cancel)  # Запрос текста для рассылки
-        await state.set_state(states.Mailing.enter_text)  # Устанавливаем состояние для ввода текста
+        await message.answer("Введите текст рассылки или прикрепите изображение с подписью", reply_markup=admin_kb.cancel)
+        await state.set_state(states.Mailing.enter_text)
 
 
-# Хендлер для ввода текста рассылки и запроса подтверждения
-@dp.message_handler(state=states.Mailing.enter_text)
+# Хендлер для ввода текста/фото и запроса подтверждения
+@dp.message_handler(state=states.Mailing.enter_text, content_types=["text", "photo"])
 async def start_send(message: Message, state: FSMContext):
     if message.text == "Отмена":
-        await message.answer("Отменено")
-        await state.finish()  # Завершаем состояние
+        await message.answer("Отменено", reply_markup=ReplyKeyboardRemove())
+        await state.finish()
         return
+
+    text = message.caption if message.photo else message.text
+    photo = message.photo[-1].file_id if message.photo else None
 
     await message.answer("Собираю данные пользователей...")
 
-    users = await db.get_users()  # Получаем всех пользователей
-    users_list = [{"user_id": user["user_id"]} for user in users]  # Преобразуем в JSON-совместимый формат
+    users = await db.get_users()
+    users_list = [{"user_id": user["user_id"]} for user in users]
 
-    # Сохраняем пользователей в FSMContext
-    await state.update_data(users=users_list, text=message.text)  # Сохраняем текст рассылки и пользователей
+    await state.update_data(users=users_list, text=text, photo=photo)
 
     total_minutes, total_hours = await calculate_time(len(users), 0.25)
 
     if total_hours < 1:
         await message.answer(f"Количество пользователей: {len(users)}\n"
-                             f"Приблизительное время отправки сообщений {total_minutes} минут ")
+                             f"Приблизительное время отправки сообщений: {total_minutes} минут")
     else:
         await message.answer(f"Количество пользователей: {len(users)}\n"
-                             f"Приблизительное время отправки сообщений {total_hours} часов")
+                             f"Приблизительное время отправки сообщений: {total_hours:.1f} часов")
 
-    # Создание кнопок для согласия
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(KeyboardButton("Да"), KeyboardButton("Нет"))
 
-    # Запрашиваем подтверждение
     await message.answer("Вы хотите продолжить рассылку?", reply_markup=markup)
-    await state.set_state(states.Mailing.confirm)  # Переходим в состояние подтверждения
+    await state.set_state(states.Mailing.confirm)
 
 
-# Хендлер для получения согласия и рассылки сообщений
-@dp.message_handler(state=states.Mailing.confirm, text=["Да", "Нет"], is_admin=True)
+# Хендлер для подтверждения и запуска рассылки
+@dp.message_handler(state=states.Mailing.confirm, text=["Да", "Нет"])
 async def confirm_send(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMINS:
+        return
+
     if message.text == "Нет":
         await message.answer("Рассылка отменена.", reply_markup=ReplyKeyboardRemove())
         await state.finish()
         return
 
-    # Извлекаем данные из состояния
     user_data = await state.get_data()
     users = user_data["users"]
-    text = user_data["text"]  # Берём сохранённый текст рассылки
+    text = user_data.get("text", "")
+    photo = user_data.get("photo")
 
     await message.answer("Начал рассылку...", reply_markup=ReplyKeyboardRemove())
 
     count = 0
     block_count = 0
-    await message.bot.send_message(ADMINS_CODER, text)
-    await state.finish()  # Завершаем состояние
 
-    # Выполняем рассылку
+    # Уведомляем администратора
+    await message.bot.send_message(ADMINS_CODER, text or "[рассылка с изображением]")
+
+    await state.finish()
+
     for user in users:
         try:
-            await message.bot.send_message(user["user_id"], text)  # Используем сохранённый текст
+            if photo:
+                await message.bot.send_photo(user["user_id"], photo=photo, caption=text or "")
+            else:
+                await message.bot.send_message(user["user_id"], text)
             count += 1
         except:
-            block_count += 1  # Считаем пользователей, заблокировавших бота
-        await asyncio.sleep(0.1)  # Делаем небольшую паузу между отправками
+            block_count += 1
+        await asyncio.sleep(0.1)
 
-    # Итог рассылки
     await message.answer(
-        f"Количество получивших сообщение: {count}. Пользователей, заблокировавших бота: {block_count}"
+        f"Количество получивших сообщение: {count}.\n"
+        f"Пользователей, заблокировавших бота: {block_count}"
     )
 
 
