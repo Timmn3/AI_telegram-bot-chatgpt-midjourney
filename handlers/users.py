@@ -738,19 +738,28 @@ async def ask_question(message: Message, state: FSMContext):
     if user[f"tokens_{model}"] <= 0:
         return await not_enough_balance(message.bot, user_id, "chatgpt")  # Сообщаем об исчерпании лимита
 
-    # Сообщение с запросом ввода
-    await message.answer("""<b>Введите запрос</b>
-Например: <code>Напиши сочинение на тему: Как я провёл это лето</code>
-
-<u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
-                         reply_markup=user_kb.get_menu("chatgpt"),
-                         disable_web_page_preview=True)
     # Получаем текущий активный чат
     current_chat = await db.get_chat_by_id(user["current_chat_id"])
 
     # Отправляем пользователю имя текущего чата (если есть)
     if current_chat and current_chat["name"]:
-        await message.answer(f"💬 Активный чат: *{current_chat['name']}*", parse_mode="Markdown")
+        keyboard = InlineKeyboardMarkup(row_width=1).add(
+            InlineKeyboardButton("🗂Мои чаты", callback_data="my_chats"),
+        )
+        await message.answer(
+            f"💬 Активный чат: *{current_chat['name']}*\n\n"
+            f"Выберите чат или введите запрос⤵️",
+            parse_mode="Markdown",
+            reply_markup=keyboard
+        )
+    else:
+        # Сообщение с запросом ввода
+        await message.answer("""<b>Введите запрос</b>
+        Например: <code>Напиши сочинение на тему: Как я провёл это лето</code>
+
+        <u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
+                             reply_markup=user_kb.get_menu("chatgpt"),
+                             disable_web_page_preview=True)
 
 
 # Хендлер для вывода информации о поддержке
