@@ -11,7 +11,7 @@ import uuid
 import config  # Импорт конфигурации
 from config import FreeKassa, LAVA_API_KEY, LAVA_SHOP_ID, PayOK, Tinkoff  # Импорт настроек платежных систем
 from utils import db  # Импорт функций работы с базой данных
-
+from utils.db import get_conn
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +30,10 @@ def get_pay_url_tinkoff(order_id, amount):
     # Формирование данных для запроса на оплату через Tinkoff
     data = {
         "TerminalKey": Tinkoff.terminal_id,
-        "Amount": amount * 100,  # Сумма в копейках
-        "OrderId": order_id,  # Уникальный идентификатор заказа
-        "NotificationURL": "https://91.192.102.250/api/pay/tinkoff"  # URL для уведомлений о статусе оплаты
+        "Amount": amount * 100,
+        "CallbackUrl": "https://91.192.102.250/api/pay/tinkoff/receipt",
+        "OrderId": order_id,
+        "NotificationURL": "https://91.192.102.250/api/pay/tinkoff"
     }
 
     # Строка для подписи
@@ -47,7 +48,44 @@ def get_pay_url_tinkoff(order_id, amount):
 
     # Логируем ответ для отладки
     logger.info(f'Tinkoff Response: {res_data}')
-    return res_data["PaymentURL"]  # Возвращаем URL для оплаты
+
+    # Сохраняем payment_id в базу, если он есть
+    payment_id = res_data.get("PaymentId")
+    if payment_id:
+        # Вызов асинхронной функции из sync-кода — через asyncio
+        import asyncio
+        asyncio.create_task(save_payment_id(order_id, payment_id))
+
+    return res_data["PaymentURL"]
+
+
+async def save_payment_id(order_id, payment_id):
+    conn = await get_conn()
+    await conn.execute("UPDATE orders SET payment_id = $1 WHERE order_id = $2", payment_id, order_id)
+    await conn.close()
+
+import requests
+
+async def get_receipt_url(payment_id):
+    # Отправляем запрос в Tinkoff API для получения чека по payment_id
+    data = {
+        "TerminalKey": Tinkoff.terminal_id,
+        "PaymentId": payment_id,
+        "Token": generate_receipt_token(payment_id)  # Нужно создать токен для подписи
+    }
+    response = requests.post("https://securepay.tinkoff.ru/v2/CheckOrder", json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        if result.get("Success"):
+            # Если запрос успешен, возвращаем URL чека
+            return result.get("ReceiptUrl")  # Это URL на изображение чека
+    return None
+
+def generate_receipt_token(payment_id):
+    sign_str = f"{payment_id}{Tinkoff.api_token}{Tinkoff.terminal_id}"
+    return hashlib.sha256(sign_str.encode('utf-8')).hexdigest()
+
 
 
 # Функция для получения ссылки оплаты через PayOK

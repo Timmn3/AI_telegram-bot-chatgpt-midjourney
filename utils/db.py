@@ -95,7 +95,8 @@ async def start():
         "quantity INT,"  # Количество токенов или запросов
         "create_time TIMESTAMP DEFAULT NOW(),"  # Время создания заказа
         "pay_time TIMESTAMP,"  # Время оплаты заказа
-        "order_id UUID UNIQUE"  # Уникальный идентификатор заказа для платежной системы
+        "order_id UUID UNIQUE,"  # Уникальный идентификатор заказа для платежной системы
+        "payment_id TEXT"  # ID платежа в системе Tinkoff (изменили на TEXT)
         ")"
     )
 
@@ -345,6 +346,14 @@ async def add_balance_from_ref(user_id):
     await conn.execute("UPDATE users SET balance = balance + ref_balance, ref_balance = 0 WHERE user_id = $1",
                        user_id)
     await conn.close()
+
+# Функция для получения заказа по payment_id
+async def get_order_by_payment_id(payment_id):
+    conn = await get_conn()
+    row = await conn.fetchrow("SELECT * FROM orders WHERE payment_id = $1", payment_id)
+    await conn.close()
+    return row
+
 
 
 # Изменение языка ChatGPT для пользователя
