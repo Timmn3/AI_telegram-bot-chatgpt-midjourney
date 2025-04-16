@@ -152,7 +152,7 @@ async def receipt_handler(request: Request):
 
     # Обработка каждого PaymentId из списка
     for payment_id in data["PaymentIdList"]:
-        order = await db.get_order_by_payment_id(payment_id)  # Получаем заказ по payment_id
+        order = await db.get_order_by_payment_id(str(payment_id))        # Получаем заказ по payment_id
 
         if order is None:
             logger.info(f"Order with PaymentId {payment_id} not found")
