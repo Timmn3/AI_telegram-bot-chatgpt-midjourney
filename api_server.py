@@ -160,6 +160,10 @@ async def receipt_handler(request: Request):
 
         # Получаем ссылку на чек от Tinkoff
         receipt_url = await get_receipt_url(payment_id)
+        if receipt_url:
+            print(f"Чек доступен по ссылке: {receipt_url}")
+        else:
+            print("Чек не найден или произошла ошибка")
 
         if receipt_url:
             user_id = order["user_id"]
