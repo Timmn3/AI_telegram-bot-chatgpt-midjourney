@@ -7,7 +7,7 @@ import config
 import logging
 import utils
 import aiohttp
-from config import NOTIFY_URL, bug_id, ADMINS_CODER
+from config import NOTIFY_URL, bug_id, ADMINS_CODER, Tinkoff
 from keyboards import user as user_kb
 from fastapi import FastAPI, Request, HTTPException, Form  # Импорт необходимых классов для работы с FastAPI
 from fastapi.responses import JSONResponse
@@ -21,6 +21,7 @@ from typing import Optional
 
 import uuid
 
+from utils.pay import get_receipt_url
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,58 @@ async def check_pay_tinkoff(request: Request):
     await process_pay(order_id, int(data["Amount"] / 100))  # Обрабатываем платеж
     return "OK"
 
+import hashlib
+
+import requests
+from fastapi import Request, HTTPException
+
+@app.post('/api/pay/tinkoff/receipt')
+async def receipt_handler(request: Request):
+    data = await request.json()
+    logger.info(f"📨 Receipt request received: {data}")
+
+    # Проверка обязательных полей
+    required_fields = ["TerminalKey", "CallbackUrl", "PaymentIdList", "Token"]
+    if not all(k in data for k in required_fields):
+        raise HTTPException(status_code=400, detail="Missing fields")
+
+    # Проверка подписи
+    sign_str = f"{data['CallbackUrl']}{','.join(map(str, data['PaymentIdList']))}{Tinkoff.api_token}{Tinkoff.terminal_id}"
+    expected_token = hashlib.sha256(sign_str.encode("utf-8")).hexdigest()
+
+    if data["Token"] != expected_token:
+        logger.warning("❌ Invalid token in receipt request")
+        raise HTTPException(status_code=403, detail="Invalid token")
+
+    # Обработка каждого PaymentId из списка
+    for payment_id in data["PaymentIdList"]:
+        order = await db.get_order_by_payment_id(payment_id)  # Получаем заказ по payment_id
+
+        if order is None:
+            logger.info(f"Order with PaymentId {payment_id} not found")
+            continue
+
+        # Получаем ссылку на чек от Tinkoff
+        receipt_url = await get_receipt_url(payment_id)
+
+        if receipt_url:
+            user_id = order["user_id"]
+
+            # Отправляем картинку чека пользователю
+            try:
+                # Загружаем картинку с URL
+                response = requests.get(receipt_url)
+                if response.status_code == 200:
+                    img = BytesIO(response.content)
+                    await bot.send_photo(user_id, photo=img, caption="💳 Ваш чек:")
+                else:
+                    logger.error(f"Failed to download receipt image for PaymentId {payment_id}")
+            except Exception as e:
+                logger.error(f"Error while sending receipt: {str(e)}")
+        else:
+            logger.warning(f"No receipt URL found for PaymentId {payment_id}")
+
+    return {"Success": True}
 
 
 # Обработка платежей от PayOK
