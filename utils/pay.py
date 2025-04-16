@@ -31,7 +31,7 @@ def get_pay_url_tinkoff(order_id, amount):
     data = {
         "TerminalKey": Tinkoff.terminal_id,
         "Amount": amount * 100,
-        "CallbackUrl": "https://91.192.102.250/api/pay/tinkoff/receipt",
+        "CallbackUrl": "https://neuronbot.ru/api/pay/tinkoff/receipt",
         "OrderId": order_id,
         "NotificationURL": "https://91.192.102.250/api/pay/tinkoff"
     }
