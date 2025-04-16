@@ -230,7 +230,7 @@ def get_chatgpt_tokens_menu(mode, model):
     source = 'acc' if mode == 'normal' else 'not_gpt'
     back = "buy_sub" if mode == 'normal' else 'back_to_discount' 
 
-    prices = {'4o': {'normal': {'price': [1, 349, 469, 739, 10],
+    prices = {'4o': {'normal': {'price': [199, 349, 469, 739, 10],
                                 'percent': [0, 12, 21, 25, 0]},
                      'discount': {'price': ['199 > 189', '349 > 315', '469 > 412', '739 > 628', '10 > 5'],
                                   'price_data' : [189, 315, 412, 628, 5],

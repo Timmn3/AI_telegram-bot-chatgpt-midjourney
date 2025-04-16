@@ -30,7 +30,7 @@ def generate_receipt_token(payment_id):
 
 # Тестирование
 async def test_get_receipt_url():
-    payment_id = "6212920636"  # Укажи реальный PaymentId
+    payment_id = "6212929424"  # Укажи реальный PaymentId
     receipt_url = await get_receipt_url(payment_id)
 
     if receipt_url:
