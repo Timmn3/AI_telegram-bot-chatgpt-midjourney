@@ -754,12 +754,14 @@ async def ask_question(message: Message, state: FSMContext):
         )
     else:
         # Сообщение с запросом ввода
-        await message.answer("""<b>Введите запрос</b>
-        Например: <code>Напиши сочинение на тему: Как я провёл это лето</code>
+        await message.answer(
+            """<b>Введите запрос</b>
+Например: <code>Напиши сочинение на тему: Как я провёл это лето</code>
 
-        <u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
-                             reply_markup=user_kb.get_menu("chatgpt"),
-                             disable_web_page_preview=True)
+<u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
+            reply_markup=user_kb.get_menu("chatgpt"),
+            disable_web_page_preview=True
+        )
 
 
 # Хендлер для вывода информации о поддержке

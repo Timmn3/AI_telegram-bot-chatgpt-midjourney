@@ -1,45 +1,40 @@
-
 import hashlib
 import requests
 import asyncio
 
 terminal_key = "1716210903613"
 secret_key = "w7bi99oqxdjfqef9"
+payment_ids = [6212816167, 6212795292]
 
-async def get_receipt_url(payment_id):
-    # Отправляем запрос в Tinkoff API для получения чека по payment_id
-    data = {
-        "TerminalKey": terminal_key,
-        "PaymentId": payment_id,
-        "Token": generate_receipt_token(payment_id)  # Создаём токен для подписи
+def generate_token(data: dict) -> str:
+    token_data = {
+        "PaymentIdList": ",".join(map(str, data["PaymentIdList"])),
+        "TerminalKey": data["TerminalKey"],
+        "Password": secret_key
     }
-    response = requests.post("https://securepay.tinkoff.ru/v2/CheckOrder", json=data)
+
+    sorted_items = sorted(token_data.items())
+    sign_str = "".join(str(value) for key, value in sorted_items)
+    return hashlib.sha256(sign_str.encode("utf-8")).hexdigest()
+
+async def get_confirm_operation():
+    url = "https://securepay.tinkoff.ru/v2/getConfirmOperation"
+
+    payload = {
+        "TerminalKey": terminal_key,
+        "PaymentIdList": payment_ids
+    }
+
+    payload["Token"] = generate_token(payload)
+
+    response = requests.post(url, json=payload)
+
+    print("Request payload:", payload)  # можно временно печатать для отладки
 
     if response.status_code == 200:
-        result = response.json()
-        if result.get("Success"):
-            # Если запрос успешен, возвращаем URL чека
-            return result.get("ReceiptUrl")  # Это URL на изображение чека
-    return None
-
-
-def generate_receipt_token(payment_id):
-    sign_str = f"{payment_id}{secret_key}{terminal_key}"  # Исправлено использование переменных
-    return hashlib.sha256(sign_str.encode('utf-8')).hexdigest()
-
-
-# Тестирование
-async def test_get_receipt_url():
-    payment_id = "6212929424"  # Укажи реальный PaymentId
-    receipt_url = await get_receipt_url(payment_id)
-
-    if receipt_url:
-        print(f"Чек доступен по ссылке: {receipt_url}")
+        print("✅ Ответ:")
+        print(response.json())
     else:
-        print("Чек не найден или произошла ошибка")
+        print("❌ Ошибка:", response.status_code, response.text)
 
-
-# Запуск теста
-asyncio.run(test_get_receipt_url())
-
-
+asyncio.run(get_confirm_operation())
