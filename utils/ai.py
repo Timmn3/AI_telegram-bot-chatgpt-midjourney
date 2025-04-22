@@ -55,22 +55,24 @@ async def send_error(text):
 
 # Функция для перевода текста на английский язык
 async def get_translate(text):
-    # Находим все специальные команды вида --что-то
-    special_tags = re.findall(r'--\w+(?: [\w:]+)?', text)
+    # Заменяем длинное тире на два дефиса
+    text = text.replace("—", "--")
 
-    # Удаляем их из текста перед переводом
+    # Выделяем параметры
+    special_tags = re.findall(r'--\w+(?: [\w:]+)?', text)
     clean_text = re.sub(r'--\w+(?: [\w:]+)?', '', text).strip()
 
-    # Переводим только описание
+    # Переводим
     translator = Translator(target="en")
     translated = translator.translate(clean_text)
 
-    # Убираем пробел перед дефисами (чтобы не было -haired как отдельное слово)
+    # Убираем пробел перед дефисами
     translated = re.sub(r'\s+-(\w)', r'-\1', translated)
 
-    # Склеиваем обратно с параметрами
+    # Склеиваем всё
     result = f"{translated.strip()} {' '.join(special_tags)}"
     return result
+
 
 
 import base64
