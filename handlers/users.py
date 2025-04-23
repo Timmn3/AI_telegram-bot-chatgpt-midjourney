@@ -745,6 +745,7 @@ async def ask_question(message: Message, state: FSMContext):
     if current_chat and current_chat["name"]:
         keyboard = InlineKeyboardMarkup(row_width=1).add(
             InlineKeyboardButton("🗂Мои чаты", callback_data="my_chats"),
+            InlineKeyboardButton("➕Новый чат", callback_data="create_new_chat"),
         )
         await message.answer(
             f"💬 Активный чат: *{current_chat['name']}*\n\n"
@@ -762,6 +763,23 @@ async def ask_question(message: Message, state: FSMContext):
             reply_markup=user_kb.get_menu("chatgpt"),
             disable_web_page_preview=True
         )
+
+@dp.callback_query_handler(text="create_new_chat", state="*")
+async def handle_create_new_chat(call: CallbackQuery, state: FSMContext):
+    await state.finish()
+    user_id = call.from_user.id
+
+    # Удаляем активный чат
+    await db.set_current_chat(user_id, None)
+
+    # Сообщение с предложением ввести первый запрос
+    await call.message.edit_text(
+        "<b>Введите первый запрос для нового чата</b>\n"
+        "Например: <code>Расскажи про теорию струн</code>",
+        parse_mode="HTML"
+    )
+    await call.answer()
+
 
 
 # Хендлер для вывода информации о поддержке
