@@ -281,8 +281,9 @@ async def send_message_with_html(bot: Bot, chat_id: int, text: str, reply_markup
         # Отправка сообщения без разметки
         await bot.send_message(chat_id, text, reply_markup=reply_markup)
 
+import re
+import html
 
-# Генерация ответа от ChatGPT
 async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     user = await db.get_user(user_id)
     lang_text = {"en": "compose an answer in English", "ru": "составь ответ на русском языке"}
@@ -325,32 +326,35 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     # Шаг 1: форматируем математические формулы внутри \( \)
     html_content = format_math_in_text(res["content"])
 
-    # Определяем клавиатуру
-    reply_markup = user_kb.get_clear_or_audio()
-
-    # Извлекаем части текста с кодом и без
-    code_blocks = re.findall(r"<pre><code>(.*?)</code></pre>", html_content, re.DOTALL)
+    # Ищем блоки кода и удаляем их из общего текста
+    code_blocks = re.findall(r"(<pre><code>.*?</code></pre>)", html_content, re.DOTALL)
     non_code_content = re.sub(r"<pre><code>.*?</code></pre>", "", html_content, flags=re.DOTALL)
 
-    # Отправляем части с кодом
+    # Преобразуем экранированные символы в реальные
+    non_code_content = html.unescape(non_code_content)
+
+    # Отправляем код отдельно
     for code in code_blocks:
+        # Преобразуем экранированные символы внутри блоков кода
+        code = html.unescape(code)
+
         # Если код слишком длинный, разбиваем его на части
         if len(code) > 4096:
             parts = split_message(code, 4096)
             for part in parts:
-                await send_message_with_html(bot, user_id, f"<pre><code>{part}</code></pre>", reply_markup=reply_markup)
+                await send_message_with_html(bot, user_id, f"<pre><code>{part}</code></pre>", reply_markup=user_kb.get_clear_or_audio())
         else:
-            await send_message_with_html(bot, user_id, f"<pre><code>{code}</code></pre>", reply_markup=reply_markup)
+            await send_message_with_html(bot, user_id, code, reply_markup=user_kb.get_clear_or_audio())
 
     # Отправляем основной текст
     if len(non_code_content) <= 4096:
-        await send_message_with_html(bot, user_id, non_code_content, reply_markup=reply_markup)
+        await send_message_with_html(bot, user_id, non_code_content, reply_markup=user_kb.get_clear_or_audio())
     else:
         parts = split_message(non_code_content, 4096)
         for idx, part in enumerate(parts):
             # Если это последняя часть, добавляем клавиатуру
             if idx == len(parts) - 1:
-                await send_message_with_html(bot, user_id, part, reply_markup=reply_markup)
+                await send_message_with_html(bot, user_id, part, reply_markup=user_kb.get_clear_or_audio())
             else:
                 await send_message_with_html(bot, user_id, part)
 
