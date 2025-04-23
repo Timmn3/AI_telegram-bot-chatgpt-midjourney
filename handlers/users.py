@@ -260,6 +260,61 @@ def format_math_in_text(text: str) -> str:
     return text
 
 
+def format_code_blocks(text: str) -> str:
+    """
+    Преобразует блоки кода вида ```...``` или ```язык\nкод``` в HTML-блоки <pre><code>...</code></pre>
+    """
+    def replacer(match):
+        code = match.group(1).strip()
+        escaped_code = html.escape(code)
+        return f"<pre><code>{escaped_code}</code></pre>"
+
+    # Обработка блоков кода
+    return re.sub(r"```(?:[\w\d]+)?\n?(.*?)```", replacer, text, flags=re.DOTALL)
+
+
+import html
+
+def escape_html_outside_pre(text: str) -> str:
+    """
+    Экранирует HTML-сущности (например <, >, &) вне блоков <pre>...</pre>
+    """
+    parts = re.split(r'(<pre>.*?</pre>)', text, flags=re.DOTALL)
+    for i, part in enumerate(parts):
+        if not part.startswith('<pre>'):
+            parts[i] = html.escape(part)
+    return ''.join(parts)
+
+def ensure_code_tags(html_content):
+    open_code_tags = len(re.findall(r"<code>", html_content))
+    close_code_tags = len(re.findall(r"</code>", html_content))
+
+    # Если есть несоответствие между открытыми и закрытыми тегами <code>, добавим недостающие
+    if open_code_tags > close_code_tags:
+        html_content += '</code>' * (open_code_tags - close_code_tags)
+    elif close_code_tags > open_code_tags:
+        html_content = f"<code>{html_content}"
+
+    # То же для <pre>
+    open_pre_tags = len(re.findall(r"<pre>", html_content))
+    close_pre_tags = len(re.findall(r"</pre>", html_content))
+
+    if open_pre_tags > close_pre_tags:
+        html_content += '</pre>' * (open_pre_tags - close_pre_tags)
+    elif close_pre_tags > open_pre_tags:
+        html_content = f"<pre>{html_content}"
+
+    return html_content
+
+
+from bs4 import BeautifulSoup
+
+
+def fix_html_tags(html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    return str(soup)
+
+
 # Генерация ответа от ChatGPT
 async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     user = await db.get_user(user_id)
@@ -291,10 +346,29 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
     res = await ai.get_gpt(messages, model)
 
-    # Шаг 1: форматируем математические формулы внутри \( \)
+    # 1. Обрабатываем формулы и блоки кода
     html_content = format_math_in_text(res["content"])
+    html_content = format_code_blocks(html_content)
 
-    # Шаг 2: если нужно, можно ещё как-то обрабатывать, но второй раз экранировать HTML — нельзя!
+    # Применяем ensure_code_tags
+    html_content = ensure_code_tags(html_content)
+
+    # 💣 Защита: если GPT сгенерировал HTML, но без <pre>, принудительно обернём
+    force_wrap = (
+            not re.search(r"<pre>", html_content, flags=re.IGNORECASE)
+            and any(tag in res["content"].lower() for tag in ["<!doctype", "<html", "</html>", "<body", "<head"])
+    )
+
+    if force_wrap:
+        cleaned = re.sub(r"</?(pre|code)>", "", res['content'], flags=re.IGNORECASE)
+        html_content = f"<pre><code>{html.escape(cleaned.strip())}</code></pre>"
+    else:
+        html_content = escape_html_outside_pre(html_content)
+
+    html_content = fix_html_tags(html_content)
+
+    # 💡 Опционально: лог на отладку
+    logger.debug(f"HTML content to send:\n{html_content}")
 
     # Отправка пользователю
     if len(html_content) <= 4096:
@@ -1364,7 +1438,7 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
     kb.add(InlineKeyboardButton("🔙 Назад", callback_data="settings"))
 
     # Отправляем обновленное сообщение с чатиками и кнопками
-    await call.message.answer(text, parse_mode="Markdown", reply_markup=kb)
+    await call.message.answer(text, parse_mode="MarkdownV2", reply_markup=kb)
     await call.answer()
 
 
