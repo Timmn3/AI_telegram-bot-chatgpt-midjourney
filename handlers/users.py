@@ -496,7 +496,7 @@ async def update_chat_summary(chat_id: int, message_user: str, message_gpt: str,
 
     return response["content"].strip()
 
-
+# генерируем имя при помощи GPT
 async def generate_chat_name(message_user: str, model: str, message_gpt: str) -> str:
     prompt = (
         f"Пользователь задал вопрос: \"{message_user}\"\n"
@@ -513,6 +513,26 @@ async def generate_chat_name(message_user: str, model: str, message_gpt: str) ->
     )
 
     return response["content"].strip().strip('"')[:50]
+
+
+async def generate_example_prompt() -> str:
+    prompt = (
+        "Сгенерируй пример короткого пользовательского запроса к ChatGPT (не больше 100 символов). "
+        "Это должен быть интересный, но простой запрос. Примерно как: "
+        "\"Расскажи про теорию струн\" или \"Напиши поздравление с днем рождения\". "
+        "Ответ верни без кавычек, только одну строку."
+    )
+
+    response = await ai.get_gpt(
+        messages=[
+            {"role": "system", "content": "Ты придумываешь короткие примеры пользовательских запросов для ChatGPT."},
+            {"role": "user", "content": prompt}
+        ],
+        model="4o-mini"  # фиксированная безопасная модель
+    )
+
+    return response["content"].strip().strip('"')
+
 
 
 ''' Новые две функции - уведомления об заканчивающихся токенах '''
@@ -813,14 +833,16 @@ async def ask_question(message: Message, state: FSMContext):
         )
     else:
         # Сообщение с запросом ввода
+        example_prompt = await generate_example_prompt()
         await message.answer(
-            """<b>Введите запрос</b>
-Например: <code>Напиши сочинение на тему: Как я провёл это лето</code>
-
+            f"""<b>Введите запрос</b>
+Например: <code>{example_prompt}</code>
+        
 <u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
             reply_markup=user_kb.get_menu("chatgpt"),
             disable_web_page_preview=True
         )
+
 
 @dp.callback_query_handler(text="create_new_chat", state="*")
 async def handle_create_new_chat(call: CallbackQuery, state: FSMContext):
@@ -831,12 +853,12 @@ async def handle_create_new_chat(call: CallbackQuery, state: FSMContext):
     await db.set_current_chat(user_id, None)
 
     # Сообщение с предложением ввести первый запрос
+    example_prompt = await generate_example_prompt()
     await call.message.edit_text(
-        "<b>Введите первый запрос для нового чата</b>\n"
-        "Например: <code>Расскажи про теорию струн</code>",
+        f"<b>Введите первый запрос для нового чата</b>\n"
+        f"Например: <code>{example_prompt}</code>",
         parse_mode="HTML"
     )
-    await call.answer()
 
 
 
