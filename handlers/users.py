@@ -175,8 +175,8 @@ async def get_mj(prompt, user_id, bot: Bot):
                 await notify_low_midjourney_requests(user_id, bot)
 
 
-def split_message(text: str, max_length: int) -> list:
-    """Разбивает длинное сообщение на части, не превышающие max_length."""
+def split_message(text: str, max_length: int, is_code: bool = False) -> list:
+    """Разбивает длинное сообщение на части, не превышающие max_length, с учетом кода."""
     lines = text.split('\n')
     parts = []
     current_part = ""
@@ -190,7 +190,13 @@ def split_message(text: str, max_length: int) -> list:
     if current_part:
         parts.append(current_part)
 
+    if is_code:
+        # Оборачиваем каждую часть в <pre><code>...</code></pre>
+        return [f"<pre><code>{part.strip()}</code></pre>" for part in parts]
+
     return parts
+
+
 
 
 import html
@@ -281,8 +287,18 @@ async def send_message_with_html(bot: Bot, chat_id: int, text: str, reply_markup
         # Отправка сообщения без разметки
         await bot.send_message(chat_id, text, reply_markup=reply_markup)
 
-import re
-import html
+
+def ensure_code_block_integrity(text: str) -> str:
+    """Гарантирует, что <pre><code> и </code></pre> используются корректно."""
+    has_open = "<pre><code>" in text
+    has_close = "</code></pre>" in text
+
+    if has_open and not has_close:
+        return text + "</code></pre>"
+    elif has_close and not has_open:
+        return "<pre><code>" + text
+    return text
+
 
 async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     user = await db.get_user(user_id)
@@ -335,24 +351,25 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
     # Отправляем код отдельно
     for code in code_blocks:
-        # Преобразуем экранированные символы внутри блоков кода
         code = html.unescape(code)
 
-        # Если код слишком длинный, разбиваем его на части
-        if len(code) > 4096:
-            parts = split_message(code, 4096)
+        if len(code) > 3000:
+            parts = split_message(code, 3000)
             for part in parts:
-                await send_message_with_html(bot, user_id, f"<pre><code>{part}</code></pre>", reply_markup=user_kb.get_clear_or_audio())
+                part = ensure_code_block_integrity(part)
+                await send_message_with_html(bot, user_id, part, reply_markup=user_kb.get_clear_or_audio())
         else:
+            code = ensure_code_block_integrity(code)
             await send_message_with_html(bot, user_id, code, reply_markup=user_kb.get_clear_or_audio())
 
     # Отправляем основной текст
-    if len(non_code_content) <= 4096:
+    if len(non_code_content) <= 3000:
+        non_code_content = ensure_code_block_integrity(non_code_content)
         await send_message_with_html(bot, user_id, non_code_content, reply_markup=user_kb.get_clear_or_audio())
     else:
-        parts = split_message(non_code_content, 4096)
+        parts = split_message(non_code_content, 3000)
         for idx, part in enumerate(parts):
-            # Если это последняя часть, добавляем клавиатуру
+            part = ensure_code_block_integrity(part)
             if idx == len(parts) - 1:
                 await send_message_with_html(bot, user_id, part, reply_markup=user_kb.get_clear_or_audio())
             else:
