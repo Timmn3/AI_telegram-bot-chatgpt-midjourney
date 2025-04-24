@@ -855,7 +855,7 @@ async def handle_create_new_chat(call: CallbackQuery, state: FSMContext):
     # Сообщение с предложением ввести первый запрос
     example_prompt = await generate_example_prompt()
     await call.message.edit_text(
-        f"<b>Введите первый запрос для нового чата</b>\n"
+        f"<b>Введите запрос для нового чата⤵️</b>\n"
         f"Например: <code>{example_prompt}</code>",
         parse_mode="HTML"
     )
