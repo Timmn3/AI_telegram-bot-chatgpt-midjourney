@@ -37,10 +37,10 @@ def get_pay_url_tinkoff(order_id, amount):
         "Receipt": {
             "Email": "bills.group@mail.ru",
             "Phone": "+79530983630",
-            "Taxation": "osn",
+            "Taxation": "patent",
             "Items": [
                 {
-                    "Name": "Оплата услуг",
+                    "Name": "Подписка на бот на основе кроссплатформенного мессенджера Telegram NeuronAgent",
                     "Price": amount * 100,
                     "Quantity": 1.0,
                     "Amount": amount * 100,
