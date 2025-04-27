@@ -33,7 +33,23 @@ def get_pay_url_tinkoff(order_id, amount):
         "Amount": amount * 100,
         "CallbackUrl": "https://neuronbot.ru/api/pay/tinkoff/receipt",
         "OrderId": order_id,
-        "NotificationURL": "https://91.192.102.250/api/pay/tinkoff"
+        "NotificationURL": "https://91.192.102.250/api/pay/tinkoff",
+        "Receipt": {
+            "Email": "bills.group@mail.ru",
+            "Phone": "+79530983630",
+            "Taxation": "osn",
+            "Items": [
+                {
+                    "Name": "Оплата услуг",
+                    "Price": amount * 100,
+                    "Quantity": 1.0,
+                    "Amount": amount * 100,
+                    "PaymentMethod": "full_payment",
+                    "PaymentObject": "commodity",
+                    "Tax": "none"
+                }
+            ]
+        }
     }
 
     # Строка для подписи
