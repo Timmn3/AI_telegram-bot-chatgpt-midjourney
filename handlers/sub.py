@@ -199,8 +199,8 @@ async def back_to_discount_notification(call: CallbackQuery):
 @dp.callback_query_handler(Text(startswith="tg_stars:"))
 async def back_to_buy_vpn(call: CallbackQuery):
 
-    order_id = int(call.data.split(":")[1])  # Получаем ID заказа
-    order = await db.get_order(order_id)  # Получаем данные о заказе из базы данных
+    order_id = call.data.split(":")[1]  # Теперь order_id остаётся строкой
+    order = await db.get_order(order_id)  # Убедитесь, что get_order принимает строку
 
     # Отправляем пользователю инвойс для оплаты через Telegram
     await call.bot.send_invoice(call.from_user.id,
@@ -228,9 +228,13 @@ async def approve_order(pre_checkout_query: PreCheckoutQuery):
 # Хендлер для обработки успешной оплаты
 @dp.message_handler(content_types="successful_payment")
 async def process_successful_payment(message: Message):
-    
-    order_id = int(message.successful_payment.invoice_payload)  # Получаем ID заказа из payload
+    user_id = message.from_user.id
+    payment = message.successful_payment
+    amount = payment.total_amount
+    order_id = message.successful_payment.invoice_payload  # Получаем ID заказа из payload
     await utils.pay.process_purchase(message.bot, order_id)  # Обрабатываем подписку (обновляем в базе)
+    # Сохраняем данные о звездах в таблицу stars
+    await db.add_star(user_id, amount)
 
 
 # Хэндлдер для возврата ссылки на оплату Tinkoff:

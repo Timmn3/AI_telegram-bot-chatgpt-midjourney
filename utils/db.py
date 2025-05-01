@@ -116,6 +116,16 @@ async def start():
         "used BOOLEAN DEFAULT FALSE)"           # Статус использования скидки
     )
 
+    # Создание таблицы stars
+    await conn.execute(
+        "CREATE TABLE IF NOT EXISTS stars ("
+        "id SERIAL PRIMARY KEY, "
+        "user_id BIGINT, "
+        "date DATE NOT NULL, "
+        "amount INTEGER NOT NULL DEFAULT 1"
+        ")"
+    )
+
     # Проверяем наличие токена конфигурации, и если его нет - добавляем значение по умолчанию
     row = await conn.fetchrow("SELECT config_value FROM config WHERE config_key = 'iam_token'")
     if row is None:
@@ -745,9 +755,7 @@ def escape_markdown(text: Any) -> str:
 
 
 async def fetch_statistics() -> str:
-    """
-    Cобирает статистику из базы данных и возвращает отформатированную строку.
-    """
+    """Собирает статистику из базы данных и возвращает отформатированную строку."""
     try:
         conn: asyncpg.Connection = await get_conn()
     except Exception as e:
@@ -758,44 +766,104 @@ async def fetch_statistics() -> str:
         moscow_tz = ZoneInfo("Europe/Moscow")
         now_moscow = datetime.now(moscow_tz)
         start_of_day = now_moscow.replace(hour=0, minute=0, second=0, microsecond=0).replace(tzinfo=None)
-        logger.info(f"Сбор статистики с начала дня: {start_of_day.isoformat()}")
 
-        # Запросы к базе данных с фильтрацией оплаченных заказов
-        # Все оплаты за всё время
-        all_time_orders = await conn.fetch("""
-            SELECT order_type, quantity, COUNT(*) AS count, SUM(amount) AS total_amount
-            FROM orders
-            WHERE pay_time IS NOT NULL
-            GROUP BY order_type, quantity
-        """)
-        logger.info(f"Получено {len(all_time_orders)} записей за всё время")
+        # --- ОСНОВНАЯ СТАТИСТИКА ---
+        users_all = await conn.fetchval("SELECT COUNT(*) FROM users")
+        total_requests_all = await conn.fetchval("SELECT COUNT(*) FROM usage")
+        total_payments_all = await conn.fetchval("SELECT COUNT(*) FROM orders WHERE pay_time IS NOT NULL")
+        chatgpt_requests_all = await conn.fetchval(
+            "SELECT COUNT(*) FROM usage WHERE ai_type IN ('4o', '4o-mini', 'o3-mini')"
+        )
+        chatgpt_payments_all = await conn.fetchval(
+            "SELECT COUNT(*) FROM orders WHERE pay_time IS NOT NULL AND order_type IN ('4o', '4o-mini', 'o3-mini')"
+        )
+        midjourney_requests_all = await conn.fetchval("SELECT COUNT(*) FROM usage WHERE ai_type = 'image'")
+        midjourney_payments_all = await conn.fetchval(
+            "SELECT COUNT(*) FROM orders WHERE pay_time IS NOT NULL AND order_type = 'midjourney'"
+        )
 
-        # Оплаты с начала дня по московскому времени
-        todays_orders = await conn.fetch("""
-            SELECT order_type, quantity, COUNT(*) AS count, SUM(amount) AS total_amount
-            FROM orders
-            WHERE pay_time >= $1 AND pay_time IS NOT NULL
-            GROUP BY order_type, quantity
-        """, start_of_day)
-        logger.info(f"Получено {len(todays_orders)} записей за сегодня")
+        # --- СТАТИСТИКА ЗА 24 ЧАСА ---
+        users_today = await conn.fetchval(
+            "SELECT COUNT(DISTINCT user_id) FROM users WHERE to_timestamp(reg_time) >= $1",
+            start_of_day
+        )
+        total_requests_today = await conn.fetchval("SELECT COUNT(*) FROM usage WHERE create_time >= $1", start_of_day)
+        total_payments_today = await conn.fetchval(
+            "SELECT COUNT(*) FROM orders WHERE pay_time >= $1", start_of_day
+        )
+        chatgpt_requests_today = await conn.fetchval(
+            "SELECT COUNT(*) FROM usage WHERE ai_type IN ('4o', '4o-mini', 'o3-mini') AND create_time >= $1",
+            start_of_day
+        )
+        chatgpt_payments_today = await conn.fetchval(
+            "SELECT COUNT(*) FROM orders WHERE pay_time >= $1 AND order_type IN ('4o', '4o-mini', 'o3-mini')",
+            start_of_day
+        )
+        midjourney_requests_today = await conn.fetchval(
+            "SELECT COUNT(*) FROM usage WHERE ai_type = 'image' AND create_time >= $1",
+            start_of_day
+        )
+        midjourney_payments_today = await conn.fetchval(
+            "SELECT COUNT(*) FROM orders WHERE pay_time >= $1 AND order_type = 'midjourney'",
+            start_of_day
+        )
 
-        # Закрываем соединение
-        await conn.close()
-        logger.info("Соединение с базой данных закрыто")
+        # --- СТАТИСТИКА ЗВЁЗД ---
+        stars_today_count = await conn.fetchval("SELECT COUNT(*) FROM stars WHERE date = CURRENT_DATE")
+        stars_today_total = await conn.fetchval("SELECT SUM(amount) FROM stars WHERE date = CURRENT_DATE")
 
-        # Обработка данных
-        statistics = {
-            'all_time': process_orders(all_time_orders),
-            'today': process_orders(todays_orders)
-        }
+        current_month = now_moscow.month
+        current_year = now_moscow.year
+        stars_current_month_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
+            current_month, current_year
+        )
+        stars_current_month_total = await conn.fetchval(
+            "SELECT SUM(amount) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
+            current_month, current_year
+        )
 
-        # Форматирование вывода
-        formatted_statistics = format_statistics(statistics)
-        return formatted_statistics
+        prev_month = current_month - 1 if current_month > 1 else 12
+        prev_year = current_year if prev_month != 0 else current_year - 1
+        stars_prev_month_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
+            prev_month, prev_year
+        )
+        stars_prev_month_total = await conn.fetchval(
+            "SELECT SUM(amount) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
+            prev_month, prev_year
+        )
+
+        stars_today_total = stars_today_total or 0
+        stars_current_month_total = stars_current_month_total or 0
+        stars_prev_month_total = stars_prev_month_total or 0
+
+        # --- ФОРМАТИРОВАНИЕ ---
+        lines = []
+        lines.append("**За все время:**")
+        lines.append(f"Количество пользователей: {users_all}")
+        lines.append(f"Запросов | Оплат - {total_requests_all} | {total_payments_all}")
+        lines.append(f"ChatGPT - {chatgpt_requests_all} | {chatgpt_payments_all}")
+        lines.append(f"Midjourney - {midjourney_requests_all} | {midjourney_payments_all}")
+
+        lines.append("\n**За 24 часа:**")
+        lines.append(f"Количество пользователей: {users_today}")
+        lines.append(f"Запросов | Оплат - {total_requests_today} | {total_payments_today}")
+        lines.append(f"ChatGPT - {chatgpt_requests_today} | {chatgpt_payments_today}")
+        lines.append(f"Midjourney - {midjourney_requests_today} | {midjourney_payments_today}")
+
+        lines.append("\n**Stars:**")
+        lines.append(f"За сегодня: {stars_today_count} ")
+        lines.append(f"За текущий месяц: {stars_current_month_count} ")
+        lines.append(f"За предыдущий месяц: {stars_prev_month_count} ")
+
+        return "\n".join(lines)
 
     except Exception as e:
-        logger.error(f"Ошибка при выполнении запросов или обработке данных: {e}")
-        return f"Ошибка при сборе статистики: {e}"
+        logger.error(f"Ошибка при сборе статистики: {e}")
+        return "Ошибка при сборе статистики"
+    finally:
+        await conn.close()
 
 def process_orders(orders) -> Dict[str, Any]:
     """
@@ -1020,31 +1088,87 @@ async def fetch_short_statistics() -> str:
         """, start_of_day)
         logger.info(f"Midjourney оплат за сегодня: {midjourney_payments_today}")
 
+        # --- СТАТИСТИКА ЗВЁЗД ---
+        # За сегодня (по Москве)
+        stars_today_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM stars WHERE date = CURRENT_DATE"
+        )
+
+        # За текущий месяц
+        current_month = now_moscow.month
+        current_year = now_moscow.year
+        stars_current_month = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM stars 
+            WHERE EXTRACT(MONTH FROM date) = $1 
+              AND EXTRACT(YEAR FROM date) = $2
+            """,
+            current_month, current_year
+        )
+
+        # За предыдущий месяц
+        prev_month = current_month - 1 if current_month > 1 else 12
+        prev_year = current_year if prev_month != 0 else current_year - 1
+        stars_prev_month = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM stars 
+            WHERE EXTRACT(MONTH FROM date) = $1 
+              AND EXTRACT(YEAR FROM date) = $2
+            """,
+            prev_month, prev_year
+        )
+
+        # --- СТАТИСТИКА ЗВЁЗД ---
+        stars_today_count = await conn.fetchval("SELECT COUNT(*) FROM stars WHERE date = CURRENT_DATE")
+        current_month = now_moscow.month
+        current_year = now_moscow.year
+        stars_current_month = await conn.fetchval(
+            "SELECT COUNT(*) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
+            current_month, current_year
+        )
+        prev_month = current_month - 1 if current_month > 1 else 12
+        prev_year = current_year if prev_month != 0 else current_year - 1
+        stars_prev_month = await conn.fetchval(
+            "SELECT COUNT(*) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
+            prev_month, prev_year
+        )
         # Закрываем соединение
         await conn.close()
         logger.info("Соединение с базой данных закрыто")
 
-        # Форматирование вывода
+        # --- ФОРМИРОВАНИЕ ДАННЫХ ---
+        all_time = {
+            'users': users_all_time,
+            'requests': total_requests_all_time,
+            'payments': total_payments_all_time,
+            'chatgpt_requests': chatgpt_requests_all_time,
+            'chatgpt_payments': chatgpt_payments_all_time,
+            'midjourney_requests': midjourney_requests_all_time,
+            'midjourney_payments': midjourney_payments_all_time,
+        }
+
+        today = {
+            'users': users_today,
+            'requests': total_requests_today,
+            'payments': total_payments_today,
+            'chatgpt_requests': chatgpt_requests_today,
+            'chatgpt_payments': chatgpt_payments_today,
+            'midjourney_requests': midjourney_requests_today,
+            'midjourney_payments': midjourney_payments_today,
+        }
+
+        stars_data = {
+            'today': stars_today_count,
+            'current_month': stars_current_month,
+            'prev_month': stars_prev_month
+        }
+
         short_statistics = format_short_statistics(
-            all_time={
-                'users': users_all_time,
-                'requests': total_requests_all_time,
-                'payments': total_payments_all_time,
-                'chatgpt_requests': chatgpt_requests_all_time,
-                'chatgpt_payments': chatgpt_payments_all_time,
-                'midjourney_requests': midjourney_requests_all_time,
-                'midjourney_payments': midjourney_payments_all_time
-            },
-            today={
-                'users': users_today,
-                'requests': total_requests_today,
-                'payments': total_payments_today,
-                'chatgpt_requests': chatgpt_requests_today,
-                'chatgpt_payments': chatgpt_payments_today,
-                'midjourney_requests': midjourney_requests_today,
-                'midjourney_payments': midjourney_payments_today
-            }
+            all_time=all_time,
+            today=today,
+            stars=stars_data
         )
+
         return short_statistics
 
     except Exception as e:
@@ -1052,7 +1176,7 @@ async def fetch_short_statistics() -> str:
         return f"Ошибка при сборе статистики: {e}"
 
 
-def format_short_statistics(all_time: Dict[str, Any], today: Dict[str, Any]) -> str:
+def format_short_statistics(all_time: Dict[str, Any], today: Dict[str, Any], stars: Dict[str, Any]) -> str:
     """
     Форматирует краткую статистику в строку для отправки в Telegram.
     """
@@ -1077,7 +1201,15 @@ def format_short_statistics(all_time: Dict[str, Any], today: Dict[str, Any]) -> 
 
     all_time_section = format_section("За все время", all_time)
     today_section = format_section("За 24 часа", today)
-    return f"{all_time_section}\n\n{today_section}"
+    # --- Форматирование Stars ---
+    stars_section = (
+        "**Stars:**\n"  # Жирный заголовок с двойными **
+        f"За сегодня: {stars.get('today', 0)}\n"
+        f"За текущий месяц: {stars.get('current_month', 0)}\n"
+        f"За предыдущий месяц: {stars.get('prev_month', 0)}"
+    )
+
+    return f"{all_time_section}\n\n{today_section}\n\n{stars_section}"
 
 
 # Функция для установления соединения с базой данных
@@ -1130,6 +1262,16 @@ async def create_tables():
         CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id);
     """)
 
+    # создание таблицы для звёзд:
+    await conn.execute(
+        "CREATE TABLE IF NOT EXISTS stars ("
+        "id SERIAL PRIMARY KEY, "
+        "user_id BIGINT, "
+        "date DATE NOT NULL, "
+        "amount INTEGER NOT NULL DEFAULT 1"
+        ")"
+    )
+
     await conn.close()
 
 
@@ -1176,3 +1318,21 @@ async def update_chat_summary(chat_id: int, summary: str):
         UPDATE chats SET summary = $2, updated_at = NOW() WHERE id = $1;
     """, chat_id, summary)
     await conn.close()
+
+async def add_star(user_id: int, amount: int = 1):
+    """
+    Добавляет запись в таблицу stars для отслеживания звёзд.
+
+    Args:
+    user_id (int): ID пользователя, который отправил звезду.
+    amount (int, optional): Количество звёзд. По умолчанию 1.
+    """
+    conn = await get_conn()
+    try:
+        await conn.execute(
+        "INSERT INTO stars (user_id, date, amount) "
+        "VALUES ($1, CURRENT_DATE, $2)",
+        user_id, amount
+        )
+    finally:
+     await conn.close()
