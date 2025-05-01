@@ -755,7 +755,9 @@ def escape_markdown(text: Any) -> str:
 
 
 async def fetch_statistics() -> str:
-    """Собирает статистику из базы данных и возвращает отформатированную строку."""
+    """
+    Cобирает статистику из базы данных и возвращает отформатированную строку.
+    """
     try:
         conn: asyncpg.Connection = await get_conn()
     except Exception as e:
@@ -766,104 +768,44 @@ async def fetch_statistics() -> str:
         moscow_tz = ZoneInfo("Europe/Moscow")
         now_moscow = datetime.now(moscow_tz)
         start_of_day = now_moscow.replace(hour=0, minute=0, second=0, microsecond=0).replace(tzinfo=None)
+        logger.info(f"Сбор статистики с начала дня: {start_of_day.isoformat()}")
 
-        # --- ОСНОВНАЯ СТАТИСТИКА ---
-        users_all = await conn.fetchval("SELECT COUNT(*) FROM users")
-        total_requests_all = await conn.fetchval("SELECT COUNT(*) FROM usage")
-        total_payments_all = await conn.fetchval("SELECT COUNT(*) FROM orders WHERE pay_time IS NOT NULL")
-        chatgpt_requests_all = await conn.fetchval(
-            "SELECT COUNT(*) FROM usage WHERE ai_type IN ('4o', '4o-mini', 'o3-mini')"
-        )
-        chatgpt_payments_all = await conn.fetchval(
-            "SELECT COUNT(*) FROM orders WHERE pay_time IS NOT NULL AND order_type IN ('4o', '4o-mini', 'o3-mini')"
-        )
-        midjourney_requests_all = await conn.fetchval("SELECT COUNT(*) FROM usage WHERE ai_type = 'image'")
-        midjourney_payments_all = await conn.fetchval(
-            "SELECT COUNT(*) FROM orders WHERE pay_time IS NOT NULL AND order_type = 'midjourney'"
-        )
+        # Запросы к базе данных с фильтрацией оплаченных заказов
+        # Все оплаты за всё время
+        all_time_orders = await conn.fetch("""
+            SELECT order_type, quantity, COUNT(*) AS count, SUM(amount) AS total_amount
+            FROM orders
+            WHERE pay_time IS NOT NULL
+            GROUP BY order_type, quantity
+        """)
+        logger.info(f"Получено {len(all_time_orders)} записей за всё время")
 
-        # --- СТАТИСТИКА ЗА 24 ЧАСА ---
-        users_today = await conn.fetchval(
-            "SELECT COUNT(DISTINCT user_id) FROM users WHERE to_timestamp(reg_time) >= $1",
-            start_of_day
-        )
-        total_requests_today = await conn.fetchval("SELECT COUNT(*) FROM usage WHERE create_time >= $1", start_of_day)
-        total_payments_today = await conn.fetchval(
-            "SELECT COUNT(*) FROM orders WHERE pay_time >= $1", start_of_day
-        )
-        chatgpt_requests_today = await conn.fetchval(
-            "SELECT COUNT(*) FROM usage WHERE ai_type IN ('4o', '4o-mini', 'o3-mini') AND create_time >= $1",
-            start_of_day
-        )
-        chatgpt_payments_today = await conn.fetchval(
-            "SELECT COUNT(*) FROM orders WHERE pay_time >= $1 AND order_type IN ('4o', '4o-mini', 'o3-mini')",
-            start_of_day
-        )
-        midjourney_requests_today = await conn.fetchval(
-            "SELECT COUNT(*) FROM usage WHERE ai_type = 'image' AND create_time >= $1",
-            start_of_day
-        )
-        midjourney_payments_today = await conn.fetchval(
-            "SELECT COUNT(*) FROM orders WHERE pay_time >= $1 AND order_type = 'midjourney'",
-            start_of_day
-        )
+        # Оплаты с начала дня по московскому времени
+        todays_orders = await conn.fetch("""
+            SELECT order_type, quantity, COUNT(*) AS count, SUM(amount) AS total_amount
+            FROM orders
+            WHERE pay_time >= $1 AND pay_time IS NOT NULL
+            GROUP BY order_type, quantity
+        """, start_of_day)
+        logger.info(f"Получено {len(todays_orders)} записей за сегодня")
 
-        # --- СТАТИСТИКА ЗВЁЗД ---
-        stars_today_count = await conn.fetchval("SELECT COUNT(*) FROM stars WHERE date = CURRENT_DATE")
-        stars_today_total = await conn.fetchval("SELECT SUM(amount) FROM stars WHERE date = CURRENT_DATE")
+        # Закрываем соединение
+        await conn.close()
+        logger.info("Соединение с базой данных закрыто")
 
-        current_month = now_moscow.month
-        current_year = now_moscow.year
-        stars_current_month_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
-            current_month, current_year
-        )
-        stars_current_month_total = await conn.fetchval(
-            "SELECT SUM(amount) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
-            current_month, current_year
-        )
+        # Обработка данных
+        statistics = {
+            'all_time': process_orders(all_time_orders),
+            'today': process_orders(todays_orders)
+        }
 
-        prev_month = current_month - 1 if current_month > 1 else 12
-        prev_year = current_year if prev_month != 0 else current_year - 1
-        stars_prev_month_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
-            prev_month, prev_year
-        )
-        stars_prev_month_total = await conn.fetchval(
-            "SELECT SUM(amount) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
-            prev_month, prev_year
-        )
-
-        stars_today_total = stars_today_total or 0
-        stars_current_month_total = stars_current_month_total or 0
-        stars_prev_month_total = stars_prev_month_total or 0
-
-        # --- ФОРМАТИРОВАНИЕ ---
-        lines = []
-        lines.append("**За все время:**")
-        lines.append(f"Количество пользователей: {users_all}")
-        lines.append(f"Запросов | Оплат - {total_requests_all} | {total_payments_all}")
-        lines.append(f"ChatGPT - {chatgpt_requests_all} | {chatgpt_payments_all}")
-        lines.append(f"Midjourney - {midjourney_requests_all} | {midjourney_payments_all}")
-
-        lines.append("\n**За 24 часа:**")
-        lines.append(f"Количество пользователей: {users_today}")
-        lines.append(f"Запросов | Оплат - {total_requests_today} | {total_payments_today}")
-        lines.append(f"ChatGPT - {chatgpt_requests_today} | {chatgpt_payments_today}")
-        lines.append(f"Midjourney - {midjourney_requests_today} | {midjourney_payments_today}")
-
-        lines.append("\n**Stars:**")
-        lines.append(f"За сегодня: {stars_today_count} ")
-        lines.append(f"За текущий месяц: {stars_current_month_count} ")
-        lines.append(f"За предыдущий месяц: {stars_prev_month_count} ")
-
-        return "\n".join(lines)
+        # Форматирование вывода
+        formatted_statistics = format_statistics(statistics)
+        return formatted_statistics
 
     except Exception as e:
-        logger.error(f"Ошибка при сборе статистики: {e}")
-        return "Ошибка при сборе статистики"
-    finally:
-        await conn.close()
+        logger.error(f"Ошибка при выполнении запросов или обработке данных: {e}")
+        return f"Ошибка при сборе статистики: {e}"
 
 def process_orders(orders) -> Dict[str, Any]:
     """
@@ -1119,18 +1061,42 @@ async def fetch_short_statistics() -> str:
         )
 
         # --- СТАТИСТИКА ЗВЁЗД ---
+        # Получаем текущее время в Москве
+        moscow_tz = ZoneInfo("Europe/Moscow")
+        now_moscow = datetime.now(moscow_tz)
+
+        # Словарь месяцев на русском
+        months = {
+            1: 'Январь',
+            2: 'Февраль',
+            3: 'Март',
+            4: 'Апрель',
+            5: 'Май',
+            6: 'Июнь',
+            7: 'Июль',
+            8: 'Август',
+            9: 'Сентябрь',
+            10: 'Октябрь',
+            11: 'Ноябрь',
+            12: 'Декабрь'
+        }
+
+        # Названия текущего и предыдущего месяцев
+        current_month_number = now_moscow.month
+        current_month_name = months[current_month_number]
+
+        prev_month_number = current_month_number - 1 if current_month_number > 1 else 12
+        prev_month_name = months[prev_month_number]
+
+        # Сбор данных по звёздам
         stars_today_count = await conn.fetchval("SELECT COUNT(*) FROM stars WHERE date = CURRENT_DATE")
-        current_month = now_moscow.month
-        current_year = now_moscow.year
         stars_current_month = await conn.fetchval(
             "SELECT COUNT(*) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
-            current_month, current_year
+            current_month_number, now_moscow.year
         )
-        prev_month = current_month - 1 if current_month > 1 else 12
-        prev_year = current_year if prev_month != 0 else current_year - 1
         stars_prev_month = await conn.fetchval(
             "SELECT COUNT(*) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
-            prev_month, prev_year
+            prev_month_number, now_moscow.year if prev_month_number != 12 else now_moscow.year - 1
         )
         # Закрываем соединение
         await conn.close()
@@ -1160,7 +1126,9 @@ async def fetch_short_statistics() -> str:
         stars_data = {
             'today': stars_today_count,
             'current_month': stars_current_month,
-            'prev_month': stars_prev_month
+            'prev_month': stars_prev_month,
+            'current_month_name': current_month_name,
+            'prev_month_name': prev_month_name
         }
 
         short_statistics = format_short_statistics(
@@ -1180,22 +1148,23 @@ def format_short_statistics(all_time: Dict[str, Any], today: Dict[str, Any], sta
     """
     Форматирует краткую статистику в строку для отправки в Telegram.
     """
+
     def format_section(title: str, data: Dict[str, Any]) -> str:
-        lines = [f"*{escape_markdown(title)}:*"]  # Заголовок выделен жирным
+        lines = [f"*{escape_markdown(title)}:*"]
 
         # Количество пользователей
         lines.append(f"**Количество пользователей:** {escape_markdown(str(data['users']))}")
 
-        # Запросов | Оплат
-        lines.append(f"Запросов \| Оплат \- {data['requests']} \| {data['payments']}")
+        # Запросы и оплаты
+        lines.append(f"Запросов \| Оплат \| {data['requests']} \| {data['payments']}")
 
         # ChatGPT
-        chatgpt_payments = data['chatgpt_payments'] if data['chatgpt_payments'] > 0 else "None"
-        lines.append(f"ChatGPT \- {data['chatgpt_requests']} \| {chatgpt_payments}")
+        chatgpt_payments = data['chatgpt_payments'] if data['chatgpt_payments'] > 0 else "0"
+        lines.append(f"ChatGPT \| {data['chatgpt_requests']} \| {chatgpt_payments}")
 
         # Midjourney
-        midjourney_payments = data['midjourney_payments'] if data['midjourney_payments'] > 0 else "None"
-        lines.append(f"Midjourney \- {data['midjourney_requests']} \| {midjourney_payments}")
+        midjourney_payments = data['midjourney_payments'] if data['midjourney_payments'] > 0 else "0"
+        lines.append(f"Midjourney \| {data['midjourney_requests']} \| {midjourney_payments}")
 
         return '\n'.join(lines)
 
@@ -1203,10 +1172,10 @@ def format_short_statistics(all_time: Dict[str, Any], today: Dict[str, Any], sta
     today_section = format_section("За 24 часа", today)
     # --- Форматирование Stars ---
     stars_section = (
-        "**Stars:**\n"  # Жирный заголовок с двойными **
-        f"За сегодня: {stars.get('today', 0)}\n"
-        f"За текущий месяц: {stars.get('current_month', 0)}\n"
-        f"За предыдущий месяц: {stars.get('prev_month', 0)}"
+        "**Stars:**\n"  
+        f"За сегодня: {stars.get('today', 0)} ⭐️ \n"
+        f"За {stars['current_month_name']}: {stars.get('current_month', 0)} ⭐️  \n"
+        f"За {stars['prev_month_name']}: {stars.get('prev_month', 0)} ⭐️ "
     )
 
     return f"{all_time_section}\n\n{today_section}\n\n{stars_section}"
