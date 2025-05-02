@@ -1098,6 +1098,32 @@ async def fetch_short_statistics() -> str:
             "SELECT COUNT(*) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
             prev_month_number, now_moscow.year if prev_month_number != 12 else now_moscow.year - 1
         )
+
+        # Количество уникальных пользователей, отправивших звёзды за сегодня
+        stars_users_today = await conn.fetchval(
+            "SELECT COUNT(DISTINCT user_id) FROM stars WHERE date = CURRENT_DATE"
+        )
+
+        # Количество уникальных пользователей за текущий месяц
+        stars_users_current_month = await conn.fetchval(
+            """
+            SELECT COUNT(DISTINCT user_id)
+            FROM stars
+            WHERE EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2
+            """,
+            current_month_number, now_moscow.year
+        )
+
+        # Количество уникальных пользователей за предыдущий месяц
+        stars_users_prev_month = await conn.fetchval(
+            """
+            SELECT COUNT(DISTINCT user_id)
+            FROM stars
+            WHERE EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2
+            """,
+            prev_month_number,
+            now_moscow.year if prev_month_number != 12 else now_moscow.year - 1
+        )
         # Закрываем соединение
         await conn.close()
         logger.info("Соединение с базой данных закрыто")
@@ -1127,6 +1153,9 @@ async def fetch_short_statistics() -> str:
             'today': stars_today_count,
             'current_month': stars_current_month,
             'prev_month': stars_prev_month,
+            'users_today': stars_users_today,
+            'users_current_month': stars_users_current_month,
+            'users_prev_month': stars_users_prev_month,
             'current_month_name': current_month_name,
             'prev_month_name': prev_month_name
         }
@@ -1172,10 +1201,10 @@ def format_short_statistics(all_time: Dict[str, Any], today: Dict[str, Any], sta
     today_section = format_section("За 24 часа", today)
     # --- Форматирование Stars ---
     stars_section = (
-        "**Stars:**\n"  
-        f"За сегодня: {stars.get('today', 0)} ⭐️ \n"
-        f"За {stars['current_month_name']}: {stars.get('current_month', 0)} ⭐️  \n"
-        f"За {stars['prev_month_name']}: {stars.get('prev_month', 0)} ⭐️ "
+        "**Stars:**\n"
+        f"За сегодня: {stars.get('users_today', 0)} \({stars.get('today', 0)} ⭐️\)\n"
+        f"За {stars['current_month_name']}: {stars.get('users_current_month', 0)} \({stars.get('current_month', 0)} ⭐️\)\n"
+        f"За {stars['prev_month_name']}: {stars.get('users_prev_month', 0)} \({stars.get('prev_month', 0)} ⭐️\)"
     )
 
     return f"{all_time_section}\n\n{today_section}\n\n{stars_section}"
