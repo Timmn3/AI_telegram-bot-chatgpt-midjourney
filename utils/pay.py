@@ -190,12 +190,12 @@ async def process_purchase(bot, order_id):
 
     logger.info(f"Оплата пользователя {user_id} успешно обработана. Тип заказа: {model}, количество: {order['quantity']}")
 
-    # Начисление бонусных токенов 4o-mini
+    # Начисление бонусных токенов
     bonus = 20000 if int(order["quantity"]) == 100000 else int((order["quantity"]) / 4) 
-    total_bonus = user["tokens_4o_mini"] + bonus
+    total_bonus = user["tokens_4_1"] + bonus
 
     # Обновляем токены или запросы в зависимости от типа заказа
-    if model in {'4o', 'o3_mini'}:
+    if model in {'4_1', 'o1', '4.1'}:
         new_tokens = int(user[f"tokens_{model}"]) + int(order["quantity"])
         await db.update_tokens(user_id, new_tokens, model)
         # await db.update_tokens(user_id, total_bonus, "4o_mini")

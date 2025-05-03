@@ -99,6 +99,7 @@ async def get_gpt(messages, model):
         model_map = {
             '4o-mini': 'gpt-4o-mini',
             '4_1': 'gpt-4.1',
+            'o1': 'o1',
             'o3-mini': 'o3-mini'
         }
 
@@ -143,7 +144,7 @@ async def get_gpt(messages, model):
                 # Заменяем оригинальное сообщение на преобразованное
                 message["content"] = new_content
 
-        if model in {'o3-mini'}:
+        if model in {'o1'}:
             if messages and messages[0]["role"] == "system":
                 messages[0] = {"role": "user", "content": "You are a helpful assistant."}
 

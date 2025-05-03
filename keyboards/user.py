@@ -76,9 +76,10 @@ def settings(lang, from_msg):
 
 # Выбор модели GPT для диалогов
 def model_keyboard(selected_model: str):
-    models = {"4o-mini": "GPT-4o-mini",
+    models = {"4o": "GPT-4o",
+              "o3-mini": "GPT-o3-mini",
               "4.1": "GPT-4.1",
-              "o3-mini": "GPT-o3-mini"} # поменять на o3-mini
+              "o1": "GPT-o1"}
     buttons = [
         InlineKeyboardButton(
             f"{value}✅" if key == selected_model else value,
@@ -86,7 +87,7 @@ def model_keyboard(selected_model: str):
         )
         for key, value in models.items()
     ]
-    return InlineKeyboardMarkup(row_width=2).add(*buttons).add(
+    return InlineKeyboardMarkup(row_width=1).add(*buttons).add(
         InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
         InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
     )
@@ -207,7 +208,7 @@ def get_chatgpt_models():
 
     return InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton("GPT-4.1", callback_data="buy_chatgpt_tokens:4.1:normal"),
-        InlineKeyboardButton("GPT-o3-mini", callback_data="buy_chatgpt_tokens:o3-mini:normal"),
+        InlineKeyboardButton("GPT-o1", callback_data="buy_chatgpt_tokens:o1:normal"),
         InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
         InlineKeyboardButton("🔙Назад", callback_data="buy_sub")
     )
@@ -217,14 +218,14 @@ def get_chatgpt_models_noback(discount=None):
     target = 'discount' if discount else 'normal'
     return InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton("GPT-4.1", callback_data=f"buy_chatgpt_tokens:4.1:{target}"),
-        InlineKeyboardButton("GPT-o3-mini", callback_data=f"buy_chatgpt_tokens:o3-mini:{target}"),
+        InlineKeyboardButton("GPT-o1", callback_data=f"buy_chatgpt_tokens:o1:{target}"),
         InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
     )
 
 
 # Кнопки выбора количества токенов для ChatGPT
 # Mode - Normal - пользователь решил купить токены, Discount - у него действует скидка, Notification - перешел из уведомления о скидке
-# Model - 4.1, o3-mini
+# Model - 4.1, o1
 def get_chatgpt_tokens_menu(mode, model):
 
     source = 'acc' if mode == 'normal' else 'not_gpt'
@@ -237,7 +238,7 @@ def get_chatgpt_tokens_menu(mode, model):
                                   'percent': [5, 10, 12, 15, 0]}},
 
 
-              'o3-mini': {'normal': {'price': [199, 349, 469, 739, 10],
+              'o1': {'normal': {'price': [199, 349, 469, 739, 10],
                                 'percent': [0, 12, 21, 25, 0]},
                      'discount': {'price': ['199 > 189', '349 > 315', '469 > 412', '739 > 628', '10 > 5'],
                                   'price_data' : [189, 315, 412, 628, 5],

@@ -316,9 +316,10 @@ async def admin_promo_menu(call: CallbackQuery):
 
 # Клавиатура для выбора типа токенов
 token_type_kb = ReplyKeyboardMarkup(resize_keyboard=True)
-token_type_kb.add(KeyboardButton("tokens_4_1"))
-token_type_kb.add(KeyboardButton("tokens_4o_mini"))
+token_type_kb.add(KeyboardButton("tokens_4o"))
 token_type_kb.add(KeyboardButton("tokens_o3_mini"))
+token_type_kb.add(KeyboardButton("tokens_4_1"))
+token_type_kb.add(KeyboardButton("tokens_o1"))
 token_type_kb.add(KeyboardButton("free_image"))
 token_type_kb.add(KeyboardButton("Отмена"))
 
@@ -345,9 +346,10 @@ async def process_user_id(message: Message, state: FSMContext):
         return
 
     balance_info = (f"Текущий баланс пользователя {user_id}\n"
-                    f"tokens_4.1: {user['tokens_4_1']}\n"
-                    f"tokens_4o_mini: {user['tokens_4o_mini']}\n"
+                    f"tokens_4o: {user['tokens_4o']}\n"
                     f"tokens_o3_mini: {user['tokens_o3_mini']}\n"
+                    f"tokens_4.1: {user['tokens_4_1']}\n"
+                    f"tokens_o1: {user['tokens_o1']}\n"
                     f"Генерации 🎨Midjourney: {user['free_image']}")
 
     await message.answer(balance_info)
@@ -364,7 +366,7 @@ async def choose_token_type(message: Message, state: FSMContext):
         return
 
     token_type = message.text.strip()
-    if token_type not in ["tokens_4_1", "tokens_4o_mini", "tokens_o3_mini", "free_image"]:
+    if token_type not in ["tokens_4_1", "tokens_o1", "tokens_4o", "tokens_o3_mini","free_image"]:
         await message.answer("Выберите тип токенов из предложенных вариантов или напишите 'Отмена'")
         return
 
@@ -397,7 +399,8 @@ async def process_amount(message: Message, state: FSMContext):
     user = await db.get_user(int(user_id))
     balance_info = (f"Теперь баланс пользователя {user_id}\n"
                     f"tokens_4.1: {user['tokens_4_1']}\n"
-                    f"tokens_4o_mini: {user['tokens_4o_mini']}\n"
+                    f"tokens_o1: {user['tokens_o1']}\n"
+                    f"tokens_4o: {user['tokens_4o']}\n"
                     f"tokens_o3_mini: {user['tokens_o3_mini']}\n"
                     f"Генерации 🎨Midjourney: {user['free_image']}")
 
