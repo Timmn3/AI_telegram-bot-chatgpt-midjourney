@@ -82,7 +82,7 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
         logger.info(f"Токены для ChatGPT закончились. User: {user}, Model: {model}")
 
         model_map = {'4o-mini': 'ChatGPT',
-                     '4o': 'GPT-4o',
+                     '4_1': 'GPT-4.1',
                      'o3-mini': 'GPT-o3-mini'}  # поменять
 
         user_data = await db.get_user_notified_gpt(user_id)
@@ -691,18 +691,18 @@ async def show_profile(message: Message, state: FSMContext):
 
     mj = int(user['mj']) + int(user['free_image']) if int(user['mj']) + int(user['free_image']) >= 0 else 0
     gpt_4o_mini = int(user['tokens_4o_mini']) if int(user['tokens_4o_mini']) >= 0 else 0
-    gpt_4o = int(user['tokens_4o']) if int(user['tokens_4o']) >= 0 else 0
+    gpt_4_1 = int(user['tokens_4_1']) if int(user['tokens_4_1']) >= 0 else 0
     gpt_o3_mini = int(user['tokens_o3_mini']) if int(user['tokens_o3_mini']) >= 0 else 0
 
     logger.info(
-        f"Количество токенов и запросов для {user_id}:mj: {mj}, gpt_4o: {gpt_4o}, gpt_4o_mini: {gpt_4o_mini}, gpt_o3_mini: {gpt_o3_mini}")
+        f"Количество токенов и запросов для {user_id}:mj: {mj}, gpt_4.1: {gpt_4_1}, gpt_4o_mini: {gpt_4o_mini}, gpt_o3_mini: {gpt_o3_mini}")
 
     # Формируем текст с количеством доступных генераций и токенов
     sub_text = f"""
 Вам доступно⤵️
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
-Токены 💬GPT-4o:  {format(gpt_4o, ',').replace(',', ' ')}
+Токены 💬GPT-4.1:  {format(gpt_4_1, ',').replace(',', ' ')}
 Токены 💬GPT-4o-mini:  ♾️
 Токены 💬GPT-o3-mini:  {format(gpt_o3_mini, ',').replace(',', ' ')}
         """
@@ -731,11 +731,11 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
         # Формируем текст с количеством доступных генераций и токенов
         mj = int(user['mj']) + int(user['free_image']) if int(user['mj']) + int(user['free_image']) >= 0 else 0
         gpt_4o_mini = int(user['tokens_4o_mini']) if int(user['tokens_4o_mini']) >= 0 else 0
-        gpt_4o = int(user['tokens_4o']) if int(user['tokens_4o']) >= 0 else 0
+        gpt_4_1 = int(user['tokens_4_1']) if int(user['tokens_4_1']) >= 0 else 0
         gpt_o3_mini = int(user['tokens_o3_mini']) if int(user['tokens_o3_mini']) >= 0 else 0
 
         logger.info(
-            f"Колиество токенов и запросов для {user_id}:mj: {mj}, gpt_4o: {gpt_4o}, gpt_4o_mini: {gpt_4o_mini}, gpt_o3_mini: {gpt_o3_mini}")
+            f"Колиество токенов и запросов для {user_id}:mj: {mj}, gpt_4.1: {gpt_4_1}, gpt_4o_mini: {gpt_4o_mini}, gpt_o3_mini: {gpt_o3_mini}")
 
         keyboard = user_kb.get_account(user_lang, "account")
 
@@ -744,7 +744,7 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
 Вам доступно⤵️
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
-Токены 💬GPT-4o:  {format(gpt_4o, ',').replace(',', ' ')}
+Токены 💬GPT-4.1:  {format(gpt_4_1, ',').replace(',', ' ')}
 Токены 💬GPT-4o-mini:  ♾️
 Токены 💬GPT-o3-mini:  {format(gpt_o3_mini, ',').replace(',', ' ')}
             """
@@ -803,14 +803,14 @@ async def ask_question(message: Message, state: FSMContext):
     user_id = message.from_user.id
     user = await db.get_user(user_id)  # Получаем данные пользователя
     model = (user["gpt_model"]).replace("-", "_")
-
+    print(model)
     logger.info(f'Выбранная модель {model}')
 
     if model == "4o_mini" and user["tokens_4o_mini"] <= 0:
         logger.info("Модель 4o-mini закончилась - переключаем")
-        await db.set_model(user_id, "4o")
-        model = "4o"
-        await message.answer("✅Модель для ChatGPT изменена на GPT-4o")
+        await db.set_model(user_id, "4_1")
+        model = "4_1"
+        await message.answer("✅Модель для ChatGPT изменена на GPT-4.1")
 
     # Проверяем наличие токенов и подписки
     if user[f"tokens_{model}"] <= 0:
@@ -1106,9 +1106,9 @@ async def gen_prompt(message: Message, state: FSMContext):
 
         if model == "4o_mini" and user["tokens_4o_mini"] <= 0:
             logger.info("Модель 4o-mini закончилась - переключаем")
-            await db.set_model(user_id, "4o")
-            model = "4o"
-            await message.answer("✅Модель для ChatGPT изменена на GPT-4o")
+            await db.set_model(user_id, "4_1")
+            model = "4_1"
+            await message.answer("✅Модель для ChatGPT изменена на GPT-4.1")
 
         if user[f"tokens_{model}"] <= 0:
             return await not_enough_balance(message.bot, user_id, "chatgpt")
@@ -1280,15 +1280,18 @@ async def select_model(call: CallbackQuery):
     selected_model = call.data.split(":")[1]  # Извлечение выбранной модели из данных
 
     logger.info(f"User ID: {user_id}, выбранная модель: {selected_model}")
-
+    selected_model_bd = selected_model
+    if selected_model == "4.1":
+        selected_model_bd = "4_1"
     try:
         # Записываем выбранную модель в базу данных
-        await db.set_model(user_id, selected_model)
+        await db.set_model(user_id, selected_model_bd)
 
         # Получаем обновленную клавиатуру с выбранной моделью
         keyboard = user_kb.model_keyboard(selected_model=selected_model)
 
         await call.message.edit_text("Выберите модель GPT для диалогов⤵️:", reply_markup=keyboard)
+
         await call.message.answer(f"✅Модель для ChatGPT изменена на GPT-{selected_model}")
     except Exception as e:
         logger.error(f"Ошибка при выборе модели GPT: {e}")

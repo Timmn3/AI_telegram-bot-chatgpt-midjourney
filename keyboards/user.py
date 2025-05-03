@@ -77,7 +77,7 @@ def settings(lang, from_msg):
 # Выбор модели GPT для диалогов
 def model_keyboard(selected_model: str):
     models = {"4o-mini": "GPT-4o-mini",
-              "4o": "GPT-4o",
+              "4.1": "GPT-4.1",
               "o3-mini": "GPT-o3-mini"} # поменять на o3-mini
     buttons = [
         InlineKeyboardButton(
@@ -206,7 +206,7 @@ def get_neural_network_menu():
 def get_chatgpt_models():
 
     return InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton("GPT-4o", callback_data="buy_chatgpt_tokens:4o:normal"),
+        InlineKeyboardButton("GPT-4.1", callback_data="buy_chatgpt_tokens:4.1:normal"),
         InlineKeyboardButton("GPT-o3-mini", callback_data="buy_chatgpt_tokens:o3-mini:normal"),
         InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
         InlineKeyboardButton("🔙Назад", callback_data="buy_sub")
@@ -216,7 +216,7 @@ def get_chatgpt_models_noback(discount=None):
 
     target = 'discount' if discount else 'normal'
     return InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton("GPT-4o", callback_data=f"buy_chatgpt_tokens:4o:{target}"),
+        InlineKeyboardButton("GPT-4.1", callback_data=f"buy_chatgpt_tokens:4.1:{target}"),
         InlineKeyboardButton("GPT-o3-mini", callback_data=f"buy_chatgpt_tokens:o3-mini:{target}"),
         InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
     )
@@ -224,13 +224,13 @@ def get_chatgpt_models_noback(discount=None):
 
 # Кнопки выбора количества токенов для ChatGPT
 # Mode - Normal - пользователь решил купить токены, Discount - у него действует скидка, Notification - перешел из уведомления о скидке
-# Model - 4o, o3-mini
+# Model - 4.1, o3-mini
 def get_chatgpt_tokens_menu(mode, model):
 
     source = 'acc' if mode == 'normal' else 'not_gpt'
     back = "buy_sub" if mode == 'normal' else 'back_to_discount' 
 
-    prices = {'4o': {'normal': {'price': [199, 349, 469, 739, 10],
+    prices = {'4.1': {'normal': {'price': [199, 349, 469, 739, 10],
                                 'percent': [0, 12, 21, 25, 0]},
                      'discount': {'price': ['199 > 189', '349 > 315', '469 > 412', '739 > 628', '10 > 5'],
                                   'price_data' : [189, 315, 412, 628, 5],
