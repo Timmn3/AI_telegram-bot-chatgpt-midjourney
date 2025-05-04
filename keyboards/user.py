@@ -77,7 +77,7 @@ def settings(lang, from_msg):
 # Выбор модели GPT для диалогов
 def model_keyboard(selected_model: str):
     models = {"4o": "GPT-4o",
-              "o3-mini": "GPT-o3-mini",
+              "o4-mini": "GPT-o4-mini",
               "4.1": "GPT-4.1",
               "o1": "GPT-o1"}
     buttons = [

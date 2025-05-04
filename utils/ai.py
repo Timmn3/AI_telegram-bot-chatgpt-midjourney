@@ -97,10 +97,10 @@ async def get_gpt(messages, model):
 
     try:
         model_map = {
-            '4o-mini': 'gpt-4o-mini',
+            '4o': 'gpt-4o',
             '4_1': 'gpt-4.1',
             'o1': 'o1',
-            'o3-mini': 'o3-mini'
+            'o4-mini': 'o4-mini'
         }
 
         # Проверка и обработка изображений в сообщении пользователя

@@ -81,18 +81,18 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
 
         logger.info(f"Токены для ChatGPT закончились. User: {user}, Model: {model}")
 
-        model_map = {'4o-mini': 'ChatGPT',
+        model_map = {'4o': 'ChatGPT',
                      '4_1': 'GPT-4.1',
                      'o1': 'GPT-o1',
-                     'o3-mini': 'GPT-o3-mini'}
+                     'o4-mini': 'GPT-o4-mini'}
 
         user_data = await db.get_user_notified_gpt(user_id)
 
-        if not model == 'o3-mini':
-            await db.set_model(user_id, "o3-mini")
-            await bot.send_message(user_id, "✅Модель для ChatGPT изменена на GPT-o3-mini")
+        if not model == 'o4-mini':
+            await db.set_model(user_id, "o4-mini")
+            await bot.send_message(user_id, "✅Модель для ChatGPT изменена на GPT-4o")
 
-        if model == 'o3-mini':
+        if model == '4o':
             keyboard = user_kb.get_chatgpt_models_noback()
         else:
             keyboard = user_kb.get_chatgpt_tokens_menu('normal', model)
@@ -529,7 +529,7 @@ async def generate_example_prompt() -> str:
             {"role": "system", "content": "Ты придумываешь короткие примеры пользовательских запросов для ChatGPT."},
             {"role": "user", "content": prompt}
         ],
-        model="4o-mini"  # фиксированная безопасная модель
+        model="4o"  # фиксированная безопасная модель
     )
 
     return response["content"].strip().strip('"')
@@ -692,12 +692,12 @@ async def show_profile(message: Message, state: FSMContext):
 
     mj = int(user['mj']) + int(user['free_image']) if int(user['mj']) + int(user['free_image']) >= 0 else 0
     gpt_4o = int(user['tokens_4o']) if int(user['tokens_4o']) >= 0 else 0
-    gpt_o3_mini = int(user['tokens_o3_mini']) if int(user['tokens_o3_mini']) >= 0 else 0
+    gpt_o4_mini = int(user['tokens_o4_mini']) if int(user['tokens_o4_mini']) >= 0 else 0
     gpt_4_1 = int(user['tokens_4_1']) if int(user['tokens_4_1']) >= 0 else 0
     gpt_o1 = int(user['tokens_o1']) if int(user['tokens_o1']) >= 0 else 0
 
     logger.info(
-        f"Количество токенов и запросов для {user_id}:mj: {mj}, gpt_4.1: {gpt_4_1}, gpt_4o: {gpt_4o}, gpt_o3_mini: {gpt_o3_mini}, gpt_o1: {gpt_o1}")
+        f"Количество токенов и запросов для {user_id}:mj: {mj}, gpt_4.1: {gpt_4_1}, gpt_4o: {gpt_4o}, gpt_o4_mini: {gpt_o4_mini}, gpt_o1: {gpt_o1}")
 
     # Формируем текст с количеством доступных генераций и токенов
     sub_text = f"""
@@ -705,7 +705,7 @@ async def show_profile(message: Message, state: FSMContext):
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
 Токены 💬GPT-4o:  ♾️
-Токены 💬GPT-o3-mini:  ♾️
+Токены 💬GPT-o4-mini:  ♾️
 Токены 💬GPT-4.1:  {format(gpt_4_1, ',').replace(',', ' ')}
 Токены 💬GPT-o1:  {format(gpt_o1, ',').replace(',', ' ')}
         """
@@ -734,12 +734,12 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
         # Формируем текст с количеством доступных генераций и токенов
         mj = int(user['mj']) + int(user['free_image']) if int(user['mj']) + int(user['free_image']) >= 0 else 0
         gpt_4o = int(user['tokens_4o']) if int(user['tokens_4o']) >= 0 else 0
-        gpt_o3_mini = int(user['tokens_o3_mini']) if int(user['tokens_o3_mini']) >= 0 else 0
+        gpt_o4_mini = int(user['tokens_o4_mini']) if int(user['tokens_o4_mini']) >= 0 else 0
         gpt_4_1 = int(user['tokens_4_1']) if int(user['tokens_4_1']) >= 0 else 0
         gpt_o1 = int(user['tokens_o1']) if int(user['tokens_o1']) >= 0 else 0
 
         logger.info(
-            f"Колиество токенов и запросов для {user_id}:mj: {mj}, gpt_4.1: {gpt_4_1}, gpt_4o: {gpt_4o}, gpt_o3_mini: {gpt_o3_mini}, gpt_o1: {gpt_o1}")
+            f"Колиество токенов и запросов для {user_id}:mj: {mj}, gpt_4.1: {gpt_4_1}, gpt_4o: {gpt_4o}, gpt_o4_mini: {gpt_o4_mini}, gpt_o1: {gpt_o1}")
 
         keyboard = user_kb.get_account(user_lang, "account")
 
@@ -749,7 +749,7 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
 Токены 💬GPT-4o:  ♾️
-Токены 💬GPT-o3-mini:  ♾️
+Токены 💬GPT-o4-mini:  ♾️
 Токены 💬GPT-4.1:  {format(gpt_4_1, ',').replace(',', ' ')}
 Токены 💬GPT-o1:  {format(gpt_o1, ',').replace(',', ' ')}
             """

@@ -49,11 +49,13 @@ async def start():
         "sub_type VARCHAR(12),"  # Тип подписки
         "tokens_4_1 INTEGER DEFAULT 5000,"  # Количество токенов для ChatGPT
         "tokens_o1 INTEGER DEFAULT 5000,"  # Количество токенов для ChatGPT
+        "tokens_o3 INTEGER DEFAULT 5000,"  # Количество токенов для ChatGPT
         "tokens_4o INTEGER DEFAULT 200000,"  # Количество токенов для ChatGPT
         "tokens_4o_mini INTEGER DEFAULT 100000,"
         "tokens_o1_preview INTEGER DEFAULT 0,"
         "tokens_o1_mini INTEGER DEFAULT 1000,"
         "tokens_o3_mini INTEGER DEFAULT 200000,"
+        "tokens_o4_mini INTEGER DEFAULT 200000,"
         "gpt_model VARCHAR(10) DEFAULT '4o-mini',"
         "voice VARCHAR(64) DEFAULT 'onyx',"
         "chatgpt_character VARCHAR(256) DEFAULT '',"
@@ -197,7 +199,7 @@ async def add_user(user_id, username, first_name, inviter_id):
 
     conn: Connection = await get_conn()
     await conn.execute(
-        "INSERT INTO users(user_id, username, first_name, reg_time, inviter_id, free_image, tokens_o1, tokens_4_1, tokens_4o, tokens_o3-mini) "
+        "INSERT INTO users(user_id, username, first_name, reg_time, inviter_id, free_image, tokens_o1, tokens_4_1, tokens_4o, tokens_o4-mini) "
         "VALUES ($1, $2, $3, $4, $5, 3, 5000, 5000, 200000, 200000)",
         user_id, username, first_name, int(datetime.now().timestamp()), inviter_id
     )
@@ -268,7 +270,7 @@ async def remove_chatgpt(user_id, tokens, model):
     dashed_model = model.replace("-", "_")
     column = f'tokens_{dashed_model}'
 
-    if column not in {'tokens_4_1', 'tokens_4o', 'tokens_o3_mini', 'tokens_o1'}:
+    if column not in {'tokens_4_1', 'tokens_4o', 'tokens_o4_mini', 'tokens_o1'}:
         raise ValueError("Invalid model name")
 
     await conn.execute(
@@ -617,7 +619,7 @@ async def update_tokens(user_id, new_tokens, model):
     conn: Connection = await get_conn()
     dashed_model = model.replace("-", "_")
     column = f'tokens_{dashed_model}'
-    if column not in {'tokens_4o', 'tokens_4o', 'tokens_o3_mini', 'tokens_o1'}:
+    if column not in {'tokens_4o', 'tokens_4o', 'tokens_o4_mini', 'tokens_o1'}:
         raise ValueError("Invalid model name")
 
     await conn.execute(f"UPDATE users SET {column} = $2 WHERE user_id = $1", user_id, new_tokens)
@@ -742,7 +744,7 @@ async def has_matching_orders(user_id: int) -> bool:
 СТАТИСТИКА ДЛЯ АДМИНА
 '''
 
-CHATGPT_ORDER_TYPES = ['4o', 'o3-mini', '4_1', 'o1']
+CHATGPT_ORDER_TYPES = ['4o', 'o4-mini', '4_1', 'o1']
 CHATGPT_QUANTITIES = [20000, 40000, 60000, 100000]
 MIDJOURNEY_QUANTITIES = [10, 20, 50, 100]
 
@@ -947,7 +949,7 @@ async def fetch_short_statistics() -> str:
         chatgpt_requests_all_time = await conn.fetchval("""
             SELECT COUNT(*)
             FROM usage
-            WHERE ai_type IN ('chatgpt', '4_1', '4o', 'o3-mini', 'o1')
+            WHERE ai_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1')
         """)
         logger.info(f"ChatGPT запросов за всё время: {chatgpt_requests_all_time}")
 
@@ -955,7 +957,7 @@ async def fetch_short_statistics() -> str:
         chatgpt_payments_all_time = await conn.fetchval("""
             SELECT COUNT(*)
             FROM orders
-            WHERE pay_time IS NOT NULL AND order_type IN ('chatgpt', '4_1', '4o', 'o3-mini', 'o1')
+            WHERE pay_time IS NOT NULL AND order_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1')
         """)
         logger.info(f"ChatGPT оплат за всё время: {chatgpt_payments_all_time}")
 
@@ -1004,7 +1006,7 @@ async def fetch_short_statistics() -> str:
         chatgpt_requests_today = await conn.fetchval("""
             SELECT COUNT(*)
             FROM usage
-            WHERE ai_type IN ('chatgpt', '4_1', '4o', 'o3-mini', 'o1') AND create_time >= $1
+            WHERE ai_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1') AND create_time >= $1
         """, start_of_day)
         logger.info(f"ChatGPT запросов за сегодня: {chatgpt_requests_today}")
 
@@ -1012,7 +1014,7 @@ async def fetch_short_statistics() -> str:
         chatgpt_payments_today = await conn.fetchval("""
             SELECT COUNT(*)
             FROM orders
-            WHERE pay_time IS NOT NULL AND pay_time >= $1 AND order_type IN ('chatgpt', '4_1', '4o-mini', 'o3-mini', 'o1')
+            WHERE pay_time IS NOT NULL AND pay_time >= $1 AND order_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1')
         """, start_of_day)
         logger.info(f"ChatGPT оплат за сегодня: {chatgpt_payments_today}")
 

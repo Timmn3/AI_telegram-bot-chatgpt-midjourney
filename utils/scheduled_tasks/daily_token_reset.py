@@ -4,7 +4,7 @@ from utils.db import get_conn
 # Пороговые значения токенов
 TOKEN_LIMITS = {
     "tokens_4o": 100_000,
-    "tokens_o3_mini": 200_000,
+    "tokens_o4_mini": 200_000,
     "tokens_4_1": 5000,
     "tokens_o1": 5000
 }
