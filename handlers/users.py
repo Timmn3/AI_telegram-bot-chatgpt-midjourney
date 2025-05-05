@@ -341,6 +341,12 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
     res = await ai.get_gpt(messages, model)
 
+    # Удаляем сообщение "Ожидание..."
+    try:
+        await bot.delete_message(chat_id=user_id, message_id=message_wait.message_id)
+    except Exception as e:
+        logger.warning(f"Не удалось удалить сообщение ожидания: {e}")
+
     # Шаг 1: форматируем математические формулы внутри \( \)
     html_content = format_math_in_text(res["content"])
 
@@ -421,8 +427,6 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
                 await db.update_user_notification_gpt(user_id)
                 await notify_low_chatgpt_tokens(user_id, bot)
 
-
-    await bot.delete_message(chat_id=user_id, message_id=message_wait.message_id)
     await db.add_action(user_id, model)
 
     return messages
