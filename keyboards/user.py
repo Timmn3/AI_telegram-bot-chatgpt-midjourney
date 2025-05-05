@@ -227,7 +227,6 @@ def get_chatgpt_models_noback(discount=None):
 # Mode - Normal - пользователь решил купить токены, Discount - у него действует скидка, Notification - перешел из уведомления о скидке
 # Model - 4.1, o1
 def get_chatgpt_tokens_menu(mode, model):
-    model = model.replace("_", ".")
 
     source = 'acc' if mode == 'normal' else 'not_gpt'
     back = "buy_sub" if mode == 'normal' else 'back_to_discount' 
