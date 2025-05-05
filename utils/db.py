@@ -56,7 +56,7 @@ async def start():
         "tokens_o1_mini INTEGER DEFAULT 1000,"
         "tokens_o3_mini INTEGER DEFAULT 200000,"
         "tokens_o4_mini INTEGER DEFAULT 200000,"
-        "gpt_model VARCHAR(10) DEFAULT '4o-mini',"
+        "gpt_model VARCHAR(10) DEFAULT '4o',"
         "voice VARCHAR(64) DEFAULT 'onyx',"
         "chatgpt_character VARCHAR(256) DEFAULT '',"
         "mj INTEGER DEFAULT 0,"  # Количество токенов для MidJourney
