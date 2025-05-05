@@ -298,6 +298,11 @@ def ensure_code_block_integrity(text: str) -> str:
 
 
 async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
+
+    text = '⏳ChatGPT генерирует ответ, ожидайте...'
+
+    message_wait = await bot.send_message(user_id, text)
+
     user = await db.get_user(user_id)
     lang_text = {"en": "compose an answer in English", "ru": "составь ответ на русском языке"}
     model = user['gpt_model']
@@ -416,7 +421,10 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
                 await db.update_user_notification_gpt(user_id)
                 await notify_low_chatgpt_tokens(user_id, bot)
 
+
+    await bot.delete_message(chat_id=user_id, message_id=message_wait.message_id)
     await db.add_action(user_id, model)
+
     return messages
 
 
