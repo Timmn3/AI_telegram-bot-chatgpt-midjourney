@@ -1329,7 +1329,7 @@ async def select_model(call: CallbackQuery):
         keyboard = user_kb.model_keyboard(selected_model=selected_model)
 
         await call.message.edit_text("Выберите модель GPT для диалогов⤵️:", reply_markup=keyboard)
-     
+
         await call.message.answer(f"✅Модель для ChatGPT изменена на GPT-{selected_model}")
     except Exception as e:
         logger.error(f"Ошибка при выборе модели GPT: {e}")

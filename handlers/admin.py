@@ -384,10 +384,8 @@ async def process_amount(message: Message, state: FSMContext):
 
     try:
         amount = int(message.text.strip())
-        if amount <= 0:
-            raise ValueError
     except ValueError:
-        await message.answer("Введите корректное положительное число или напишите 'Отмена'")
+        await message.answer("Введите корректное число или напишите 'Отмена'")
         return
 
     data = await state.get_data()
