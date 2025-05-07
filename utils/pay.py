@@ -195,7 +195,7 @@ async def process_purchase(bot, order_id):
     total_bonus = user["tokens_4_1"] + bonus
 
     # Обновляем токены или запросы в зависимости от типа заказа
-    if order["order_type"] == "midjourney":
+    if model == "midjourney":
         new_requests = user["mj"] + order["quantity"]
         await db.update_requests(user_id, new_requests)
         await bot.send_message(user_id, f"✅Добавлено {order['quantity']} запросов для MidJourney.")
