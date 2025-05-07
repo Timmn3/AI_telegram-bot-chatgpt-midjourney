@@ -199,7 +199,7 @@ async def process_purchase(bot, order_id):
         new_requests = user["mj"] + order["quantity"]
         await db.update_requests(user_id, new_requests)
         await bot.send_message(user_id, f"✅Добавлено {order['quantity']} запросов для MidJourney.")
-    elif model:
+    else:
         new_tokens = int(user[f"tokens_{model}"]) + int(order["quantity"])
         await db.update_tokens(user_id, new_tokens, model)
         # await db.update_tokens(user_id, total_bonus, "4o_mini")
