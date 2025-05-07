@@ -204,7 +204,7 @@ async def back_to_buy_vpn(call: CallbackQuery):
     user_id = call.from_user.id
     amount = order["amount"]  # Сумма в рублях
 
-    await db.add_star(user_id, amount)
+    await db.add_star(user_id, amount, order_id)
     # Отправляем пользователю инвойс для оплаты через Telegram
     await call.bot.send_invoice(call.from_user.id,
                                 title="Приобретение подписки",

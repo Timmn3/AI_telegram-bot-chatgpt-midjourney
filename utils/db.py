@@ -1252,7 +1252,9 @@ async def create_tables():
         "id SERIAL PRIMARY KEY, "
         "user_id BIGINT, "
         "date TIMESTAMP NOT NULL DEFAULT now(), "
-        "amount INTEGER NOT NULL DEFAULT 1"
+        "amount INTEGER NOT NULL DEFAULT 1, "
+        "order_id TEXT, "
+        "paid BOOLEAN DEFAULT FALSE"
         ")"
     )
 
@@ -1303,35 +1305,37 @@ async def update_chat_summary(chat_id: int, summary: str):
     """, chat_id, summary)
     await conn.close()
 
-async def add_star(user_id: int, amount: int):
+async def add_star(user_id: int, amount: int, order_id: str):
     """
     Добавляет запись в таблицу stars для отслеживания оплаты.
 
     Args:
-    user_id (int): ID пользователя, который совершает оплату.
-    amount (int, optional): Сумма .
+    user_id (int): ID пользователя.
+    amount (int): Сумма.
+    order_id (str): Уникальный ID заказа.
     """
     conn = await get_conn()
     try:
         await conn.execute(
-         "INSERT INTO stars (user_id, amount, paid) VALUES ($1, $2, $3)",
-        user_id, amount, False
+            "INSERT INTO stars (user_id, amount, paid, order_id) VALUES ($1, $2, $3, $4)",
+            user_id, amount, False, order_id
         )
     finally:
-     await conn.close()
+        await conn.close()
+
 
 async def mark_star_paid(order_id: str):
     """
-    Обновляет статус оплаты для записи в таблице stars.
+    Обновляет статус оплаты для записи в таблице stars по order_id.
 
     Args:
-    order_id (str): ID заказа, который необходимо отметить как оплаченный.
+    order_id (str): Строковый ID заказа.
     """
     conn = await get_conn()
     try:
         await conn.execute(
-            "UPDATE stars SET paid = TRUE WHERE id = $1",
-            int(order_id)
+            "UPDATE stars SET paid = TRUE WHERE order_id = $1",
+            order_id
         )
     finally:
         await conn.close()
