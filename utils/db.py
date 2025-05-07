@@ -1035,36 +1035,6 @@ async def fetch_short_statistics() -> str:
         logger.info(f"Midjourney оплат за сегодня: {midjourney_payments_today}")
 
         # --- СТАТИСТИКА ЗВЁЗД ---
-        # За сегодня (по Москве)
-        stars_today_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM stars WHERE date = CURRENT_DATE"
-        )
-
-        # За текущий месяц
-        current_month = now_moscow.month
-        current_year = now_moscow.year
-        stars_current_month = await conn.fetchval(
-            """
-            SELECT COUNT(*) FROM stars 
-            WHERE EXTRACT(MONTH FROM date) = $1 
-              AND EXTRACT(YEAR FROM date) = $2
-            """,
-            current_month, current_year
-        )
-
-        # За предыдущий месяц
-        prev_month = current_month - 1 if current_month > 1 else 12
-        prev_year = current_year if prev_month != 0 else current_year - 1
-        stars_prev_month = await conn.fetchval(
-            """
-            SELECT COUNT(*) FROM stars 
-            WHERE EXTRACT(MONTH FROM date) = $1 
-              AND EXTRACT(YEAR FROM date) = $2
-            """,
-            prev_month, prev_year
-        )
-
-        # --- СТАТИСТИКА ЗВЁЗД ---
         # Получаем текущее время в Москве
         moscow_tz = ZoneInfo("Europe/Moscow")
         now_moscow = datetime.now(moscow_tz)
@@ -1093,19 +1063,30 @@ async def fetch_short_statistics() -> str:
         prev_month_name = months[prev_month_number]
 
         # Сбор данных по звёздам
-        stars_today_count = await conn.fetchval("SELECT COUNT(*) FROM stars WHERE date = CURRENT_DATE")
+        stars_today_count = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount), 0) FROM stars WHERE DATE(date) = CURRENT_DATE AND paid = TRUE"
+        )
         stars_current_month = await conn.fetchval(
-            "SELECT COUNT(*) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
+            """
+            SELECT COALESCE(SUM(amount), 0)
+            FROM stars
+            WHERE EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2 AND paid = TRUE
+            """,
             current_month_number, now_moscow.year
         )
         stars_prev_month = await conn.fetchval(
-            "SELECT COUNT(*) FROM stars WHERE EXTRACT(MONTH FROM date)=$1 AND EXTRACT(YEAR FROM date)=$2",
-            prev_month_number, now_moscow.year if prev_month_number != 12 else now_moscow.year - 1
+            """
+            SELECT COALESCE(SUM(amount), 0)
+            FROM stars
+            WHERE EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2 AND paid = TRUE
+            """,
+            prev_month_number,
+            now_moscow.year if prev_month_number != 12 else now_moscow.year - 1
         )
 
         # Количество уникальных пользователей, отправивших звёзды за сегодня
         stars_users_today = await conn.fetchval(
-            "SELECT COUNT(DISTINCT user_id) FROM stars WHERE date = CURRENT_DATE"
+            "SELECT COUNT(DISTINCT user_id) FROM stars WHERE DATE(date) = CURRENT_DATE AND paid = TRUE"
         )
 
         # Количество уникальных пользователей за текущий месяц
@@ -1113,7 +1094,7 @@ async def fetch_short_statistics() -> str:
             """
             SELECT COUNT(DISTINCT user_id)
             FROM stars
-            WHERE EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2
+            WHERE EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2 AND paid = TRUE
             """,
             current_month_number, now_moscow.year
         )
@@ -1123,11 +1104,12 @@ async def fetch_short_statistics() -> str:
             """
             SELECT COUNT(DISTINCT user_id)
             FROM stars
-            WHERE EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2
+            WHERE EXTRACT(MONTH FROM date) = $1 AND EXTRACT(YEAR FROM date) = $2 AND paid = TRUE
             """,
             prev_month_number,
             now_moscow.year if prev_month_number != 12 else now_moscow.year - 1
         )
+
         # Закрываем соединение
         await conn.close()
         logger.info("Соединение с базой данных закрыто")
@@ -1206,9 +1188,9 @@ def format_short_statistics(all_time: Dict[str, Any], today: Dict[str, Any], sta
     # --- Форматирование Stars ---
     stars_section = (
         "**Stars:**\n"
-        f"За сегодня: {stars.get('users_today', 0)} \({stars.get('today', 0)} ⭐️\)\n"
-        f"За {stars['current_month_name']}: {stars.get('users_current_month', 0)} \({stars.get('current_month', 0)} ⭐️\)\n"
-        f"За {stars['prev_month_name']}: {stars.get('users_prev_month', 0)} \({stars.get('prev_month', 0)} ⭐️\)"
+        f"За сегодня: {stars.get('users_today', 0)} \({stars.get('today', 0)} руб\)\n"
+        f"За {stars['current_month_name']}: {stars.get('users_current_month', 0)} \({stars.get('current_month', 0)} руб\)\n"
+        f"За {stars['prev_month_name']}: {stars.get('users_prev_month', 0)} \({stars.get('prev_month', 0)} руб\)"
     )
 
     return f"{all_time_section}\n\n{today_section}\n\n{stars_section}"
@@ -1269,7 +1251,7 @@ async def create_tables():
         "CREATE TABLE IF NOT EXISTS stars ("
         "id SERIAL PRIMARY KEY, "
         "user_id BIGINT, "
-        "date DATE NOT NULL, "
+        "date TIMESTAMP NOT NULL DEFAULT now(), "
         "amount INTEGER NOT NULL DEFAULT 1"
         ")"
     )
@@ -1321,20 +1303,35 @@ async def update_chat_summary(chat_id: int, summary: str):
     """, chat_id, summary)
     await conn.close()
 
-async def add_star(user_id: int, amount: int = 1):
+async def add_star(user_id: int, amount: int):
     """
-    Добавляет запись в таблицу stars для отслеживания звёзд.
+    Добавляет запись в таблицу stars для отслеживания оплаты.
 
     Args:
-    user_id (int): ID пользователя, который отправил звезду.
-    amount (int, optional): Количество звёзд. По умолчанию 1.
+    user_id (int): ID пользователя, который совершает оплату.
+    amount (int, optional): Сумма .
     """
     conn = await get_conn()
     try:
         await conn.execute(
-        "INSERT INTO stars (user_id, date, amount) "
-        "VALUES ($1, CURRENT_DATE, $2)",
-        user_id, amount
+         "INSERT INTO stars (user_id, amount, paid) VALUES ($1, $2, $3)",
+        user_id, amount, False
         )
     finally:
      await conn.close()
+
+async def mark_star_paid(order_id: str):
+    """
+    Обновляет статус оплаты для записи в таблице stars.
+
+    Args:
+    order_id (str): ID заказа, который необходимо отметить как оплаченный.
+    """
+    conn = await get_conn()
+    try:
+        await conn.execute(
+            "UPDATE stars SET paid = TRUE WHERE id = $1",
+            int(order_id)
+        )
+    finally:
+        await conn.close()
