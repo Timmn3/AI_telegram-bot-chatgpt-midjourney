@@ -214,7 +214,7 @@ async def back_to_buy_vpn(call: CallbackQuery):
                                 provider_token="",  # Токен для оплаты (платежный провайдер)
                                 payload=f"{order_id}",  # ID заказа
                                 currency="XTR",  # Валюта оплаты
-                                prices=[LabeledPrice(label="Подписка", amount=1)],  # Цена подписки order["amount"] // 2
+                                prices=[LabeledPrice(label="Подписка", amount=order["amount"] // 2)],  # Цена подписки order["amount"] // 2
                                 reply_markup=user_kb.get_tg_stars_pay()  # Кнопка оплаты
                                 )
     await call.answer()
