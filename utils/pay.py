@@ -189,7 +189,6 @@ async def process_purchase(bot, order_id):
     user_discount = await db.get_user_notified_gpt(user_id)
 
     logger.info(f"Оплата пользователя {user_id} успешно обработана. Тип заказа: {model}, количество: {order['quantity']}")
-    logger.debug(f"Ключи пользователя {user_id}: {list(user.keys())}")
 
     # Начисление бонусных токенов
     bonus = 20000 if int(order["quantity"]) == 100000 else int((order["quantity"]) / 4) 
@@ -197,7 +196,7 @@ async def process_purchase(bot, order_id):
 
     # Обновляем токены или запросы в зависимости от типа заказа
     if model == "midjourney":
-        new_requests = user["mj"] + model
+        new_requests = user["mj"] + order["quantity"]
         await db.update_requests(user_id, new_requests)
         await bot.send_message(user_id, f"✅Добавлено {order['quantity']} запросов для MidJourney.")
     else:
