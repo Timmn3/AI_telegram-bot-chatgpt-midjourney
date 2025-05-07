@@ -345,12 +345,16 @@ async def process_user_id(message: Message, state: FSMContext):
         await message.answer("Пользователь не найден. Введите корректный user_id или напишите 'Отмена'")
         return
 
+    mj = (user['mj'] or 0) + (user['free_image'] or 0)
+    mj = mj if mj >= 0 else 0
+
     balance_info = (f"Текущий баланс пользователя {user_id}\n"
                     f"tokens_4o: {user['tokens_4o']}\n"
                     f"tokens_o4_mini: {user['tokens_o4_mini']}\n"
                     f"tokens_4.1: {user['tokens_4_1']}\n"
                     f"tokens_o1: {user['tokens_o1']}\n"
-                    f"Генерации 🎨Midjourney: {user['free_image']}")
+                    f"Генерации 🎨Midjourney: {mj}")
+
 
     await message.answer(balance_info)
     await message.answer("Выберите тип токенов для пополнения:", reply_markup=token_type_kb)
@@ -395,12 +399,15 @@ async def process_amount(message: Message, state: FSMContext):
     await db.add_tokens(int(user_id), token_type, amount)
 
     user = await db.get_user(int(user_id))
-    balance_info = (f"Теперь баланс пользователя {user_id}\n"
-                    f"tokens_4.1: {user['tokens_4_1']}\n"
-                    f"tokens_o1: {user['tokens_o1']}\n"
+    mj = (user['mj'] or 0) + (user['free_image'] or 0)
+    mj = mj if mj >= 0 else 0
+
+    balance_info = (f"Текущий баланс пользователя {user_id}\n"
                     f"tokens_4o: {user['tokens_4o']}\n"
                     f"tokens_o4_mini: {user['tokens_o4_mini']}\n"
-                    f"Генерации 🎨Midjourney: {user['free_image']}")
+                    f"tokens_4.1: {user['tokens_4_1']}\n"
+                    f"tokens_o1: {user['tokens_o1']}\n"
+                    f"Генерации 🎨Midjourney: {mj}")
 
     await message.answer(balance_info)
 
