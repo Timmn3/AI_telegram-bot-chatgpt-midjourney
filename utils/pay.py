@@ -193,7 +193,7 @@ async def process_purchase(bot, order_id):
     # Начисление бонусных токенов
     bonus = 20000 if int(order["quantity"]) == 100000 else int((order["quantity"]) / 4) 
     total_bonus = user["tokens_4_1"] + bonus
-
+    model = model.replace(".", "_")
 
     # Обновляем токены или запросы в зависимости от типа заказа
     if model == "midjourney":
