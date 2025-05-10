@@ -270,7 +270,7 @@ async def remove_chatgpt(user_id, tokens, model):
     dashed_model = model.replace("-", "_")
     column = f'tokens_{dashed_model}'
 
-    if column not in {'tokens_4_1', 'tokens_4o', 'tokens_4o_mini', 'tokens_o1'}:
+    if column not in {'tokens_4_1', 'tokens_4o', 'tokens_4o_mini', 'tokens_o1', 'tokens_o4_mini'}:
         raise ValueError(f"Invalid model {column}")
 
     await conn.execute(
