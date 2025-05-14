@@ -199,7 +199,7 @@ async def add_user(user_id, username, first_name, inviter_id):
 
     conn: Connection = await get_conn()
     await conn.execute(
-        "INSERT INTO users(user_id, username, first_name, reg_time, inviter_id, free_image, tokens_o1, tokens_4_1, tokens_4o, tokens_o4-mini) "
+        "INSERT INTO users(user_id, username, first_name, reg_time, inviter_id, free_image, tokens_o1, tokens_4_1, tokens_4o, tokens_o4_mini) "
         "VALUES ($1, $2, $3, $4, $5, 3, 5000, 5000, 200000, 200000)",
         user_id, username, first_name, int(datetime.now().timestamp()), inviter_id
     )
