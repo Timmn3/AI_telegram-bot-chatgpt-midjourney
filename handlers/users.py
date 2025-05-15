@@ -825,24 +825,37 @@ async def ask_question(message: Message, state: FSMContext):
     user_id = message.from_user.id
     user = await db.get_user(user_id)  # Получаем данные пользователя
     model = (user["gpt_model"]).replace("-", "_")
+
     logger.info(f'Выбранная модель {model}')
 
-    if model == "4_1" or model == "o1":
-        if (model == "4_1" and user["tokens_4_1"] <= 0) or (model == "o1" and user["tokens_o1"]) <= 0:
-            logger.info(f"Модель {model} закончилась - переключаем")
+    if model == "4_1" and user["tokens_4_1"] <= 0:
+        logger.info(f"Модель {model} закончилась - переключаем")
 
-            await message.answer("✅Модель для ChatGPT изменена на 4o")
-            if model == "4_1":
-                model = model.replace("_", ".")
-            await message.answer(f'''
-                    ⚠️Токены для GPT-{model} закончились! 
-    
-        Вы можете пользоваться бесплатной версией или выбрать интересующий вас вариант⤵️''',
-                                 reply_markup=user_kb.get_chatgpt_tokens_menu('normal', model)
-                                 )
-            model = "4o"
-            await db.set_model(user_id, model)
+        await message.answer("✅Модель для ChatGPT изменена на 4o")
+        if model == "4_1":
+            model = model.replace("_", ".")
+        await message.answer(f'''
+                ⚠️Токены для GPT-{model} закончились! 
 
+    Вы можете пользоваться бесплатной версией или выбрать интересующий вас вариант⤵️''',
+                             reply_markup=user_kb.get_chatgpt_tokens_menu('normal', model)
+                             )
+        model = "4o"
+        await db.set_model(user_id, model)
+
+
+    if model == "o1" and user["tokens_o1"] <= 0:
+        logger.info(f"Модель {model} закончилась - переключаем")
+
+        await message.answer("✅Модель для ChatGPT изменена на 4o")
+        await message.answer(f'''
+                ⚠️Токены для GPT-{model} закончились! 
+
+    Вы можете пользоваться бесплатной версией или выбрать интересующий вас вариант⤵️''',
+                             reply_markup=user_kb.get_chatgpt_tokens_menu('normal', model)
+                             )
+        model = "4o"
+        await db.set_model(user_id, model)
 
     # Проверяем наличие токенов и подписки
     if user[f"tokens_{model}"] <= 0:
@@ -1135,21 +1148,33 @@ async def gen_prompt(message: Message, state: FSMContext):
         model = (user["gpt_model"]).replace("-", "_")
 
         logger.info(f'Текстовый запрос к GPT. User: {user}, Model: {model}, tokens: {user[f"tokens_{model}"]}')
-        if model == "4_1" or model == "o1":
-            if (model == "4_1" and user["tokens_4_1"] <= 0) or (model == "o1" and user["tokens_o1"]) <= 0:
-                logger.info(f"Модель {model} закончилась - переключаем")
+        if model == "4_1" and user["tokens_4_1"] <= 0:
+            logger.info(f"Модель {model} закончилась - переключаем")
 
-                await message.answer("✅Модель для ChatGPT изменена на 4o")
-                if model == "4_1":
-                    model = model.replace("_", ".")
-                await message.answer(f'''
-                ⚠️Токены для GPT-{model} закончились! 
-    
-    Вы можете пользоваться бесплатной версией или выбрать интересующий вас вариант⤵️''',
-                                             reply_markup=user_kb.get_chatgpt_tokens_menu('normal', model)
-                                             )
-                model = "4o"
-                await db.set_model(user_id, model)
+            await message.answer("✅Модель для ChatGPT изменена на 4o")
+            if model == "4_1":
+                model = model.replace("_", ".")
+            await message.answer(f'''
+                    ⚠️Токены для GPT-{model} закончились! 
+
+        Вы можете пользоваться бесплатной версией или выбрать интересующий вас вариант⤵️''',
+                                 reply_markup=user_kb.get_chatgpt_tokens_menu('normal', model)
+                                 )
+            model = "4o"
+            await db.set_model(user_id, model)
+
+        if model == "o1" and user["tokens_o1"] <= 0:
+            logger.info(f"Модель {model} закончилась - переключаем")
+
+            await message.answer("✅Модель для ChatGPT изменена на 4o")
+            await message.answer(f'''
+                    ⚠️Токены для GPT-{model} закончились! 
+
+        Вы можете пользоваться бесплатной версией или выбрать интересующий вас вариант⤵️''',
+                                 reply_markup=user_kb.get_chatgpt_tokens_menu('normal', model)
+                                 )
+            model = "4o"
+            await db.set_model(user_id, model)
 
         if user[f"tokens_{model}"] <= 0:
             return await not_enough_balance(message.bot, user_id, "chatgpt")

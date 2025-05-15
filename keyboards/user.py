@@ -78,7 +78,7 @@ def settings(lang, from_msg):
 def model_keyboard(selected_model: str):
     models = {"4o": "GPT-4o",
               "o4-mini": "GPT-o4-mini",
-              "4.1": "GPT-4.1",
+              "4_1": "GPT-4.1",
               "o1": "GPT-o1"}
     buttons = [
         InlineKeyboardButton(
