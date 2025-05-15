@@ -150,11 +150,18 @@ async def get_gpt(messages, model):
                 messages[0] = {"role": "user", "content": "You are a helpful assistant."}
 
         logger.info(f'MESSAGES: {messages}')
+        try:
+            response = client.chat.completions.create(
+                model=f"{model_map[model]}",
+                messages=messages[-10:]  # Последние 10 сообщений
+            )
+        except Exception as e:
+            response = client.chat.completions.create(
+                model=f"{model_map['4o']}",
+                messages=messages[-10:]  # Последние 10 сообщений
+            )
+            logging.error(f'ChatGPT Error model{model} \n {e}')
 
-        response = client.chat.completions.create(
-            model=f"{model_map[model]}",
-            messages=messages[-10:]  # Последние 10 сообщений
-        )
 
         content = response.choices[0].message.content  # Получаем ответ
         tokens = response.usage.total_tokens  # Получаем количество использованных токенов
