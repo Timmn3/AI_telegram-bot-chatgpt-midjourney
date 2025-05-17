@@ -61,6 +61,10 @@ async def start():
         "chatgpt_character VARCHAR(256) DEFAULT '',"
         "mj INTEGER DEFAULT 0,"  # Количество токенов для MidJourney
         "is_notified BOOLEAN DEFAULT FALSE)"  # Флаг уведомления пользователя
+        "image_openai INT DEFAULT 0,"
+        "free_image_openai INT DEFAULT 3,"
+        "image_openai_settings JSONB DEFAULT '{\"size\": \"1024x1024\", \"quality\": \"medium\", \"background\": \"opaque\"}')"
+
     )
 
     await conn.execute(
@@ -129,6 +133,8 @@ async def start():
         "amount INTEGER NOT NULL DEFAULT 1"
         ")"
     )
+
+
 
     # Проверяем наличие токена конфигурации, и если его нет - добавляем значение по умолчанию
     row = await conn.fetchrow("SELECT config_value FROM config WHERE config_key = 'iam_token'")
@@ -1339,3 +1345,37 @@ async def mark_star_paid(order_id: str):
         )
     finally:
         await conn.close()
+
+
+# Обновляем настройки изображений OpenAI (например, размер, качество и т.д.)
+async def update_image_openai_settings(user_id, key_path, value):
+    """
+    Обновляет конкретное поле в JSONB-колонке image_openai_settings.
+
+    Пример:
+        await update_image_openai_settings(user_id, '{size}', '"1536x1024"')
+    """
+    conn: Connection = await get_conn()
+    await conn.execute(
+        "UPDATE users SET image_openai_settings = jsonb_set(image_openai_settings, $2, $3) WHERE user_id = $1",
+        user_id, key_path, value
+    )
+    await conn.close()
+
+
+# уменьшать баланс
+async def decrease_image_openai_balance(user_id):
+    conn = await get_conn()
+    await conn.execute("UPDATE users SET image_openai = GREATEST(image_openai - 1, 0) WHERE user_id = $1", user_id)
+    await conn.close()
+
+
+async def has_image_openai_balance(user_id):
+    conn = await get_conn()
+    user = await conn.fetchrow("SELECT image_openai, free_image_openai FROM users WHERE user_id = $1", user_id)
+    await conn.close()
+
+    if user["image_openai"] > 0 or user["free_image_openai"] > 0:
+        return True
+    else:
+        return False

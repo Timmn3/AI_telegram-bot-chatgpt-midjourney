@@ -28,8 +28,9 @@ async def on_startup(_):
 
     await bot.set_my_commands([
         types.BotCommand("start", "Перезапустить бот"),
-        types.BotCommand("midjourney", "MidJourney"),
         types.BotCommand("chatgpt", "ChatGPT"),
+        types.BotCommand("midjourney", "MidJourney"),
+        types.BotCommand("image_openai", "🖼️Изображения от OpenAI"),
         types.BotCommand("account", "Аккаунт"),
         types.BotCommand("help", "Поддержка"),
         types.BotCommand("partner", "Партнерская программа")
