@@ -1,21 +1,15 @@
 import logging
 from datetime import datetime, timedelta
 from typing import List
-import requests
 from aiogram import Bot
 from aiogram.types import Message, CallbackQuery, ChatActions, ContentType, MediaGroup, Update, InlineKeyboardMarkup, \
     InlineKeyboardButton
 from aiogram.types.input_file import InputFile
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher import FSMContext
-
-import matplotlib.pyplot as plt
-import io
 import re
 import tempfile
 import os
-import config
-from keyboards.user import get_chatgpt_tokens_menu
 from states.user import EnterChatName, EnterChatRename
 from utils import db, ai, more_api, pay  # Импорт утилит для взаимодействия с БД и внешними API
 from states import user as states  # Состояния FSM для пользователя
