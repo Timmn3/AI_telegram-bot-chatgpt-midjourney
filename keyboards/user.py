@@ -338,6 +338,10 @@ image_openai_menu = InlineKeyboardMarkup(
     ]
 )
 
+cancel_keyboard = InlineKeyboardMarkup().add(
+    InlineKeyboardButton("🔙 Назад", callback_data="cancel_action")
+)
+
 # Inline-меню для настроек
 settings_keyboard = InlineKeyboardMarkup(
     inline_keyboard=[
@@ -349,7 +353,7 @@ settings_keyboard = InlineKeyboardMarkup(
             InlineKeyboardButton(text="/background — Выбрать фон", callback_data="set_background"),
         ],
         [
-            InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu"),
+            InlineKeyboardButton(text="🔙 Назад", callback_data="cancel_keyboard"),
         ],
     ]
 )
@@ -363,7 +367,42 @@ size_keyboard = InlineKeyboardMarkup(
             InlineKeyboardButton(text="1024x1536", callback_data="size_1024x1536"),
         ],
         [
-            InlineKeyboardButton(text="Назад", callback_data="back_to_settings"),
+            InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_settings"),
         ]
     ]
+)
+
+
+# Клавиатура настроек
+image_settings_menu = InlineKeyboardMarkup(row_width=1).add(
+    InlineKeyboardButton("📐 Размер", callback_data="change_size"),
+    InlineKeyboardButton("🖼️ Качество", callback_data="change_quality"),
+    InlineKeyboardButton("🎨 Фон", callback_data="change_background"),
+    InlineKeyboardButton("🔙 Назад", callback_data="cancel_action")
+)
+
+# Подменю выбора размера
+size_menu = InlineKeyboardMarkup(row_width=2).add(
+    InlineKeyboardButton("1024x1024", callback_data="set_size_1024x1024"),
+    InlineKeyboardButton("1536x1024", callback_data="set_size_1536x1024"),
+    InlineKeyboardButton("1024x1536", callback_data="set_size_1024x1536"),
+    InlineKeyboardButton("auto", callback_data="set_size_auto"),
+    InlineKeyboardButton("🔙 Назад", callback_data="back_to_settings")
+)
+
+# Подменю выбора качества
+quality_menu = InlineKeyboardMarkup(row_width=2).add(
+    InlineKeyboardButton("low", callback_data="set_quality_low"),
+    InlineKeyboardButton("medium", callback_data="set_quality_medium"),
+    InlineKeyboardButton("high", callback_data="set_quality_high"),
+    InlineKeyboardButton("auto", callback_data="set_quality_auto"),
+    InlineKeyboardButton("🔙 Назад", callback_data="back_to_settings")
+)
+
+# Подменю выбора фона
+background_menu = InlineKeyboardMarkup(row_width=2).add(
+    InlineKeyboardButton("opaque", callback_data="set_background_opaque"),
+    InlineKeyboardButton("transparent", callback_data="set_background_transparent"),
+    InlineKeyboardButton("auto", callback_data="set_background_auto"),
+    InlineKeyboardButton("🔙 Назад", callback_data="back_to_settings")
 )
