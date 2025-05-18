@@ -132,8 +132,9 @@ def get_try_prompt(ai_type):
 # Главное меню бота, где пользователь выбирает, с каким AI он хочет работать (ChatGPT или MidJourney)
 def get_menu(default_ai):
 
-    return ReplyKeyboardMarkup(resize_keyboard=True, row_width=2).add(KeyboardButton(f"{'💬ChatGPT✅' if default_ai == 'chatgpt' else '💬ChatGPT'}"),
-                                                                      KeyboardButton(f"{'🎨Midjourney✅' if default_ai == 'image' else '🎨Midjourney'}"),
+    return ReplyKeyboardMarkup(resize_keyboard=True, row_width=2).add(KeyboardButton(f"{'🎨Midjourney✅' if default_ai == 'image' else '🎨Midjourney'}"),
+                                                                      KeyboardButton(f"{'🎨Image OpenAI✅' if default_ai == 'image_openai' else '🎨Image OpenAI'}"),
+                                                                      KeyboardButton(f"{'💬ChatGPT✅' if default_ai == 'chatgpt' else '💬ChatGPT'}"),
                                                                       KeyboardButton("⚙Аккаунт"),
                                                                       KeyboardButton("👨🏻‍💻Поддержка"),
                                                                       KeyboardButton("🤝Партнерская программа"))
@@ -318,3 +319,46 @@ def get_midjourney_discount_notification():
         InlineKeyboardButton("50 генераций, 599₽ > 550₽ (-8%)", callback_data="select_midjourney_requests:50:550:not_mj"),
         InlineKeyboardButton("100 генераций, 1099₽ > 989₽ (-10%)", callback_data="select_midjourney_requests:100:989:not_mj")
     )
+
+# Inline-меню для "Изображения от OpenAI"
+image_openai_menu = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Генерации изображения", callback_data="generate_image_prompt"),
+            InlineKeyboardButton(text="Редактировать изображение", callback_data="edit_image"),
+        ],
+        [
+            InlineKeyboardButton(text="Настройки", callback_data="image_settings"),
+        ],
+    ]
+)
+
+# Inline-меню для настроек
+settings_keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text="/size — Выбрать размер", callback_data="set_size"),
+            InlineKeyboardButton(text="/quality — Выбрать качество", callback_data="set_quality"),
+        ],
+        [
+            InlineKeyboardButton(text="/background — Выбрать фон", callback_data="set_background"),
+        ],
+        [
+            InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu"),
+        ],
+    ]
+)
+
+# Inline-клавиатура для выбора размера
+size_keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text="1024x1024", callback_data="size_1024x1024"),
+            InlineKeyboardButton(text="1536x1024", callback_data="size_1536x1024"),
+            InlineKeyboardButton(text="1024x1536", callback_data="size_1024x1536"),
+        ],
+        [
+            InlineKeyboardButton(text="Назад", callback_data="back_to_settings"),
+        ]
+    ]
+)
