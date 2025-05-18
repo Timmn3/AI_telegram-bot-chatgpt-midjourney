@@ -1352,9 +1352,10 @@ async def update_image_openai_settings(user_id, key_path, value):
     Обновляет конкретное поле в JSONB-колонке image_openai_settings.
 
     Пример:
-        await update_image_openai_settings(user_id, '{size}', '"1536x1024"')
+        await update_image_openai_settings(user_id, ['size'], '"1536x1024"')
     """
     conn: Connection = await get_conn()
+    # Передаем путь как список, а не как строку
     await conn.execute(
         "UPDATE users SET image_openai_settings = jsonb_set(image_openai_settings, $2, $3) WHERE user_id = $1",
         user_id, key_path, value
