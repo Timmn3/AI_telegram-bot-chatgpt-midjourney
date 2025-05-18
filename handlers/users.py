@@ -10,6 +10,8 @@ from aiogram.dispatcher import FSMContext
 import re
 import tempfile
 import os
+
+from keyboards.user import image_openai_menu
 from states.user import EnterChatName, EnterChatRename
 from utils import db, ai, more_api, pay  # Импорт утилит для взаимодействия с БД и внешними API
 from states import user as states  # Состояния FSM для пользователя
@@ -120,8 +122,16 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
         """,
                                reply_markup=user_kb.get_midjourney_requests_menu())  # Отправляем уведомление с клавиатурой для пополнения запросов
 
+    elif ai_type == "image_openai":
+        await bot.send_message(user_id, """
+        ⚠️Запросы для "Изображения от OpenAI" закончились!
 
-# Генерация изображения через MidJourney
+        Выберите интересующий вас вариант⤵️
+                """,
+                               reply_markup=user_kb.get_midjourney_requests_menu())
+
+
+    # Генерация изображения через MidJourney
 async def get_mj(prompt, user_id, bot: Bot):
     user = await db.get_user(user_id)
 
@@ -170,6 +180,9 @@ async def get_mj(prompt, user_id, bot: Bot):
             if last_notification is None or now > last_notification + timedelta(days=30):
                 await db.update_user_notification_mj(user_id)
                 await notify_low_midjourney_requests(user_id, bot)
+
+async def gen_image_openai(message: Message):
+    await message.answer("Выберите действие:", reply_markup=image_openai_menu)
 
 
 def split_message(text: str, max_length: int, is_code: bool = False) -> list:
@@ -1137,7 +1150,8 @@ async def gen_prompt(message: Message, state: FSMContext):
     if user is None:
         await message.answer("Введите команду /start для перезагрузки бота")
         # return await message.bot.send_message(ADMINS_CODER, user_id)
-
+    await db.change_default_ai(message.from_user.id, "image_openai")
+    print(user["default_ai"])
     if user["default_ai"] == "chatgpt":
         model = (user["gpt_model"]).replace("-", "_")
 
@@ -1182,6 +1196,8 @@ async def gen_prompt(message: Message, state: FSMContext):
 
     elif user["default_ai"] == "image":
         await get_mj(message.text, user_id, message.bot)  # Генерация изображения через MidJourney
+    elif user["default_ai"] == "image_openai":
+        await gen_image_openai(message)
 
 
 # Хэндлер для работы с голосовыми сообщениями
@@ -1218,7 +1234,9 @@ async def handle_voice(message: Message, state: FSMContext):
         await state.update_data(messages=update_messages)
 
     elif user["default_ai"] == "image":
-        await get_mj(text, message.from_user.id, message.bot)  # Генерация изображения через MidJourney
+        await get_mj(text, message.from_user.id, message.bot)  # Генерация изображения через MidJourney\
+    elif user["default_ai"] == "image_openai":
+        await gen_image_openai(message)
 
 
 # Перевод текста в Аудио
@@ -1292,6 +1310,8 @@ async def photo_imagine(message: Message, state: FSMContext):
 
     elif user["default_ai"] == "image":
         await get_mj(prompt, message.from_user.id, message.bot)
+    elif user["default_ai"] == "image_openai":
+        await gen_image_openai(message)
 
 
 # Хендлер для обработки альбомов (групповых фото)
