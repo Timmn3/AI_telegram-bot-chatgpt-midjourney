@@ -4,6 +4,7 @@ import base64
 from io import BytesIO
 from pathlib import Path
 from typing import List, Optional, Union
+import time
 
 from openai.types.image import Image
 from openai.types import ImagesResponse
@@ -19,7 +20,10 @@ class MockImages:
 
     def generate(self, model: str, prompt: str, size: str, quality: str, background: str) -> ImagesResponse:
         b64_image = base64.b64encode(self.image_data).decode("utf-8")
-        return ImagesResponse(data=[Image(b64_json=b64_image, url="")])
+        return ImagesResponse(
+            data=[Image(b64_json=b64_image, url="")],
+            created=int(time.time())  # Добавляем created
+        )
 
     def edit(self, model: str, image: Union[object, List[object]], prompt: str,
              mask: Optional[object] = None,
@@ -27,12 +31,11 @@ class MockImages:
         """
         Эмулирует client.images.edit(...), возвращает заготовленное изображение.
         """
-        # Кодируем изображение в base64
         b64_image = base64.b64encode(self.image_data).decode("utf-8")
 
-        # Возвращаем объект типа ImagesResponse с использованием настоящего класса Image
         return ImagesResponse(
-            data=[Image(b64_json=b64_image, url="")]  # <-- Используем Image вместо ImageData
+            data=[Image(b64_json=b64_image, url="")],
+            created=int(time.time())  # Добавляем created
         )
 
 class MockOpenAIClient:
