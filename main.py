@@ -5,7 +5,7 @@ from config import ADMINS_CODER
 from create_bot import dp, bot
 from utils import db
 from utils.ai import mj_api
-from handlers import admin, users, sub
+from handlers import admin, users, sub, users_image_openai # ← Регистрация хэндлеров
 import logging
 
 from utils.scheduled_tasks.daily_token_reset import refill_tokens
@@ -30,7 +30,7 @@ async def on_startup(_):
         types.BotCommand("start", "Перезапустить бот"),
         types.BotCommand("chatgpt", "ChatGPT"),
         types.BotCommand("midjourney", "MidJourney"),
-        types.BotCommand("image_openai", "🖼️Изображения от OpenAI"),
+        types.BotCommand("image_openai", "Изображения от OpenAI"),
         types.BotCommand("account", "Аккаунт"),
         types.BotCommand("help", "Поддержка"),
         types.BotCommand("partner", "Партнерская программа")
