@@ -324,8 +324,13 @@ def get_midjourney_discount_notification():
 image_openai_menu = InlineKeyboardMarkup(
     inline_keyboard=[
         [
-            InlineKeyboardButton(text="Генерации изображения", callback_data="generate_image_prompt"),
+            InlineKeyboardButton(text="Генерация изображения", callback_data="generate_image_prompt"),
+        ],
+        [
             InlineKeyboardButton(text="Редактировать изображение", callback_data="edit_image"),
+        ],
+        [
+            InlineKeyboardButton(text="Редактировать по маске", callback_data="use_mask_for_edit"),
         ],
         [
             InlineKeyboardButton(text="Настройки", callback_data="image_settings"),
