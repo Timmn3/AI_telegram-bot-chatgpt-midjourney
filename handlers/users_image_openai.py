@@ -238,7 +238,7 @@ async def process_image_prompt(message: Message, state: FSMContext):
             photo=InputFile(BytesIO(image_bytes), filename="image.png")
         )
 
-        image_type = size, quality, background
+        image_type = f"{size}_{quality}_{background}"
 
         # Здесь можно сохранить в БД информацию о генерации
         await db.add_action(user_id, "image_openai", image_type)
