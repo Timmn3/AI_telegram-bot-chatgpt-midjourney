@@ -28,29 +28,29 @@ async def start():
     await create_tables()
     conn: Connection = await get_conn()
     await conn.execute(
-        "CREATE TABLE IF NOT EXISTS users("
-        "user_id BIGINT PRIMARY KEY,"  # Уникальный идентификатор пользователя
-        "username VARCHAR(32),"  # Имя пользователя
-        "first_name VARCHAR(64),"  # Имя пользователя
-        "balance INT DEFAULT 0,"  # Баланс пользователя
-        "reg_time INT,"  # Время регистрации в формате timestamp     
-        "free_image SMALLINT DEFAULT 3,"  # Количество бесплатных изображений в MidJourney
-        "default_ai VARCHAR(10) DEFAULT 'empty',"  # Выбранный по умолчанию AI
-        "inviter_id BIGINT,"  # ID пригласившего пользователя
-        "ref_balance INT DEFAULT 0,"  # Баланс с реферальных вознаграждений
-        "task_id VARCHAR(1024) DEFAULT '0',"  # ID задачи, связанной с пользователем
-        "chat_gpt_lang VARCHAR(2) DEFAULT 'ru',"  # Язык для общения с ChatGPT
-        "stock_time INT DEFAULT 0,"  # Время, связанное со скидками
-        "new_stock_time INT DEFAULT 0,"  # Время для новых акций
-        "is_pay BOOLEAN DEFAULT FALSE,"  # Флаг оплаты пользователя
-        "chatgpt_about_me VARCHAR(256) DEFAULT '',"  # Информация о пользователе для ChatGPT
-        "chatgpt_settings VARCHAR(256) DEFAULT '',"  # Настройки ChatGPT
-        "sub_time TIMESTAMP DEFAULT NOW(),"  # Время начала подписки
-        "sub_type VARCHAR(12),"  # Тип подписки
-        "tokens_4_1 INTEGER DEFAULT 5000,"  # Количество токенов для ChatGPT
-        "tokens_o1 INTEGER DEFAULT 5000,"  # Количество токенов для ChatGPT
-        "tokens_o3 INTEGER DEFAULT 5000,"  # Количество токенов для ChatGPT
-        "tokens_4o INTEGER DEFAULT 200000,"  # Количество токенов для ChatGPT
+        "CREATE TABLE IF NOT EXISTS users ("
+        "user_id BIGINT PRIMARY KEY,"
+        "username VARCHAR(32),"
+        "first_name VARCHAR(64),"
+        "balance INT DEFAULT 0,"
+        "reg_time INT,"
+        "free_image SMALLINT DEFAULT 3,"
+        "default_ai VARCHAR(10) DEFAULT 'empty',"
+        "inviter_id BIGINT,"
+        "ref_balance INT DEFAULT 0,"
+        "task_id VARCHAR(1024) DEFAULT '0',"
+        "chat_gpt_lang VARCHAR(2) DEFAULT 'ru',"
+        "stock_time INT DEFAULT 0,"
+        "new_stock_time INT DEFAULT 0,"
+        "is_pay BOOLEAN DEFAULT FALSE,"
+        "chatgpt_about_me VARCHAR(256) DEFAULT '',"
+        "chatgpt_settings VARCHAR(256) DEFAULT '',"
+        "sub_time TIMESTAMP DEFAULT NOW(),"
+        "sub_type VARCHAR(12),"
+        "tokens_4_1 INTEGER DEFAULT 5000,"
+        "tokens_o1 INTEGER DEFAULT 5000,"
+        "tokens_o3 INTEGER DEFAULT 5000,"
+        "tokens_4o INTEGER DEFAULT 200000,"
         "tokens_4o_mini INTEGER DEFAULT 100000,"
         "tokens_o1_preview INTEGER DEFAULT 0,"
         "tokens_o1_mini INTEGER DEFAULT 1000,"
@@ -59,12 +59,11 @@ async def start():
         "gpt_model VARCHAR(10) DEFAULT '4o',"
         "voice VARCHAR(64) DEFAULT 'onyx',"
         "chatgpt_character VARCHAR(256) DEFAULT '',"
-        "mj INTEGER DEFAULT 0,"  # Количество токенов для MidJourney
-        "is_notified BOOLEAN DEFAULT FALSE)"  # Флаг уведомления пользователя
-        "image_openai INT DEFAULT 0,"
-        "free_image_openai INT DEFAULT 3,"
+        "mj INTEGER DEFAULT 0,"
+        "is_notified BOOLEAN DEFAULT FALSE,"
+        "image_openai INTEGER DEFAULT 0,"
+        "free_image_openai INTEGER DEFAULT 3,"
         "image_openai_settings JSONB DEFAULT '{\"size\": \"1024x1024\", \"quality\": \"medium\", \"background\": \"opaque\"}')"
-
     )
 
     await conn.execute(
@@ -72,7 +71,7 @@ async def start():
         "id SERIAL PRIMARY KEY,"  # Уникальный идентификатор действия
         "user_id BIGINT,"  # ID пользователя
         "ai_type VARCHAR(10),"  # Тип нейросети - midjourney, chatgpt, 4o, o1
-        "image_type VARCHAR(10),"  # Тип действия для midjourney
+        "image_type VARCHAR(255),"  # Тип действия
         "use_time INT,"  
         "get_response BOOLEAN DEFAULT FALSE,"
         "create_time TIMESTAMP DEFAULT NOW(),"
