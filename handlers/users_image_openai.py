@@ -11,11 +11,15 @@ import json
 from config import OPENAPI_TOKEN
 from create_bot import dp, bot
 from handlers.users import not_enough_balance
+from keyboards.user import image_openai_menu, image_settings_menu, size_menu, quality_menu, background_menu, \
+    cancel_keyboard
 
 from utils import db
 from utils.ai import get_translate
 from typing import Literal
 import logging
+
+from utils.db import update_image_openai_settings
 
 PERSISTENT_TEMP_DIR = "persistent_temp"
 os.makedirs(PERSISTENT_TEMP_DIR, exist_ok=True)
@@ -114,7 +118,7 @@ async def start_generate_image(callback_query: types.CallbackQuery, state: FSMCo
 <i>Например:</i> <code>Уютный домик на краю пропасти, окружённый цветущими садами и озёрами с отражающимся небом</code>
 
 <u><a href="https://telegra.ph/Kak-polzovatsya-MidJourney-podrobnaya-instrukciya-10-16">Подробная инструкция.</a></u>""",
-                         disable_web_page_preview=True)
+                         disable_web_page_preview=True, reply_markup=cancel_keyboard)
 
     await ImageGenerationStates.WAITING_FOR_PROMPT.set()
 
@@ -210,7 +214,7 @@ async def start_edit_image(callback_query: types.CallbackQuery, state: FSMContex
 - Создавайте новые изображения, используя другие изображения в качестве справочных материалов.</i>
 
 <u><a href="https://telegra.ph/Kak-polzovatsya-MidJourney-podrobnaya-instrukciya-10-16">Подробная инструкция.</a></u>""",
-                                           disable_web_page_preview=True)
+                                           disable_web_page_preview=True, reply_markup=cancel_keyboard)
 
     await ImageGenerationStates.WAITING_FOR_IMAGES.set()
 
@@ -241,7 +245,8 @@ async def handle_images_upload(message: types.Message, state: FSMContext):
     await state.update_data(images_paths=images_paths)
 
     keyboard = InlineKeyboardMarkup().add(
-        InlineKeyboardButton("✅ Завершить загрузку", callback_data="finish_image_upload")
+        InlineKeyboardButton("✅ Завершить загрузку", callback_data="finish_image_upload"),
+        InlineKeyboardButton("❌ Отмена", callback_data="cancel_action"),
     )
 
     if len(images_paths) == 1:
@@ -259,7 +264,7 @@ async def finish_image_upload(callback_query: types.CallbackQuery, state: FSMCon
 <i>Например:</i> <code>Создай подарочную корзину, содержащую предметы с изображений</code>
 
 <u><a href="https://telegra.ph/Kak-polzovatsya-MidJourney-podrobnaya-instrukciya-10-16">Подробная инструкция.</a></u>""",
-                                           disable_web_page_preview=True)
+                                           disable_web_page_preview=True, reply_markup=cancel_keyboard)
     await ImageGenerationStates.WAITING_FOR_PROMPT_EDIT_IMAGE.set()
 
 
@@ -363,7 +368,12 @@ async def handle_edit_prompt(message: types.Message, state: FSMContext):
 @dp.callback_query_handler(lambda c: c.data == "use_mask_for_edit")
 async def use_mask_for_edit(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
-    await callback_query.message.answer("🖼️ Сначала загрузите основное изображение.")
+    await callback_query.message.edit_text("""<b>Вы можете редактировать части изображения, загрузив изображение и маску, указывающую, какие области следует заменить.
+
+🖼️ Сначала загрузите основное изображение.</b>
+
+<u><a href="https://telegra.ph/Kak-polzovatsya-MidJourney-podrobnaya-instrukciya-10-16">Подробная инструкция.</a></u>""",
+                                           disable_web_page_preview=True, reply_markup=cancel_keyboard)
     await ImageGenerationStates.WAITING_FOR_IMAGE_FIRST.set()
 
 #  Обработка загрузки основного изображения
@@ -381,7 +391,7 @@ async def handle_base_image_upload(message: types.Message, state: FSMContext):
         new_file.write(downloaded_file.getvalue())
 
     await state.update_data(base_image=image_path, temp_dir=temp_dir)
-    await message.answer("🖼️ Теперь загрузите маску. Закрашенные области будут изменены.")
+    await message.answer("🖼️ Теперь загрузите маску. Закрашенные области будут изменены.", reply_markup=cancel_keyboard)
     await ImageGenerationStates.WAITING_FOR_MASK.set()
 
 # Обработка загрузки маски
@@ -391,7 +401,7 @@ async def handle_mask_upload(message: types.Message, state: FSMContext):
     base_image_path = data.get("base_image")
 
     if not base_image_path:
-        await message.answer("❌ Основное изображение не найдено. Попробуйте снова.")
+        await message.answer("❌ Основное изображение не найдено. Попробуйте снова.", reply_markup=cancel_keyboard)
         return
 
     user_id = message.from_user.id
@@ -405,5 +415,90 @@ async def handle_mask_upload(message: types.Message, state: FSMContext):
         new_file.write(downloaded_file.getvalue())
 
     await state.update_data(mask_path=mask_path)
-    await message.answer("✍️ Теперь отправьте описание того, что вы хотите изменить.")
+    await message.answer("✍️ Теперь отправьте описание того, что вы хотите изменить.", reply_markup=cancel_keyboard)
     await ImageGenerationStates.WAITING_FOR_PROMPT.set()
+
+
+
+@dp.callback_query_handler(lambda c: c.data == "cancel_action", state="*")
+async def cancel_action_handler(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    current_state = await state.get_state()
+    if current_state:
+        await state.finish()
+
+    await callback_query.message.edit_text("Выберите действие:", reply_markup=image_openai_menu)
+
+# Обработчик вызова настроек
+@dp.callback_query_handler(lambda c: c.data == "image_settings")
+async def image_settings_handler(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    user_id = callback_query.from_user.id
+    user = await db.get_user(user_id)
+    settings = parse_image_settings(user["image_openai_settings"])
+
+    size = settings["size"]
+    quality = settings["quality"]
+    background = settings["background"]
+
+    text = f"⚙️ Текущие настройки изображения:\n\n"
+    text += f"📐 Размер: <b>{size}</b>\n"
+    text += f"🖼️ Качество: <b>{quality}</b>\n"
+    text += f"🎨 Фон: <b>{background}</b>\n\n"
+    text += "Выберите, что вы хотите изменить."
+
+    await callback_query.message.edit_text(text, reply_markup=image_settings_menu, parse_mode="HTML")
+
+# Обработчики подменю
+@dp.callback_query_handler(lambda c: c.data.startswith("change_"))
+async def show_settings_submenu(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    data_map = {
+        "change_size": ("📐 Выберите размер:", size_menu),
+        "change_quality": ("🖼️ Выберите качество:", quality_menu),
+        "change_background": ("🎨 Выберите фон:", background_menu),
+    }
+
+    msg, menu = data_map.get(callback_query.data, ("Неизвестная настройка", None))
+
+    if menu:
+        await callback_query.message.edit_text(msg, reply_markup=menu)
+    else:
+        await callback_query.message.edit_text("❌ Неизвестная настройка.")
+
+#  Обработка выбора параметров
+@dp.callback_query_handler(lambda c: c.data.startswith("set_"))
+async def update_setting(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    user_id = callback_query.from_user.id
+    data = callback_query.data
+
+    key_map = {
+        "size": ["set_size_", "$1"],
+        "quality": ["set_quality_", "$2"],
+        "background": ["set_background_", "$3"],
+    }
+
+    for key, [prefix, path] in key_map.items():
+        if data.startswith(prefix):
+            value = data.replace(prefix, "").replace("_", " ")
+            value = value.replace("png", "").strip()
+
+            # Если прозрачность, то значение transparent
+            if key == "background" and value == "transparent":
+                value = "transparent"
+            elif key == "background":
+                value = "opaque"
+
+            # Форматируем значение в JSON строку
+            json_value = f'"{value}"'
+
+            await update_image_openai_settings(user_id, [key], json_value)
+
+            await image_settings_handler(callback_query)  # Показываем обновлённые настройки
+            break
+
+@dp.callback_query_handler(lambda c: c.data == "back_to_settings")
+async def back_to_settings(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    await image_settings_handler(callback_query)
