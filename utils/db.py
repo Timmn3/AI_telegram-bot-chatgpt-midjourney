@@ -1362,11 +1362,33 @@ async def update_image_openai_settings(user_id, key_path, value):
     await conn.close()
 
 
-# уменьшать баланс
+# уменьшать баланс image open AI
 async def decrease_image_openai_balance(user_id):
     conn = await get_conn()
-    await conn.execute("UPDATE users SET image_openai = GREATEST(image_openai - 1, 0) WHERE user_id = $1", user_id)
-    await conn.close()
+    try:
+        # Обновляем баланс: сначала пробуем уменьшить free_image_openai
+        result = await conn.execute(
+            """
+            UPDATE users
+            SET free_image_openai = GREATEST(free_image_openai - 1, 0)
+            WHERE user_id = $1 AND free_image_openai > 0
+            RETURNING user_id, free_image_openai
+            """,
+            user_id
+        )
+
+        if result == "UPDATE 0":
+            # Если нет свободных, уменьшаем платные
+            await conn.execute(
+                """
+                UPDATE users
+                SET image_openai = GREATEST(image_openai - 1, 0)
+                WHERE user_id = $1 AND image_openai > 0
+                """,
+                user_id
+            )
+    finally:
+        await conn.close()
 
 
 async def has_image_openai_balance(user_id):
