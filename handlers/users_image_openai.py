@@ -91,16 +91,6 @@ def calculate_token_cost(size, quality):
     return cost_map.get((size, quality), 1056)
 
 
-# Главное меню для генерации изображений от OpenAI
-@dp.message_handler(state="*", text="🎨Image OpenAI✅")
-@dp.message_handler(state="*", text="🎨Image OpenAI")
-@dp.message_handler(state="*", commands="image_openai")
-async def image_openai_menu_handler(message: types.Message, state: FSMContext):
-    if state:
-        await state.finish()  # Завершаем текущее состояние
-    await db.change_default_ai(message.from_user.id, "image_openai")  # Устанавливаем ChatGPT как основной AI
-    user_id = message.from_user.id
-    logger.info(f"Пользователь {user_id} вызвал Главное меню для генерации изображений от OpenAI")
 
 
 # Начало генерации изображения по тексту

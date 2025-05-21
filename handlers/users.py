@@ -820,6 +820,18 @@ async def change_lang(call: CallbackQuery):
     await call.message.edit_reply_markup(reply_markup=kb)  # Обновляем клавиатуру
 
 
+# Главное меню для генерации изображений от OpenAI
+@dp.message_handler(state="*", text="🎨Image OpenAI✅")
+@dp.message_handler(state="*", text="🎨Image OpenAI")
+@dp.message_handler(state="*", commands="image_openai")
+async def image_openai_menu_handler(message: Message, state: FSMContext):
+    if state:
+        await state.finish()  # Завершаем текущее состояние
+    await db.change_default_ai(message.from_user.id, "image_openai")  # Устанавливаем ChatGPT как основной AI
+    user_id = message.from_user.id
+    logger.info(f"Пользователь {user_id} вызвал Главное меню для генерации изображений от OpenAI")
+    await gen_image_openai(message)
+
 # Хендлер для ChatGPT
 @dp.message_handler(state="*", text="💬ChatGPT✅")
 @dp.message_handler(state="*", text="💬ChatGPT")
@@ -1150,8 +1162,6 @@ async def gen_prompt(message: Message, state: FSMContext):
     if user is None:
         await message.answer("Введите команду /start для перезагрузки бота")
         # return await message.bot.send_message(ADMINS_CODER, user_id)
-    await db.change_default_ai(message.from_user.id, "image_openai")
-    print(user["default_ai"])
     if user["default_ai"] == "chatgpt":
         model = (user["gpt_model"]).replace("-", "_")
 
