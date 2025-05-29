@@ -132,9 +132,9 @@ def get_try_prompt(ai_type):
 # Главное меню бота, где пользователь выбирает, с каким AI он хочет работать (ChatGPT или MidJourney)
 def get_menu(default_ai):
 
-    return ReplyKeyboardMarkup(resize_keyboard=True, row_width=2).add(KeyboardButton(f"{'🎨Midjourney✅' if default_ai == 'image' else '🎨Midjourney'}"),
-                                                                      KeyboardButton(f"{'🎨Image OpenAI✅' if default_ai == 'image_openai' else '🎨Image OpenAI'}"),
-                                                                      KeyboardButton(f"{'💬ChatGPT✅' if default_ai == 'chatgpt' else '💬ChatGPT'}"),
+    return ReplyKeyboardMarkup(resize_keyboard=True, row_width=2).add(KeyboardButton(f"{'💬ChatGPT✅' if default_ai == 'chatgpt' else '💬ChatGPT'}"),
+                                                                      # KeyboardButton(f"{'🎨Image OpenAI✅' if default_ai == 'image_openai' else '🎨Image OpenAI'}"),
+                                                                      KeyboardButton(f"{'🎨Midjourney✅' if default_ai == 'image' else '🎨Midjourney'}"),
                                                                       KeyboardButton("⚙Аккаунт"),
                                                                       KeyboardButton("👨🏻‍💻Поддержка"),
                                                                       KeyboardButton("🤝Партнерская программа"))

@@ -30,7 +30,7 @@ async def on_startup(_):
         types.BotCommand("start", "Перезапустить бот"),
         types.BotCommand("chatgpt", "ChatGPT"),
         types.BotCommand("midjourney", "MidJourney"),
-        types.BotCommand("image_openai", "Изображения от OpenAI"),
+        # types.BotCommand("image_openai", "Изображения от OpenAI"),
         types.BotCommand("account", "Аккаунт"),
         types.BotCommand("help", "Поддержка"),
         types.BotCommand("partner", "Партнерская программа")
