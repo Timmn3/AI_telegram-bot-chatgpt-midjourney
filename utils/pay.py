@@ -210,5 +210,20 @@ async def process_purchase(bot, order_id):
     if user_discount is not None and user_discount["used"] != True and amount in discounts:
         logger.info(f'Скидка использована: {user_discount["used"]}, покупка на сумму: {amount}')
         # Если была предложена скидка, пользователь ею не пользовался, но текущий заказ равен скидочной цене - значит убираем возможность скидки. 
-        await db.update_used_discount_gpt(user_id)  
- 
+        await db.update_used_discount_gpt(user_id)
+
+    # 💰 Уведомление о партнерском доходе
+    inviter_id = user.get("inviter_id")
+    if inviter_id:
+        partner_percent = 0.15
+        partner_reward = int(amount * partner_percent)
+        try:
+            await bot.send_message(
+                inviter_id,
+                f"""✅Партнерское вознаграждение
+├ Аккаунт: {user_id}
+├ Сумма зачисления: {amount}₽
+└ Ваш доход: {partner_reward}₽ (15%)"""
+                )
+        except Exception as e:
+            logger.warning(f"Не удалось отправить уведомление о партнерском доходе: {e}")

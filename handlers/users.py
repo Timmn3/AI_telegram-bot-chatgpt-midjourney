@@ -17,7 +17,7 @@ from utils import db, ai, more_api, pay  # Импорт утилит для вз
 from states import user as states  # Состояния FSM для пользователя
 import keyboards.user as user_kb  # Клавиатуры для взаимодействия с пользователями
 from config import bot_url, TOKEN, NOTIFY_URL, bug_id, PHOTO_PATH, MJ_PHOTO_BASE_URL, ADMINS_CODER
-from create_bot import dp  # Диспетчер из create_bot.py
+from create_bot import dp, bot  # Диспетчер из create_bot.py
 from utils.ai import mj_api, text_to_speech, voice_to_text
 from aiogram.utils.exceptions import CantParseEntities
 import html
@@ -624,6 +624,15 @@ async def start_message(message: Message, state: FSMContext):
         await db.add_user(message.from_user.id, message.from_user.username, message.from_user.first_name,
                           int(inviter_id))
         default_ai = "chatgpt"
+        # Уведомление пригласившего пользователя
+        if inviter_id != 0:
+            try:
+                await bot.send_message(inviter_id,
+                    f"""📈У Вас новый реферал
+└ Аккаунт: {message.from_user.id}"""
+                )
+            except Exception as e:
+                logging.warning(f"Не удалось отправить уведомление о реферале: {e}")
     else:
         default_ai = user["default_ai"]
 
