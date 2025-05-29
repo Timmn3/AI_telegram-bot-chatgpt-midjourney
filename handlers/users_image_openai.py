@@ -35,7 +35,7 @@ logging.basicConfig(
 # Инициализация клиента OpenAI
 # client = OpenAI(api_key=OPENAPI_TOKEN)
 from tests.mock_openai import MockOpenAIClient
-client = MockOpenAIClient(image_path="photos/generated.png")
+client = MockOpenAIClient(image_path="photo_test/generated.png")
 
 # FSM для управления состоянием генерации изображений
 class ImageGenerationStates(StatesGroup):

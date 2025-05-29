@@ -10,7 +10,7 @@ from openai.types.image import Image
 from openai.types import ImagesResponse
 
 class MockImages:
-    def __init__(self, image_path: str = "photos/generated.png"):
+    def __init__(self, image_path: str = "photo_test/generated.png"):
         self.image_path = Path(image_path)
         if not self.image_path.exists():
             raise FileNotFoundError(f"Файл {image_path} не найден для эмуляции ответа")
