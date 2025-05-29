@@ -890,7 +890,9 @@ async def ask_question(message: Message, state: FSMContext):
     user_id = message.from_user.id
     user = await db.get_user(user_id)  # Получаем данные пользователя
     model = (user["gpt_model"]).replace("-", "_")
-
+    if model == "4o_mini":
+        model = "4o"
+        await db.set_model(user_id, model)
     logger.info(f'Выбранная модель {model}')
 
     if model == "4_1" and user["tokens_4_1"] <= 0:
