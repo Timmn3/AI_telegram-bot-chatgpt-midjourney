@@ -63,7 +63,10 @@ async def start():
         "is_notified BOOLEAN DEFAULT FALSE,"
         "image_openai INTEGER DEFAULT 0,"
         "free_image_openai INTEGER DEFAULT 3,"
+        "used_trial BOOLEAN DEFAULT FALSE,"
+        "is_subscribed BOOLEAN DEFAULT FALSE,"
         "image_openai_settings JSONB DEFAULT '{\"size\": \"1024x1024\", \"quality\": \"medium\", \"background\": \"opaque\"}')"
+
     )
 
     await conn.execute(
@@ -201,11 +204,10 @@ async def set_model(user_id, gpt_model):
 
 # Функция для добавления нового пользователя
 async def add_user(user_id, username, first_name, inviter_id):
-
     conn: Connection = await get_conn()
     await conn.execute(
-        "INSERT INTO users(user_id, username, first_name, reg_time, inviter_id, free_image, tokens_o1, tokens_4_1, tokens_4o, tokens_o4_mini) "
-        "VALUES ($1, $2, $3, $4, $5, 3, 5000, 5000, 200000, 200000)",
+        "INSERT INTO users(user_id, username, first_name, reg_time, inviter_id, free_image, tokens_o1, tokens_4_1, tokens_4o, tokens_o4_mini, is_subscribed, used_trial) "
+        "VALUES ($1, $2, $3, $4, $5, 3, 5000, 5000, 200000, 200000, FALSE, FALSE)",
         user_id, username, first_name, int(datetime.now().timestamp()), inviter_id
     )
     await conn.close()
@@ -1401,3 +1403,19 @@ async def has_image_openai_balance(user_id):
         return True
     else:
         return False
+
+
+# Отметка: пользователь использовал доступ без подписки
+async def mark_used_trial(user_id):
+    conn = await get_conn()
+    try:
+        result = await conn.fetchrow("SELECT used_trial FROM users WHERE user_id = $1", user_id)
+        if result and not result["used_trial"]:
+            await conn.execute("UPDATE users SET used_trial = TRUE WHERE user_id = $1", user_id)
+    finally:
+        await conn.close()
+
+async def update_is_subscribed(user_id: int, value: bool):
+    conn = await get_conn()
+    await conn.execute("UPDATE users SET is_subscribed = $1 WHERE user_id = $2", value, user_id)
+    await conn.close()

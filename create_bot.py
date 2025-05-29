@@ -9,7 +9,6 @@ from config import ADMINS
 from typing import Union
 
 from middlewares.album import AlbumMiddleware
-from middlewares.check_sub import CheckRegMiddleware
 from utils import db
 import logging
 
@@ -67,7 +66,7 @@ class IsAdminFilter(BoundFilter):
 
 
 # Подключение middleware для проверки регистрации и альбомов
-dp.middleware.setup(CheckRegMiddleware())  # Middleware для проверки регистрации
+# dp.middleware.setup(CheckRegMiddleware())  # Middleware для проверки регистрации
 dp.middleware.setup(AlbumMiddleware())  # Middleware для обработки альбомов (групповые сообщения с фото)
 
 

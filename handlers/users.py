@@ -11,7 +11,7 @@ import re
 import tempfile
 import os
 
-from keyboards.user import image_openai_menu
+from keyboards.user import image_openai_menu, partner
 from states.user import EnterChatName, EnterChatRename
 from utils import db, ai, more_api, pay  # Импорт утилит для взаимодействия с БД и внешними API
 from states import user as states  # Состояния FSM для пользователя
@@ -71,11 +71,11 @@ async def remove_balance(bot: Bot, user_id):
 # Функция для уведомления пользователя о недостатке средств
 async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
     now = datetime.now()
-
     if ai_type == "chatgpt":
         user = await db.get_user(user_id)
         model = user["gpt_model"]
-
+        if model == '4o-mini':
+            return
         logger.info(f"Токены для ChatGPT закончились. User: {user}, Model: {model}")
 
         model_map = {'4o': 'ChatGPT',
@@ -131,7 +131,7 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
                                reply_markup=user_kb.get_midjourney_requests_menu())
 
 
-    # Генерация изображения через MidJourney
+# Генерация изображения через MidJourney
 async def get_mj(prompt, user_id, bot: Bot):
     user = await db.get_user(user_id)
 
@@ -165,6 +165,7 @@ async def get_mj(prompt, user_id, bot: Bot):
         await bot.send_message(user_id, f"Произошла ошибка, подробности ошибки:\n\n{res['message']}")
         return
 
+    await db.mark_used_trial(user_id)
     # Проверка на количество оставшихся запросов MidJourney
     now = datetime.now()
     user_notified = await db.get_user_notified_mj(user_id)
@@ -421,6 +422,7 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     await db.update_chat_summary(chat_id, new_summary)
 
     await db.remove_chatgpt(user_id, res["tokens"], model)
+    await db.mark_used_trial(user_id)
 
     now = datetime.now()
     user_notified = await db.get_user_notified_gpt(user_id)
@@ -657,15 +659,46 @@ ChatGPT⤵️""", reply_markup=user_kb.settings(user_lang, 'acc'))
 
 
 # Хендлер для проверки подписки через callback-запрос
+from aiogram.types import CallbackQuery, ChatMember
+from config import channel_id
+from aiogram.utils.exceptions import ChatNotFound
+from keyboards.user import partner  # клавиатура с кнопкой «Подписаться»
+
 @dp.callback_query_handler(text="check_sub")
 async def check_sub(call: CallbackQuery):
-    user = await db.get_user(call.from_user.id)  # Получаем данные пользователя из базы
-    if user is None:
-        # Если пользователь новый, создаем запись
-        await db.add_user(call.from_user.id, call.from_user.username, call.from_user.first_name, 0)
-    await call.message.answer("""<b>NeuronAgent</b>🤖 - <i>2 нейросети в одном месте!</i>
+    user_id = call.from_user.id
 
-<b>ChatGPT или Midjourney?</b>""", reply_markup=user_kb.get_menu(user["default_ai"]))  # Меню выбора AI
+    try:
+        # Проверка подписки через Telegram API
+        status: ChatMember = await bot.get_chat_member(channel_id, user_id)
+        if status.status == "left":
+            await call.message.answer("Для продолжения использования, подпишитесь на наш канал⤵️",
+                                      reply_markup=partner)
+            await call.answer()
+            return  # не показываем меню
+    except ChatNotFound:
+        await call.message.answer("Канал не найден.")
+        await call.answer()
+        return
+    except Exception:
+        await call.message.answer("⚠️ Не удалось проверить подписку. Попробуйте позже.")
+        await call.answer()
+        return
+
+    # Подписка подтверждена, работаем дальше
+    user = await db.get_user(user_id)
+    if user is None:
+        await db.add_user(user_id, call.from_user.username, call.from_user.first_name, 0)
+        user = await db.get_user(user_id)
+
+    # Обновляем статус в БД (если используешь is_subscribed)
+    await db.update_is_subscribed(user_id, True)
+
+    await call.message.answer(
+        "<b>NeuronAgent</b>🤖 - <i>2 нейросети в одном месте!</i>\n\n"
+        "<b>ChatGPT или Midjourney?</b>",
+        reply_markup=user_kb.get_menu(user['default_ai'])
+    )
     await call.answer()
 
 
@@ -834,6 +867,8 @@ async def change_lang(call: CallbackQuery):
 @dp.message_handler(state="*", text="🎨Image OpenAI")
 @dp.message_handler(state="*", commands="image_openai")
 async def image_openai_menu_handler(message: Message, state: FSMContext):
+    if not await check_access_or_prompt(message):
+        return
     if state:
         await state.finish()  # Завершаем текущее состояние
     await db.change_default_ai(message.from_user.id, "image_openai")  # Устанавливаем ChatGPT как основной AI
@@ -846,6 +881,8 @@ async def image_openai_menu_handler(message: Message, state: FSMContext):
 @dp.message_handler(state="*", text="💬ChatGPT")
 @dp.message_handler(state="*", commands="chatgpt")
 async def ask_question(message: Message, state: FSMContext):
+    if not await check_access_or_prompt(message):
+        return
     if state:
         await state.finish()  # Завершаем текущее состояние
     await db.change_default_ai(message.from_user.id, "chatgpt")  # Устанавливаем ChatGPT как основной AI
@@ -949,6 +986,8 @@ async def support(message: Message, state: FSMContext):
 @dp.message_handler(state="*", text="🎨Midjourney")
 @dp.message_handler(state="*", commands="midjourney")
 async def gen_img(message: Message, state: FSMContext):
+    if not await check_access_or_prompt(message):
+        return
     user_id = message.from_user.id
     await state.finish()  # Завершаем текущее состояние
     await db.change_default_ai(message.from_user.id, "image")  # Устанавливаем MidJourney как основной AI
@@ -2008,6 +2047,18 @@ async def confirm_delete_chat(call: CallbackQuery):
     await call.message.edit_text("Чат успешно удален. \n\n*Введите запрос ⤵️*", parse_mode="Markdown")
     await call.answer()
 
+
+# Проверка доступа: подписан или ещё не использовал пробный доступ
+# Если доступ запрещён — отправляет сообщение и возвращает False
+async def check_access_or_prompt(message: Message) -> bool:
+    user = await db.get_user(message.from_user.id)
+    if not user.get("is_subscribed") and user.get("used_trial"):
+        await message.answer(
+            "Для продолжения использования, подпишитесь на наш канал⤵️",
+            reply_markup=partner
+        )
+        return False
+    return True
 
 
 

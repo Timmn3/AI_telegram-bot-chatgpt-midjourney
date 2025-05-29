@@ -174,6 +174,7 @@ async def generate_image_from_prompt(message: types.Message, state: FSMContext):
 
         # Уменьшаем баланс пользователя
         await db.decrease_image_openai_balance(user_id)
+        await db.mark_used_trial(user_id)
 
         # Сохраняем действие в базе данных
         await db.add_action(user_id, "image_openai", "generate")
