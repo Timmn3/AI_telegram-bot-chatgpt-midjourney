@@ -650,6 +650,8 @@ async def start_message(message: Message, state: FSMContext):
 # Хендлер настроек ChatGPT
 @dp.callback_query_handler(text="settings")
 async def settings(call: CallbackQuery):
+    if not await check_access_or_prompt(call):
+        return
     user = await db.get_user(call.from_user.id)
     user_lang = user["chat_gpt_lang"]
 
@@ -751,6 +753,8 @@ async def ref_menu(message: Message):
 @dp.message_handler(state="*", text="⚙Аккаунт")
 @dp.message_handler(state="*", commands="account")
 async def show_profile(message: Message, state: FSMContext):
+    if not await check_access_or_prompt(message):
+        return
     await state.finish()
     user_id = message.from_user.id
     user = await db.get_user(user_id)  # Получаем данные пользователя
@@ -1302,6 +1306,8 @@ async def handle_voice(message: Message, state: FSMContext):
 # Перевод текста в Аудио
 @dp.callback_query_handler(text="text_to_audio")
 async def return_voice(call: CallbackQuery, state: FSMContext):
+    if not await check_access_or_prompt(call):
+        return
     processing_message = await call.message.answer("⏳Идёт запись голосового, ожидайте")
     user_id = call.from_user.id
 
@@ -1524,6 +1530,8 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
     :param call: Объект CallbackQuery, содержащий данные вызова.
     :param page: Номер страницы для отображения чатов.
     """
+    if not await check_access_or_prompt(call):
+        return
     user_id = call.from_user.id
 
     # Получаем данные пользователя
@@ -1886,6 +1894,8 @@ async def create_chat(call: CallbackQuery):
     При получении callback-запроса с командой создания чата, проверяет лимит чатов,
     затем запрашивает у пользователя название для нового чата и переходит в состояние ожидания ввода.
     """
+    if not await check_access_or_prompt(call):
+        return
     user_id = call.from_user.id  # Получаем ID пользователя
 
     # Проверка количества уже созданных чатов
@@ -1989,6 +1999,8 @@ async def delete_chat(call: CallbackQuery):
     При получении запроса, запрашивает у пользователя подтверждение на удаление чата.
     Если пользователь подтверждает удаление, удаляет чат из базы данных.
     """
+    if not await check_access_or_prompt(call):
+        return
     user_id = call.from_user.id  # Получаем ID пользователя
 
     # Получаем данные пользователя из базы данных
@@ -2052,10 +2064,10 @@ async def confirm_delete_chat(call: CallbackQuery):
 
 # Проверка доступа: подписан или ещё не использовал пробный доступ
 # Если доступ запрещён — отправляет сообщение и возвращает False
-async def check_access_or_prompt(message: Message) -> bool:
+async def check_access_or_prompt(message) -> bool:
     user = await db.get_user(message.from_user.id)
     if not user.get("is_subscribed") and user.get("used_trial"):
-        await message.answer(
+        await bot.send_message(message.from_user.id,
             "Для продолжения использования, подпишитесь на наш канал⤵️",
             reply_markup=partner
         )
