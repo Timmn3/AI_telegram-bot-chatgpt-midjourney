@@ -1210,6 +1210,8 @@ async def change_profile_settings(message: Message, state: FSMContext):
 # Основной хендлер для обработки сообщений и генерации запросов
 @dp.message_handler()
 async def gen_prompt(message: Message, state: FSMContext):
+    if not await check_access_or_prompt(message):
+        return
     await state.update_data(prompt=message.text)  # Сохраняем запрос пользователя
     user_id = message.from_user.id
     user = await db.get_user(user_id)
@@ -2065,14 +2067,20 @@ async def confirm_delete_chat(call: CallbackQuery):
 # Проверка доступа: подписан или ещё не использовал пробный доступ
 # Если доступ запрещён — отправляет сообщение и возвращает False
 async def check_access_or_prompt(message) -> bool:
-    user = await db.get_user(message.from_user.id)
-    if not user.get("is_subscribed") and user.get("used_trial"):
-        await bot.send_message(message.from_user.id,
+    user_id = message.from_user.id
+    user = await db.get_user(user_id)
+    if not await check_reg(user_id) and user.get("used_trial"):
+        await bot.send_message(user_id,
             "Для продолжения использования, подпишитесь на наш канал⤵️",
             reply_markup=partner
         )
         return False
     return True
 
-
+async def check_reg(user_id) -> bool:
+    status: ChatMember = await bot.get_chat_member(channel_id, user_id)
+    # Если пользователь не подписан (status == "left"), блокируем дальнейшее выполнение
+    if status.status == "left":
+        return False
+    return True
 
