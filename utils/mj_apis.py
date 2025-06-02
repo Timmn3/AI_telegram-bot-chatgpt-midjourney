@@ -230,6 +230,7 @@ class MidJourneyAPI:
             data = {
                 "process_mode": "fast",
                 "prompt": prompt,
+                "model_version": "v7"
                 # Другие поля, необходимые для GoAPI
             }
         else:

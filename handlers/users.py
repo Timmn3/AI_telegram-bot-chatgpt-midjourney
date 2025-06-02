@@ -16,7 +16,7 @@ from states.user import EnterChatName, EnterChatRename
 from utils import db, ai, more_api, pay  # Импорт утилит для взаимодействия с БД и внешними API
 from states import user as states  # Состояния FSM для пользователя
 import keyboards.user as user_kb  # Клавиатуры для взаимодействия с пользователями
-from config import bot_url, TOKEN, NOTIFY_URL, bug_id, PHOTO_PATH, MJ_PHOTO_BASE_URL, ADMINS_CODER
+from config import bot_url, TOKEN, NOTIFY_URL, bug_id, PHOTO_PATH, MJ_PHOTO_BASE_URL, ADMINS_CODER, check_channel
 from create_bot import dp, bot  # Диспетчер из create_bot.py
 from utils.ai import mj_api, text_to_speech, voice_to_text
 from aiogram.utils.exceptions import CantParseEntities
@@ -2067,6 +2067,8 @@ async def confirm_delete_chat(call: CallbackQuery):
 # Проверка доступа: подписан или ещё не использовал пробный доступ
 # Если доступ запрещён — отправляет сообщение и возвращает False
 async def check_access_or_prompt(message) -> bool:
+    if not check_channel:
+        return True
     user_id = message.from_user.id
     user = await db.get_user(user_id)
     if not await check_reg(user_id) and user.get("used_trial"):
