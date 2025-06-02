@@ -65,6 +65,7 @@ async def start():
         "free_image_openai INTEGER DEFAULT 3,"
         "used_trial BOOLEAN DEFAULT FALSE,"
         "is_subscribed BOOLEAN DEFAULT FALSE,"
+        "ref_notifications_enabled BOOLEAN DEFAULT TRUE,"
         "image_openai_settings JSONB DEFAULT '{\"size\": \"1024x1024\", \"quality\": \"medium\", \"background\": \"opaque\"}')"
 
     )
@@ -1418,4 +1419,9 @@ async def mark_used_trial(user_id):
 async def update_is_subscribed(user_id: int, value: bool):
     conn = await get_conn()
     await conn.execute("UPDATE users SET is_subscribed = $1 WHERE user_id = $2", value, user_id)
+    await conn.close()
+
+async def set_ref_notifications(user_id: int, enabled: bool):
+    conn = await get_conn()
+    await conn.execute("UPDATE users SET ref_notifications_enabled = $1 WHERE user_id = $2", enabled, user_id)
     await conn.close()

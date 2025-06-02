@@ -10,7 +10,7 @@ from aiogram.dispatcher import FSMContext
 import re
 import tempfile
 import os
-
+from urllib import parse
 from keyboards.user import image_openai_menu, partner
 from states.user import EnterChatName, EnterChatRename
 from utils import db, ai, more_api, pay  # Импорт утилит для взаимодействия с БД и внешними API
@@ -628,13 +628,19 @@ async def start_message(message: Message, state: FSMContext):
         default_ai = "chatgpt"
         # Уведомление пригласившего пользователя
         if inviter_id != 0:
-            try:
-                await bot.send_message(inviter_id,
-                    f"""📈У Вас новый реферал
-└ Аккаунт: {message.from_user.id}"""
-                )
-            except Exception as e:
-                logging.warning(f"Не удалось отправить уведомление о реферале: {e}")
+            inviter = await db.get_user(inviter_id)
+            if inviter and inviter.get("ref_notifications_enabled", True):
+                try:
+                    keyboard = InlineKeyboardMarkup().add(
+                        InlineKeyboardButton("Отключить уведомления", callback_data="disable_ref_notifications")
+                    )
+                    await bot.send_message(inviter_id,
+                                           f"""📈У Вас новый реферал
+└ Аккаунт: {message.from_user.id}""",
+                                           reply_markup=keyboard
+                                           )
+                except Exception as e:
+                    logging.warning(f"Не удалось отправить уведомление о реферале: {e}")
     else:
         default_ai = user["default_ai"]
 
@@ -724,20 +730,41 @@ ChatGPT или Midjourney?""", reply_markup=user_kb.get_menu(user["default_ai"])
 @dp.message_handler(state="*", text="🤝Партнерская программа")
 @dp.message_handler(commands='partner')
 async def ref_menu(message: Message):
-    ref_data = await db.get_ref_stat(message.from_user.id)  # Получаем данные по рефералам
-    if ref_data['all_income'] is None:
-        all_income = 0
-    else:
-        all_income = ref_data['all_income']
+    user_id = message.from_user.id
+    ref_data = await db.get_ref_stat(user_id)
+    user = await db.get_user(user_id)
 
-    # Отправляем пользователю QR-код и информацию о партнерской программе
-    await message.answer_photo(more_api.get_qr_photo(bot_url + '?start=' + str(message.from_user.id)),
-                               caption=f'''<b>🤝 Партнёрская программа</b>
+    all_income = ref_data['all_income'] if ref_data['all_income'] is not None else 0
+
+    ref_link = f'{bot_url}?start=r{user_id}'
+
+    # Формируем клавиатуру
+    text_url = parse.quote(ref_link)
+    share_url = f'https://t.me/share/url?url={text_url}'
+
+    keyboard = InlineKeyboardMarkup(row_width=1)
+    keyboard.add(
+        InlineKeyboardButton('📩Поделится ссылкой', url=share_url),
+        InlineKeyboardButton('💳Вывод средств', callback_data='withdraw_ref_menu')
+    )
+
+    # Добавляем кнопку включения уведомлений, если они отключены
+    if not user.get("ref_notifications_enabled", True):
+        keyboard.add(
+            InlineKeyboardButton("🔔 Включить уведомления о рефералах", callback_data="enable_ref_notifications")
+        )
+
+    # Добавляем кнопку назад в конце
+    keyboard.add(InlineKeyboardButton('🔙Назад', callback_data='check_sub'))
+
+    await message.answer_photo(
+        more_api.get_qr_photo(ref_link),
+        caption=f'''<b>🤝 Партнёрская программа</b>
 
 <i>Приводи друзей и зарабатывай 15% с их пополнений, пожизненно!</i>
 
 <b>⬇️ Твоя реферальная ссылка:</b>
-└ {bot_url}?start=r{message.from_user.id}
+└ {ref_link}
 
 <b>🏅 Статистика:</b>
 ├ Лично приглашённых: <b>{ref_data["count_refs"]}</b>
@@ -746,7 +773,8 @@ async def ref_menu(message: Message):
 └ Доступно к выводу: <b>{ref_data["available_for_withdrawal"]}</b> рублей
 
 Ваша реферальная ссылка: ''',
-                               reply_markup=user_kb.get_ref_menu(f'{bot_url}?start=r{message.from_user.id}'))
+        reply_markup=keyboard
+    )
 
 
 # Хендлер для показа профиля пользователя (страница аккаунта)
@@ -975,7 +1003,6 @@ async def handle_create_new_chat(call: CallbackQuery, state: FSMContext):
         f"Например: <code>{example_prompt}</code>",
         parse_mode="HTML"
     )
-
 
 
 # Хендлер для вывода информации о поддержке
@@ -2085,4 +2112,17 @@ async def check_reg(user_id) -> bool:
     if status.status == "left":
         return False
     return True
+
+@dp.callback_query_handler(text="disable_ref_notifications")
+async def disable_notifications(call: CallbackQuery):
+    await db.set_ref_notifications(call.from_user.id, False)
+    await call.message.edit_reply_markup()  # убираем кнопку
+    await call.answer("Уведомления отключены.", show_alert=True)
+
+
+@dp.callback_query_handler(text="enable_ref_notifications")
+async def enable_notifications(call: CallbackQuery):
+    await db.set_ref_notifications(call.from_user.id, True)
+    await call.answer("Уведомления включены.", show_alert=True)
+
 

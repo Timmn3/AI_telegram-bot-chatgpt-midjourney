@@ -12,6 +12,8 @@ import config  # Импорт конфигурации
 from config import FreeKassa, LAVA_API_KEY, LAVA_SHOP_ID, PayOK, Tinkoff  # Импорт настроек платежных систем
 from utils import db  # Импорт функций работы с базой данных
 from utils.db import get_conn
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 
 logger = logging.getLogger(__name__)
 
@@ -212,18 +214,24 @@ async def process_purchase(bot, order_id):
         # Если была предложена скидка, пользователь ею не пользовался, но текущий заказ равен скидочной цене - значит убираем возможность скидки. 
         await db.update_used_discount_gpt(user_id)
 
-    # 💰 Уведомление о партнерском доходе
-    inviter_id = user.get("inviter_id")
-    if inviter_id:
-        partner_percent = 0.15
-        partner_reward = int(amount * partner_percent)
-        try:
-            await bot.send_message(
-                inviter_id,
-                f"""✅Партнерское вознаграждение
+        # 💰 Уведомление о партнерском доходе
+        inviter_id = user.get("inviter_id")
+        if inviter_id:
+            inviter = await db.get_user(inviter_id)
+            if inviter and inviter.get("ref_notifications_enabled", True):
+                partner_percent = 0.15
+                partner_reward = int(amount * partner_percent)
+                keyboard = InlineKeyboardMarkup().add(
+                    InlineKeyboardButton("Отключить уведомления", callback_data="disable_ref_notifications")
+                )
+                try:
+                    await bot.send_message(
+                        inviter_id,
+                        f"""✅Партнерское вознаграждение
 ├ Аккаунт: {user_id}
 ├ Сумма зачисления: {amount}₽
-└ Ваш доход: {partner_reward}₽ (15%)"""
-                )
-        except Exception as e:
-            logger.warning(f"Не удалось отправить уведомление о партнерском доходе: {e}")
+└ Ваш доход: {partner_reward}₽ (15%)""",
+                        reply_markup=keyboard
+                    )
+                except Exception as e:
+                    logger.warning(f"Не удалось отправить уведомление о партнерском доходе: {e}")
