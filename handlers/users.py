@@ -1302,7 +1302,7 @@ async def handle_voice(message: Message, state: FSMContext):
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as temp_ogg_file:
         temp_ogg_file.write(file.getbuffer())
-        temp_ogg_path = temp_ogg_file.nameF
+        temp_ogg_path = temp_ogg_file.name
 
     text = voice_to_text(temp_ogg_path)
     os.remove(temp_ogg_path)
