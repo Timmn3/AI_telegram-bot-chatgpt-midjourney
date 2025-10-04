@@ -273,7 +273,7 @@ def get_midjourney_requests_menu():
         InlineKeyboardButton("20 генераций, 259₽ (-13%)", callback_data="select_midjourney_requests:20:259:acc"),
         InlineKeyboardButton("50 генераций, 599₽ (-19%)", callback_data="select_midjourney_requests:50:599:acc"),
         InlineKeyboardButton("100 генераций, 1099₽ (-26%)", callback_data="select_midjourney_requests:100:1099:acc"),
-        InlineKeyboardButton("🔙Назад", callback_data="buy_sub")
+        InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
     )
 
 '''
@@ -284,7 +284,7 @@ def get_chatgpt_discount_tokens_menu():
         InlineKeyboardButton("100 тыс токенов, 149₽ > 139₽ (-5%)", callback_data="select_chatgpt_tokens:100000:139:acc"),
         InlineKeyboardButton("200 тыс токенов, 249₽ > 224₽ (-10%)", callback_data="select_chatgpt_tokens:200000:224:acc"),
         InlineKeyboardButton("500 тыс токенов, 449₽ > 381₽ (-15%)", callback_data="select_chatgpt_tokens:500000:381:acc"),
-        InlineKeyboardButton("🔙Назад", callback_data="buy_sub")
+        InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
     )
 '''
 
@@ -296,7 +296,7 @@ def get_midjourney_discount_requests_menu():
         InlineKeyboardButton("20 генераций, 259₽ > 246₽ (-5%)", callback_data="select_midjourney_requests:20:246:acc"),
         InlineKeyboardButton("50 генераций, 599₽ > 550₽ (-8%)", callback_data="select_midjourney_requests:50:550:acc"),
         InlineKeyboardButton("100 генераций, 1099₽ > 989₽ (-10%)", callback_data="select_midjourney_requests:100:989:acc"),
-        InlineKeyboardButton("🔙Назад", callback_data="buy_sub")
+        InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
     )
 
 '''    
