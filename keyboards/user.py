@@ -56,7 +56,7 @@ def get_clear_or_audio():
 def get_account(lang, from_msg):
 
     return InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton("💰Выбрать тариф", callback_data="buy_sub"),
+        # InlineKeyboardButton("💰Выбрать тариф", callback_data="buy_sub"),
         InlineKeyboardButton("⚙️Настройки ChatGPT", callback_data="settings")
     )
 
@@ -76,10 +76,9 @@ def settings(lang, from_msg):
 
 # Выбор модели GPT для диалогов
 def model_keyboard(selected_model: str):
-    models = {"4o": "GPT-4o",
-              "o4-mini": "GPT-o4-mini",
-              "4_1": "GPT-4.1",
-              "o1": "GPT-o1"}
+    models = {"5": "GPT-5",
+              "5-mini": "GPT-5-mini",
+              }
     buttons = [
         InlineKeyboardButton(
             f"{value}✅" if key == selected_model else value,
@@ -88,7 +87,7 @@ def model_keyboard(selected_model: str):
         for key, value in models.items()
     ]
     return InlineKeyboardMarkup(row_width=1).add(*buttons).add(
-        InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
+        # InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
         InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
     )
 
@@ -205,65 +204,65 @@ def get_neural_network_menu():
         InlineKeyboardButton("🎨Midjourney", callback_data="buy_midjourney_requests")
     )
 
-def get_chatgpt_models():
+# def get_chatgpt_models():
+#
+#     return InlineKeyboardMarkup(row_width=1).add(
+#         InlineKeyboardButton("GPT-5", callback_data="buy_chatgpt_tokens:4.1:normal"),
+#         InlineKeyboardButton("GPT-o1", callback_data="buy_chatgpt_tokens:o1:normal"),
+#         InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
+#         InlineKeyboardButton("🔙Назад", callback_data="buy_sub")
+#     )
 
-    return InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton("GPT-4.1", callback_data="buy_chatgpt_tokens:4.1:normal"),
-        InlineKeyboardButton("GPT-o1", callback_data="buy_chatgpt_tokens:o1:normal"),
-        InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
-        InlineKeyboardButton("🔙Назад", callback_data="buy_sub")
-    )
-
-def get_chatgpt_models_noback(discount=None):
-
-    target = 'discount' if discount else 'normal'
-    return InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton("GPT-4.1", callback_data=f"buy_chatgpt_tokens:4.1:{target}"),
-        InlineKeyboardButton("GPT-o1", callback_data=f"buy_chatgpt_tokens:o1:{target}"),
-        InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
-    )
+# def get_chatgpt_models_noback(discount=None):
+#
+#     target = 'discount' if discount else 'normal'
+#     return InlineKeyboardMarkup(row_width=1).add(
+#         InlineKeyboardButton("GPT-4.1", callback_data=f"buy_chatgpt_tokens:4.1:{target}"),
+#         InlineKeyboardButton("GPT-o1", callback_data=f"buy_chatgpt_tokens:o1:{target}"),
+#         InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
+#     )
 
 
 # Кнопки выбора количества токенов для ChatGPT
 # Mode - Normal - пользователь решил купить токены, Discount - у него действует скидка, Notification - перешел из уведомления о скидке
 # Model - 4.1, o1
-def get_chatgpt_tokens_menu(mode, model):
-
-    source = 'acc' if mode == 'normal' else 'not_gpt'
-    back = "buy_sub" if mode == 'normal' else 'back_to_discount' 
-
-    prices = {'4.1': {'normal': {'price': [199, 349, 469, 739, 10],
-                                'percent': [0, 12, 21, 25, 0]},
-                     'discount': {'price': ['199 > 189', '349 > 315', '469 > 412', '739 > 628', '10 > 5'],
-                                  'price_data' : [189, 315, 412, 628, 5],
-                                  'percent': [5, 10, 12, 15, 0]}},
-
-
-              'o1': {'normal': {'price': [199, 349, 469, 739, 10],
-                                'percent': [0, 12, 21, 25, 0]},
-                     'discount': {'price': ['199 > 189', '349 > 315', '469 > 412', '739 > 628', '10 > 5'],
-                                  'price_data' : [189, 315, 412, 628, 5],
-                                  'percent': [5, 10, 12, 15, 0]}}}
-
-    return InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton(
-            f"20 тыс токенов, {prices[model][mode]['price'][0]}₽" + ('' if mode == 'normal' else f' (-{prices[model][mode]["percent"][0]}%)'), 
-            callback_data=f"tokens:20000:{model}:{prices[model][mode]['price'][0] if mode == 'normal' else prices[model][mode]['price_data'][0]}:{source}"),
-        InlineKeyboardButton(
-            f"40 тыс токенов, {prices[model][mode]['price'][1]}₽ (-{prices[model][mode]['percent'][1]}%)", 
-            callback_data=f"tokens:40000:{model}:{prices[model][mode]['price'][1] if mode == 'normal' else prices[model][mode]['price_data'][1]}:{source}"),
-        InlineKeyboardButton(
-            f"60 тыс токенов, {prices[model][mode]['price'][2]}₽ (-{prices[model][mode]['percent'][2]}%)",
-            callback_data=f"tokens:60000:{model}:{prices[model][mode]['price'][2] if mode == 'normal' else prices[model][mode]['price_data'][2]}:{source}"),
-        InlineKeyboardButton(
-            f"100 тыс токенов, {prices[model][mode]['price'][3]}₽ (-{prices[model][mode]['percent'][3]}%)",
-            callback_data=f"tokens:100000:{model}:{prices[model][mode]['price'][3] if mode == 'normal' else prices[model][mode]['price_data'][3]}:{source}"),
-        # InlineKeyboardButton(
-        #     f"1 тыс токенов, {prices[model][mode]['price'][4]}₽ (-{prices[model][mode]['percent'][4]}%)", 
-        #     callback_data=f"tokens:1000:{model}:{prices[model][mode]['price'][4] if mode == 'normal' else prices[model][mode]['price_data'][4]}:{source}"),  
-        InlineKeyboardButton("📋Что такое токены", url="https://telegra.ph/CHto-takoe-tokeny-12-23-3"),          
-        InlineKeyboardButton("🔙Назад", callback_data=back)
-    )
+# def get_chatgpt_tokens_menu(mode, model):
+#
+#     source = 'acc' if mode == 'normal' else 'not_gpt'
+#     back = "buy_sub" if mode == 'normal' else 'back_to_discount'
+#
+#     prices = {'4.1': {'normal': {'price': [199, 349, 469, 739, 10],
+#                                 'percent': [0, 12, 21, 25, 0]},
+#                      'discount': {'price': ['199 > 189', '349 > 315', '469 > 412', '739 > 628', '10 > 5'],
+#                                   'price_data' : [189, 315, 412, 628, 5],
+#                                   'percent': [5, 10, 12, 15, 0]}},
+#
+#
+#               'o1': {'normal': {'price': [199, 349, 469, 739, 10],
+#                                 'percent': [0, 12, 21, 25, 0]},
+#                      'discount': {'price': ['199 > 189', '349 > 315', '469 > 412', '739 > 628', '10 > 5'],
+#                                   'price_data' : [189, 315, 412, 628, 5],
+#                                   'percent': [5, 10, 12, 15, 0]}}}
+#
+#     return InlineKeyboardMarkup(row_width=1).add(
+#         InlineKeyboardButton(
+#             f"20 тыс токенов, {prices[model][mode]['price'][0]}₽" + ('' if mode == 'normal' else f' (-{prices[model][mode]["percent"][0]}%)'),
+#             callback_data=f"tokens:20000:{model}:{prices[model][mode]['price'][0] if mode == 'normal' else prices[model][mode]['price_data'][0]}:{source}"),
+#         InlineKeyboardButton(
+#             f"40 тыс токенов, {prices[model][mode]['price'][1]}₽ (-{prices[model][mode]['percent'][1]}%)",
+#             callback_data=f"tokens:40000:{model}:{prices[model][mode]['price'][1] if mode == 'normal' else prices[model][mode]['price_data'][1]}:{source}"),
+#         InlineKeyboardButton(
+#             f"60 тыс токенов, {prices[model][mode]['price'][2]}₽ (-{prices[model][mode]['percent'][2]}%)",
+#             callback_data=f"tokens:60000:{model}:{prices[model][mode]['price'][2] if mode == 'normal' else prices[model][mode]['price_data'][2]}:{source}"),
+#         InlineKeyboardButton(
+#             f"100 тыс токенов, {prices[model][mode]['price'][3]}₽ (-{prices[model][mode]['percent'][3]}%)",
+#             callback_data=f"tokens:100000:{model}:{prices[model][mode]['price'][3] if mode == 'normal' else prices[model][mode]['price_data'][3]}:{source}"),
+#         # InlineKeyboardButton(
+#         #     f"1 тыс токенов, {prices[model][mode]['price'][4]}₽ (-{prices[model][mode]['percent'][4]}%)",
+#         #     callback_data=f"tokens:1000:{model}:{prices[model][mode]['price'][4] if mode == 'normal' else prices[model][mode]['price_data'][4]}:{source}"),
+#         InlineKeyboardButton("📋Что такое токены", url="https://telegra.ph/CHto-takoe-tokeny-12-23-3"),
+#         InlineKeyboardButton("🔙Назад", callback_data=back)
+#     )
 
 
 # Кнопки выбора количества запросов для Midjourney

@@ -97,11 +97,8 @@ async def get_gpt(messages, model):
 
     try:
         model_map = {
-            '4o-mini': 'gpt-4o-mini',
-            '4o': 'gpt-4o',
-            '4_1': 'gpt-4.1',
-            'o1': 'o1',
-            'o4-mini': 'o4-mini'
+            '5-mini': 'gpt-5-mini',
+            '5': 'gpt-5',
         }
 
         # Проверка и обработка изображений в сообщении пользователя
@@ -145,9 +142,6 @@ async def get_gpt(messages, model):
                 # Заменяем оригинальное сообщение на преобразованное
                 message["content"] = new_content
 
-        if model in {'o1'}:
-            if messages and messages[0]["role"] == "system":
-                messages[0] = {"role": "user", "content": "You are a helpful assistant."}
 
         logger.info(f'MESSAGES: {messages}')
         try:
@@ -157,7 +151,7 @@ async def get_gpt(messages, model):
             )
         except Exception as e:
             response = client.chat.completions.create(
-                model=f"{model_map['4o']}",
+                model=f"{model_map['5']}",
                 messages=messages[-10:]  # Последние 10 сообщений
             )
             logging.error(f'ChatGPT Error model{model} \n {e}')

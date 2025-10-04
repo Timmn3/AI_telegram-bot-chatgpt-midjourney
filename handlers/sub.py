@@ -41,55 +41,55 @@ async def choose_neural_network(call: CallbackQuery):
     reply_markup=user_kb.get_neural_network_menu())
 
 
-# Меню выбора модели для покупки токенов ChatGPT
-@dp.callback_query_handler(text="select_gpt_tokens")
-async def choose_gpt_tokens(call: CallbackQuery):
-
-    user_id = call.from_user.id
-    
-    await call.message.edit_text("""
-Выберите модель ChatGPT⤵️""", 
-    reply_markup=user_kb.get_chatgpt_models())
+# # Меню выбора модели для покупки токенов ChatGPT
+# @dp.callback_query_handler(text="select_gpt_tokens")
+# async def choose_gpt_tokens(call: CallbackQuery):
+#
+#     user_id = call.from_user.id
+#
+#     await call.message.edit_text("""
+# Выберите модель ChatGPT⤵️""",
+#     reply_markup=user_kb.get_chatgpt_models())
 
 
 # Меню для выбора количества токенов ChatGPT
-@dp.callback_query_handler(Text(startswith="buy_chatgpt_tokens"))
-async def choose_chatgpt_tokens(call: CallbackQuery):
-
-    user_id = call.from_user.id
-    model = call.data.split(":")[1]
-    mode = call.data.split(":")[2]
-
-    logger.info(f"User ID: {user_id}, модель ChatGPT: {model}, скидочное : {mode}")
-
-    # Получаем данные о последнем уведомлении пользователя
-    user_data = await db.get_user_notified_gpt(user_id)
-    now = datetime.now()
-
-    # Проверяем, было ли уведомление отправлено менее 24 часов назад
-    if user_data and user_data['last_notification']:
-        last_notification = user_data['last_notification']
-        
-        # Если уведомление было менее 24 часов назад, показываем меню со скидкой
-        if now < last_notification + timedelta(hours=24):
-            await call.message.edit_text('''
-Успейте приобрести токены со <b>скидкой<b>
-предложение актуально </b>24 часа⤵️</b>''',
-                reply_markup=user_kb.get_chatgpt_tokens_menu('discount', model)
-            )
-            return
-
-    if mode == 'discount':
-        answer = '''
-Успейте приобрести токены со <b>скидкой<b>
-предложение актуально </b>24 часа⤵️</b>'''
-    else:
-        answer = "Выберите количество токенов⤵️"
-    
-    await call.message.edit_text(
-        answer,
-        reply_markup=user_kb.get_chatgpt_tokens_menu(mode, model)
-    )
+# @dp.callback_query_handler(Text(startswith="buy_chatgpt_tokens"))
+# async def choose_chatgpt_tokens(call: CallbackQuery):
+#
+#     user_id = call.from_user.id
+#     model = call.data.split(":")[1]
+#     mode = call.data.split(":")[2]
+#
+#     logger.info(f"User ID: {user_id}, модель ChatGPT: {model}, скидочное : {mode}")
+#
+#     # Получаем данные о последнем уведомлении пользователя
+#     user_data = await db.get_user_notified_gpt(user_id)
+#     now = datetime.now()
+#
+#     # Проверяем, было ли уведомление отправлено менее 24 часов назад
+#     if user_data and user_data['last_notification']:
+#         last_notification = user_data['last_notification']
+#
+#         # Если уведомление было менее 24 часов назад, показываем меню со скидкой
+#         if now < last_notification + timedelta(hours=24):
+#             await call.message.edit_text('''
+# Успейте приобрести токены со <b>скидкой<b>
+# предложение актуально </b>24 часа⤵️</b>''',
+#                 reply_markup=user_kb.get_chatgpt_tokens_menu('discount', model)
+#             )
+#             return
+#
+#     if mode == 'discount':
+#         answer = '''
+# Успейте приобрести токены со <b>скидкой<b>
+# предложение актуально </b>24 часа⤵️</b>'''
+#     else:
+#         answer = "Выберите количество токенов⤵️"
+#
+#     await call.message.edit_text(
+#         answer,
+#         reply_markup=user_kb.get_chatgpt_tokens_menu(mode, model)
+#     )
 
 
 # Меню для выбора количества запросов MidJourney
@@ -182,17 +182,17 @@ async def handle_midjourney_requests_purchase(call: CallbackQuery):
 
 
 # Уведомение о низком количестве токенов GPT
-@dp.callback_query_handler(text="back_to_discount")
-async def back_to_discount_notification(call: CallbackQuery):
-
-    logger.info('back_to_discount')
-
-    await call.message.edit_text("""
-У вас заканчиваются запросы для 💬ChatGPT
-Специально для вас мы подготовили <b>персональную скидку</b>!
-Выберите интересующую Вас модель⤵️
-    """, reply_markup=user_kb.get_chatgpt_models_noback('discount'))
-    await call.answer()
+# @dp.callback_query_handler(text="back_to_discount")
+# async def back_to_discount_notification(call: CallbackQuery):
+#
+#     logger.info('back_to_discount')
+#
+#     await call.message.edit_text("""
+# У вас заканчиваются запросы для 💬ChatGPT
+# Специально для вас мы подготовили <b>персональную скидку</b>!
+# Выберите интересующую Вас модель⤵️
+#     """, reply_markup=user_kb.get_chatgpt_models_noback('discount'))
+#     await call.answer()
 
 
 # Хендлер для оплаты через Telegram (проплаченный функционал)

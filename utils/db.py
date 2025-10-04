@@ -56,7 +56,7 @@ async def start():
         "tokens_o1_mini INTEGER DEFAULT 1000,"
         "tokens_o3_mini INTEGER DEFAULT 200000,"
         "tokens_o4_mini INTEGER DEFAULT 200000,"
-        "gpt_model VARCHAR(10) DEFAULT '4o',"
+        "gpt_model VARCHAR(10) DEFAULT '5',"
         "voice VARCHAR(64) DEFAULT 'onyx',"
         "chatgpt_character VARCHAR(256) DEFAULT '',"
         "mj INTEGER DEFAULT 0,"
@@ -74,7 +74,7 @@ async def start():
         "CREATE TABLE IF NOT EXISTS usage("
         "id SERIAL PRIMARY KEY,"  # Уникальный идентификатор действия
         "user_id BIGINT,"  # ID пользователя
-        "ai_type VARCHAR(10),"  # Тип нейросети - midjourney, chatgpt, 4o, o1
+        "ai_type VARCHAR(10),"  # Тип нейросети - midjourney, chatgpt
         "image_type VARCHAR(255),"  # Тип действия
         "use_time INT,"  
         "get_response BOOLEAN DEFAULT FALSE,"
@@ -193,7 +193,7 @@ async def get_model(user_id):
     conn: Connection = await get_conn()
     row = await conn.fetchrow("SELECT gpt_model FROM users WHERE user_id = $1", user_id)
     await conn.close()
-    return row["gpt_model"]
+    return row["gpt_model"] or "5_mini"
 
 
 # Записываем выбранную модель GPT в базу данных
@@ -205,10 +205,22 @@ async def set_model(user_id, gpt_model):
 
 # Функция для добавления нового пользователя
 async def add_user(user_id, username, first_name, inviter_id):
+    """
+    Регистрируем нового пользователя с дневным лимитом токенов для GPT-5 моделей.
+    """
     conn: Connection = await get_conn()
     await conn.execute(
-        "INSERT INTO users(user_id, username, first_name, reg_time, inviter_id, free_image, tokens_o1, tokens_4_1, tokens_4o, tokens_o4_mini, is_subscribed, used_trial) "
-        "VALUES ($1, $2, $3, $4, $5, 3, 5000, 5000, 200000, 200000, FALSE, FALSE)",
+        """
+        INSERT INTO users(
+            user_id, username, first_name, reg_time, inviter_id,
+            free_image,
+            tokens_5, tokens_5_mini,
+            gpt_model,
+            is_subscribed, used_trial
+        )
+        VALUES ($1, $2, $3, $4, $5, 3, 200000, 200000, '5_mini', FALSE, FALSE)
+        ON CONFLICT (user_id) DO NOTHING
+        """,
         user_id, username, first_name, int(datetime.now().timestamp()), inviter_id
     )
     await conn.close()
@@ -267,7 +279,7 @@ async def change_default_ai(user_id, ai_type):
 async def remove_free_chatgpt(user_id, tokens):
 
     conn: Connection = await get_conn()
-    await conn.execute("UPDATE users SET tokens_4o = tokens_4o - $2 WHERE user_id = $1", user_id, tokens)
+    await conn.execute("UPDATE users SET tokens_5 = tokens_5 - $2 WHERE user_id = $1", user_id, tokens)
     await conn.close()
 
 
@@ -278,7 +290,7 @@ async def remove_chatgpt(user_id, tokens, model):
     dashed_model = model.replace("-", "_")
     column = f'tokens_{dashed_model}'
 
-    if column not in {'tokens_4_1', 'tokens_4o', 'tokens_4o_mini', 'tokens_o1', 'tokens_o4_mini'}:
+    if column not in {'tokens_5', 'tokens_5_mini'}:
         raise ValueError(f"Invalid model {column}")
 
     await conn.execute(
@@ -627,7 +639,7 @@ async def update_tokens(user_id, new_tokens, model):
     conn: Connection = await get_conn()
     dashed_model = model.replace("-", "_")
     column = f'tokens_{dashed_model}'
-    if column not in {'tokens_4_1', 'tokens_4o', 'tokens_o4_mini', 'tokens_o1'}:
+    if column not in {'tokens_5', 'tokens_5_mini'}:
         raise ValueError(f"Invalid model {column}")
 
     await conn.execute(f"UPDATE users SET {column} = $2 WHERE user_id = $1", user_id, new_tokens)
@@ -752,7 +764,7 @@ async def has_matching_orders(user_id: int) -> bool:
 СТАТИСТИКА ДЛЯ АДМИНА
 '''
 
-CHATGPT_ORDER_TYPES = ['4o', 'o4-mini', '4_1', 'o1']
+CHATGPT_ORDER_TYPES = ['5', '5-mini']
 CHATGPT_QUANTITIES = [20000, 40000, 60000, 100000]
 MIDJOURNEY_QUANTITIES = [10, 20, 50, 100]
 
@@ -961,13 +973,13 @@ async def fetch_short_statistics() -> str:
         """)
         logger.info(f"ChatGPT запросов за всё время: {chatgpt_requests_all_time}")
 
-        # ChatGPT оплат
-        chatgpt_payments_all_time = await conn.fetchval("""
-            SELECT COUNT(*)
-            FROM orders
-            WHERE pay_time IS NOT NULL AND order_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1')
-        """)
-        logger.info(f"ChatGPT оплат за всё время: {chatgpt_payments_all_time}")
+        # # ChatGPT оплат
+        # chatgpt_payments_all_time = await conn.fetchval("""
+        #     SELECT COUNT(*)
+        #     FROM orders
+        #     WHERE pay_time IS NOT NULL AND order_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1')
+        # """)
+        # logger.info(f"ChatGPT оплат за всё время: {chatgpt_payments_all_time}")
 
         # Midjourney запросов
         midjourney_requests_all_time = await conn.fetchval("""
@@ -1014,17 +1026,17 @@ async def fetch_short_statistics() -> str:
         chatgpt_requests_today = await conn.fetchval("""
             SELECT COUNT(*)
             FROM usage
-            WHERE ai_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1') AND create_time >= $1
+            WHERE ai_type IN ('5', '5-mini') AND create_time >= $1
         """, start_of_day)
         logger.info(f"ChatGPT запросов за сегодня: {chatgpt_requests_today}")
 
-        # ChatGPT оплат
-        chatgpt_payments_today = await conn.fetchval("""
-            SELECT COUNT(*)
-            FROM orders
-            WHERE pay_time IS NOT NULL AND pay_time >= $1 AND order_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1')
-        """, start_of_day)
-        logger.info(f"ChatGPT оплат за сегодня: {chatgpt_payments_today}")
+        # # ChatGPT оплат
+        # chatgpt_payments_today = await conn.fetchval("""
+        #     SELECT COUNT(*)
+        #     FROM orders
+        #     WHERE pay_time IS NOT NULL AND pay_time >= $1 AND order_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1')
+        # """, start_of_day)
+        # logger.info(f"ChatGPT оплат за сегодня: {chatgpt_payments_today}")
 
         # Midjourney запросов
         midjourney_requests_today = await conn.fetchval("""
@@ -1128,7 +1140,7 @@ async def fetch_short_statistics() -> str:
             'requests': total_requests_all_time,
             'payments': total_payments_all_time,
             'chatgpt_requests': chatgpt_requests_all_time,
-            'chatgpt_payments': chatgpt_payments_all_time,
+            # 'chatgpt_payments': chatgpt_payments_all_time,
             'midjourney_requests': midjourney_requests_all_time,
             'midjourney_payments': midjourney_payments_all_time,
         }
@@ -1138,7 +1150,7 @@ async def fetch_short_statistics() -> str:
             'requests': total_requests_today,
             'payments': total_payments_today,
             'chatgpt_requests': chatgpt_requests_today,
-            'chatgpt_payments': chatgpt_payments_today,
+            # 'chatgpt_payments': chatgpt_payments_today,
             'midjourney_requests': midjourney_requests_today,
             'midjourney_payments': midjourney_payments_today,
         }

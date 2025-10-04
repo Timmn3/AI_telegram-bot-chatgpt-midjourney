@@ -74,30 +74,21 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
     if ai_type == "chatgpt":
         user = await db.get_user(user_id)
         model = user["gpt_model"]
-        if model == '4o-mini':
-            return
+
         logger.info(f"Токены для ChatGPT закончились. User: {user}, Model: {model}")
 
-        model_map = {'4o': 'ChatGPT',
-                     '4_1': 'GPT-4.1',
-                     'o1': 'GPT-o1',
-                     'o4-mini': 'GPT-o4-mini'}
-
-        user_data = await db.get_user_notified_gpt(user_id)
-
-        if not model == '4o':
-            await db.set_model(user_id, "4o")
-
-            await bot.send_message(user_id, "✅Модель для ChatGPT изменена на GPT-4o")
-
-        if model == '4o':
-            keyboard = user_kb.get_chatgpt_models_noback()
+        if model == '5':
+            await db.set_model(user_id, "5-mini")
+            await bot.send_message(user_id, "⚠️Превышен допустимый лимит запросов модели GPT-5\n"
+                                            "✅Модель для ChatGPT изменена на GPT-5-mini")
+        elif model == '5-mini':
+            await db.set_model(user_id, "5")
+            await bot.send_message(user_id, "⚠️Превышен допустимый лимит запросов модели GPT-5-mini\n"
+                                            "✅Модель для ChatGPT изменена на GPT-5")
         else:
-            keyboard = user_kb.get_chatgpt_tokens_menu('normal', model)
+            await bot.send_message(user_id,
+                               f"⚠️Превышен допустимый лимит запросов, попробуйте позже")  # Отправляем уведомление с клавиатурой для пополнения токенов
 
-        await bot.send_message(user_id,
-                               f"⚠️Токены для {model_map[model]} закончились!\n\nВыберите интересующий вас вариант⤵️",
-                               reply_markup=keyboard)  # Отправляем уведомление с клавиатурой для пополнения токенов
 
     elif ai_type == "image":
         user_data = await db.get_user_notified_mj(user_id)
@@ -424,22 +415,22 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     await db.remove_chatgpt(user_id, res["tokens"], model)
     await db.mark_used_trial(user_id)
 
-    now = datetime.now()
-    user_notified = await db.get_user_notified_gpt(user_id)
-    user = await db.get_user(user_id)
-    has_purchase = await db.has_matching_orders(user_id)
+    # now = datetime.now()
+    # user_notified = await db.get_user_notified_gpt(user_id)
+    # user = await db.get_user(user_id)
+    # has_purchase = await db.has_matching_orders(user_id)
 
-    if user[f"tokens_{model_dashed}"] <= 1000 and model_dashed != "4o":
-        logger.info(
-            f"Осталось {user[f'tokens_{model_dashed}']} токенов, уведомление: {user_notified}, покупка: {has_purchase}")
-        if user_notified is None and has_purchase:
-            await db.create_user_notification_gpt(user_id)
-            await notify_low_chatgpt_tokens(user_id, bot)
-        else:
-            last_notification = user_notified['last_notification'] if user_notified else None
-            if (last_notification is None or now > last_notification + timedelta(days=30)) and has_purchase:
-                await db.update_user_notification_gpt(user_id)
-                await notify_low_chatgpt_tokens(user_id, bot)
+    # if user[f"tokens_{model_dashed}"] <= 1000 and model_dashed != "4o":
+    #     logger.info(
+    #         f"Осталось {user[f'tokens_{model_dashed}']} токенов, уведомление: {user_notified}, покупка: {has_purchase}")
+    #     if user_notified is None and has_purchase:
+    #         await db.create_user_notification_gpt(user_id)
+    #         await notify_low_chatgpt_tokens(user_id, bot)
+    #     else:
+    #         last_notification = user_notified['last_notification'] if user_notified else None
+    #         if (last_notification is None or now > last_notification + timedelta(days=30)) and has_purchase:
+    #             await db.update_user_notification_gpt(user_id)
+    #             await notify_low_chatgpt_tokens(user_id, bot)
 
     await db.add_action(user_id, model)
 
@@ -555,7 +546,7 @@ async def generate_example_prompt() -> str:
             {"role": "system", "content": "Ты придумываешь короткие примеры пользовательских запросов для ChatGPT."},
             {"role": "user", "content": prompt}
         ],
-        model="4o"  # фиксированная безопасная модель
+        model="5-mini"
     )
 
     return response["content"].strip().strip('"')
@@ -566,14 +557,14 @@ async def generate_example_prompt() -> str:
 
 
 # Уведомение о низком количестве токенов GPT
-async def notify_low_chatgpt_tokens(user_id, bot: Bot):
-    logger.info('Внутри скидочного уведомления - выбираем модель')
-
-    await bot.send_message(user_id, """
-У вас заканчиваются запросы для 💬ChatGPT
-Специально для вас мы подготовили <b>персональную скидку</b>!
-Выберите интересующую Вас модель⤵️
-    """, reply_markup=user_kb.get_chatgpt_models_noback('discount'))
+# async def notify_low_chatgpt_tokens(user_id, bot: Bot):
+#     logger.info('Внутри скидочного уведомления - выбираем модель')
+#
+#     await bot.send_message(user_id, """
+# У вас заканчиваются запросы для 💬ChatGPT
+# Специально для вас мы подготовили <b>персональную скидку</b>!
+# Выберите интересующую Вас модель⤵️
+#     """, reply_markup=user_kb.get_chatgpt_models_noback('discount'))
 
 
 # Уведомление о низком количестве запросов MidJourney
@@ -789,23 +780,19 @@ async def show_profile(message: Message, state: FSMContext):
     user_lang = user['chat_gpt_lang']
 
     mj = int(user['mj']) + int(user['free_image']) if int(user['mj']) + int(user['free_image']) >= 0 else 0
-    gpt_4o = int(user['tokens_4o']) if int(user['tokens_4o']) >= 0 else 0
-    gpt_o4_mini = int(user['tokens_o4_mini']) if int(user['tokens_o4_mini']) >= 0 else 0
-    gpt_4_1 = int(user['tokens_4_1']) if int(user['tokens_4_1']) >= 0 else 0
-    gpt_o1 = int(user['tokens_o1']) if int(user['tokens_o1']) >= 0 else 0
+    gpt_5 = max(int(user.get('tokens_5', 0)), 0)
+    gpt_5_mini = max(int(user.get('tokens_5_mini', 0)), 0)
 
     logger.info(
-        f"Количество токенов и запросов для {user_id}:mj: {mj}, gpt_4.1: {gpt_4_1}, gpt_4o: {gpt_4o}, gpt_o4_mini: {gpt_o4_mini}, gpt_o1: {gpt_o1}")
+        f"Количество токенов и запросов для {user_id}:mj: {mj}, gpt_5: {gpt_5}, gpt_5_mini: {gpt_5_mini}")
 
     # Формируем текст с количеством доступных генераций и токенов
     sub_text = f"""
 Вам доступно⤵️
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
-Токены 💬GPT-4o:  ♾️
-Токены 💬GPT-o4-mini:  ♾️
-Токены 💬GPT-4.1:  {format(gpt_4_1, ',').replace(',', ' ')}
-Токены 💬GPT-o1:  {format(gpt_o1, ',').replace(',', ' ')}
+Токены 💬GPT-5:  ♾️
+Токены 💬GPT-5-mini:  ♾️
         """
 
     # Отправляем сообщение с обновленными данными аккаунта
@@ -831,13 +818,11 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
 
         # Формируем текст с количеством доступных генераций и токенов
         mj = int(user['mj']) + int(user['free_image']) if int(user['mj']) + int(user['free_image']) >= 0 else 0
-        gpt_4o = int(user['tokens_4o']) if int(user['tokens_4o']) >= 0 else 0
-        gpt_o4_mini = int(user['tokens_o4_mini']) if int(user['tokens_o4_mini']) >= 0 else 0
-        gpt_4_1 = int(user['tokens_4_1']) if int(user['tokens_4_1']) >= 0 else 0
-        gpt_o1 = int(user['tokens_o1']) if int(user['tokens_o1']) >= 0 else 0
+        gpt_5 = max(int(user.get('tokens_5', 0)), 0)
+        gpt_5_mini = max(int(user.get('tokens_5_mini', 0)), 0)
 
         logger.info(
-            f"Колиество токенов и запросов для {user_id}:mj: {mj}, gpt_4.1: {gpt_4_1}, gpt_4o: {gpt_4o}, gpt_o4_mini: {gpt_o4_mini}, gpt_o1: {gpt_o1}")
+            f"Количество токенов и запросов для {user_id}:mj: {mj}, gpt_5: {gpt_5}, gpt_5_mini: {gpt_5_mini}")
 
         keyboard = user_kb.get_account(user_lang, "account")
 
@@ -846,10 +831,8 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
 Вам доступно⤵️
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
-Токены 💬GPT-4o:  ♾️
-Токены 💬GPT-o4-mini:  ♾️
-Токены 💬GPT-4.1:  {format(gpt_4_1, ',').replace(',', ' ')}
-Токены 💬GPT-o1:  {format(gpt_o1, ',').replace(',', ' ')}
+Токены 💬GPT-5:  ♾️
+Токены 💬GPT-5-mini:  ♾️
             """
 
         # Отправляем сообщение с обновленными данными аккаунта
@@ -859,13 +842,13 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
     else:
         await state.finish()
 
-        if src == "not_gpt":
-            await call.message.edit_text("""
-У вас заканчиваются токены для 💬ChatGPT
-Специально для вас мы подготовили <b>персональную скидку</b>!
-
-Успейте приобрести токены со скидкой, предложение актуально <b>24 часа</b>⤵️
-            """, reply_markup=user_kb.get_chatgpt_tokens_menu('disount', user["gpt_model"]))
+#         if src == "not_gpt":
+#             await call.message.edit_text("""
+# У вас заканчиваются токены для 💬ChatGPT
+# Специально для вас мы подготовили <b>персональную скидку</b>!
+#
+# Успейте приобрести токены со скидкой, предложение актуально <b>24 часа</b>⤵️
+#             """, reply_markup=user_kb.get_chatgpt_tokens_menu('disount', user["gpt_model"]))
 
         if src == "not_mj":
             await call.message.edit_text("""
@@ -922,39 +905,8 @@ async def ask_question(message: Message, state: FSMContext):
     user_id = message.from_user.id
     user = await db.get_user(user_id)  # Получаем данные пользователя
     model = (user["gpt_model"]).replace("-", "_")
-    if model == "4o_mini":
-        model = "4o"
-        await db.set_model(user_id, model)
+
     logger.info(f'Выбранная модель {model}')
-
-    if model == "4_1" and user["tokens_4_1"] <= 0:
-        logger.info(f"Модель {model} закончилась - переключаем")
-
-        await message.answer("✅Модель для ChatGPT изменена на 4o")
-        if model == "4_1":
-            model = model.replace("_", ".")
-        await message.answer(f'''
-                ⚠️Токены для GPT-{model} закончились! 
-
-    Вы можете пользоваться бесплатной версией или выбрать интересующий вас вариант⤵️''',
-                             reply_markup=user_kb.get_chatgpt_tokens_menu('normal', model)
-                             )
-        model = "4o"
-        await db.set_model(user_id, model)
-
-
-    if model == "o1" and user["tokens_o1"] <= 0:
-        logger.info(f"Модель {model} закончилась - переключаем")
-
-        await message.answer("✅Модель для ChatGPT изменена на 4o")
-        await message.answer(f'''
-                ⚠️Токены для GPT-{model} закончились! 
-
-    Вы можете пользоваться бесплатной версией или выбрать интересующий вас вариант⤵️''',
-                             reply_markup=user_kb.get_chatgpt_tokens_menu('normal', model)
-                             )
-        model = "4o"
-        await db.set_model(user_id, model)
 
     # Проверяем наличие токенов и подписки
     if user[f"tokens_{model}"] <= 0:
@@ -1249,33 +1201,6 @@ async def gen_prompt(message: Message, state: FSMContext):
         model = (user["gpt_model"]).replace("-", "_")
 
         logger.info(f'Текстовый запрос к GPT. User: {user}, Model: {model}, tokens: {user[f"tokens_{model}"]}')
-        if model == "4_1" and user["tokens_4_1"] <= 0:
-            logger.info(f"Модель {model} закончилась - переключаем")
-
-            await message.answer("✅Модель для ChatGPT изменена на 4o")
-            if model == "4_1":
-                model = model.replace("_", ".")
-            await message.answer(f'''
-                    ⚠️Токены для GPT-{model} закончились! 
-
-        Вы можете пользоваться бесплатной версией или выбрать интересующий вас вариант⤵️''',
-                                 reply_markup=user_kb.get_chatgpt_tokens_menu('normal', model)
-                                 )
-            model = "4o"
-            await db.set_model(user_id, model)
-
-        if model == "o1" and user["tokens_o1"] <= 0:
-            logger.info(f"Модель {model} закончилась - переключаем")
-
-            await message.answer("✅Модель для ChatGPT изменена на 4o")
-            await message.answer(f'''
-                    ⚠️Токены для GPT-{model} закончились! 
-
-        Вы можете пользоваться бесплатной версией или выбрать интересующий вас вариант⤵️''',
-                                 reply_markup=user_kb.get_chatgpt_tokens_menu('normal', model)
-                                 )
-            model = "4o"
-            await db.set_model(user_id, model)
 
         if user[f"tokens_{model}"] <= 0:
             return await not_enough_balance(message.bot, user_id, "chatgpt")
@@ -1456,8 +1381,7 @@ async def select_model(call: CallbackQuery):
 
     logger.info(f"User ID: {user_id}, выбранная модель: {selected_model}")
     selected_model_bd = selected_model
-    if selected_model == "4.1":
-        selected_model_bd = "4_1"
+
     try:
         # Записываем выбранную модель в базу данных
         await db.set_model(user_id, selected_model_bd)
