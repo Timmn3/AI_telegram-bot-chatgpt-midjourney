@@ -973,13 +973,13 @@ async def fetch_short_statistics() -> str:
         """)
         logger.info(f"ChatGPT запросов за всё время: {chatgpt_requests_all_time}")
 
-        # # ChatGPT оплат
-        # chatgpt_payments_all_time = await conn.fetchval("""
-        #     SELECT COUNT(*)
-        #     FROM orders
-        #     WHERE pay_time IS NOT NULL AND order_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1')
-        # """)
-        # logger.info(f"ChatGPT оплат за всё время: {chatgpt_payments_all_time}")
+        # ChatGPT оплат
+        chatgpt_payments_all_time = await conn.fetchval("""
+            SELECT COUNT(*)
+            FROM orders
+            WHERE pay_time IS NOT NULL AND order_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1')
+        """)
+        logger.info(f"ChatGPT оплат за всё время: {chatgpt_payments_all_time}")
 
         # Midjourney запросов
         midjourney_requests_all_time = await conn.fetchval("""
@@ -1030,13 +1030,13 @@ async def fetch_short_statistics() -> str:
         """, start_of_day)
         logger.info(f"ChatGPT запросов за сегодня: {chatgpt_requests_today}")
 
-        # # ChatGPT оплат
-        # chatgpt_payments_today = await conn.fetchval("""
-        #     SELECT COUNT(*)
-        #     FROM orders
-        #     WHERE pay_time IS NOT NULL AND pay_time >= $1 AND order_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1')
-        # """, start_of_day)
-        # logger.info(f"ChatGPT оплат за сегодня: {chatgpt_payments_today}")
+        # ChatGPT оплат
+        chatgpt_payments_today = await conn.fetchval("""
+            SELECT COUNT(*)
+            FROM orders
+            WHERE pay_time IS NOT NULL AND pay_time >= $1 AND order_type IN ('chatgpt', '4_1', '4o', 'o4-mini', 'o1')
+        """, start_of_day)
+        logger.info(f"ChatGPT оплат за сегодня: {chatgpt_payments_today}")
 
         # Midjourney запросов
         midjourney_requests_today = await conn.fetchval("""
@@ -1140,7 +1140,7 @@ async def fetch_short_statistics() -> str:
             'requests': total_requests_all_time,
             'payments': total_payments_all_time,
             'chatgpt_requests': chatgpt_requests_all_time,
-            # 'chatgpt_payments': chatgpt_payments_all_time,
+            'chatgpt_payments': chatgpt_payments_all_time,
             'midjourney_requests': midjourney_requests_all_time,
             'midjourney_payments': midjourney_payments_all_time,
         }
@@ -1150,7 +1150,7 @@ async def fetch_short_statistics() -> str:
             'requests': total_requests_today,
             'payments': total_payments_today,
             'chatgpt_requests': chatgpt_requests_today,
-            # 'chatgpt_payments': chatgpt_payments_today,
+            'chatgpt_payments': chatgpt_payments_today,
             'midjourney_requests': midjourney_requests_today,
             'midjourney_payments': midjourney_payments_today,
         }
