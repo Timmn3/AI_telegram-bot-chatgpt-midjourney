@@ -334,19 +334,23 @@ def format_math_in_text(text: str) -> str:
     return html.escape(text)
 
 
+from aiogram.utils.exceptions import CantParseEntities, RetryAfter
+import asyncio
+
 async def send_message_with_html(bot: Bot, chat_id: int, text: str, reply_markup=None):
     try:
-        # Отправка сообщения с использованием HTML-разметки
         await bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=reply_markup)
     except CantParseEntities:
-        # Экранирование специальных символов, если возникла ошибка при парсинге HTML
         escaped_text = html.escape(text)
         await bot.send_message(chat_id, escaped_text, parse_mode="HTML", reply_markup=reply_markup)
+    except RetryAfter as e:
+        # Не блокируем цикл — корректно ждём и пытаемся снова
+        await asyncio.sleep(e.timeout + 0.1)
+        await bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=reply_markup)
     except Exception as e:
-        # Логируем любые другие ошибки
-        logger.debug(f"Ошибка при отправке сообщения: {e}")
-        # Отправка сообщения без разметки
+        # как запасной вариант — без parse_mode
         await bot.send_message(chat_id, text, reply_markup=reply_markup)
+
 
 
 def ensure_code_block_integrity(text: str) -> str:

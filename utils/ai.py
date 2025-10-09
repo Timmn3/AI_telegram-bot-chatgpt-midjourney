@@ -12,7 +12,7 @@ from config import OPENAPI_TOKEN, midjourney_webhook_url, MJ_API_KEY, TNL_API_KE
     ADMINS_CODER, PROJECT_MANAGER  # Импорт конфигураций и токенов
 from utils import db  # Работа с базой данных
 from utils.mj_apis import GoAPI, ApiFrame, MidJourneyAPI
-
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -145,16 +145,18 @@ async def get_gpt(messages, model):
 
         logger.info(f'MESSAGES: {messages}')
         try:
-            response = client.chat.completions.create(
+            response = await asyncio.to_thread(
+                client.chat.completions.create,
                 model=f"{model_map[model]}",
-                messages=messages[-10:]  # Последние 10 сообщений
+                messages=messages[-10:]
             )
         except Exception as e:
-            response = client.chat.completions.create(
+            response = await asyncio.to_thread(
+                client.chat.completions.create,
                 model=f"{model_map['5']}",
-                messages=messages[-10:]  # Последние 10 сообщений
+                messages=messages[-10:]
             )
-            logging.error(f'ChatGPT Error model{model} \n {e}')
+            logging.error(f'ChatGPT Error model {model} \n {e}')
 
 
         content = response.choices[0].message.content  # Получаем ответ
