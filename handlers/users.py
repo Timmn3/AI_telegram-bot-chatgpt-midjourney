@@ -21,6 +21,7 @@ from create_bot import dp, bot  # Диспетчер из create_bot.py
 from utils.ai import mj_api, text_to_speech, voice_to_text
 from aiogram.utils.exceptions import CantParseEntities
 import html
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,68 @@ async def check_promocode(user_id, code, bot: Bot):
             await bot.send_message(user_id, "<b>Ссылка исчерпала максимальное количество активаций.</b>")
 '''
 
+
+# Хэндлер команды /start
+@dp.message_handler(state="*", commands='start')
+async def start_message(message: Message, state: FSMContext):
+    try:
+        # Завершаем текущее состояние (если оно есть)
+        await state.finish()
+    except Exception as e:
+        # На случай, если FSM отключено или пустое
+        logger.warning(f"Не удалось очистить состояние: {e}")
+
+        # Дополнительно очищаем данные, если они остались
+    try:
+        await state.reset_data()
+    except Exception:
+        pass
+
+    # Обрабатываем параметры команды /start (например, реферальные коды)
+    msg_args = message.get_args().split("_")
+    inviter_id = 0
+    code = None
+    if msg_args != ['']:
+        for msg_arg in msg_args:
+            if msg_arg[0] == "r":
+                try:
+                    inviter_id = int(msg_arg[1:])
+                except ValueError:
+                    continue
+            elif msg_arg[0] == "p":
+                code = msg_arg[1:]
+
+    user = await db.get_user(message.from_user.id)
+
+    if user is None:
+        await db.add_user(message.from_user.id, message.from_user.username, message.from_user.first_name,
+                          int(inviter_id))
+        default_ai = "chatgpt"
+        # Уведомление пригласившего пользователя
+        if inviter_id != 0:
+            inviter = await db.get_user(inviter_id)
+            if inviter and inviter.get("ref_notifications_enabled", True):
+                try:
+                    keyboard = InlineKeyboardMarkup().add(
+                        InlineKeyboardButton("Отключить уведомления", callback_data="disable_ref_notifications")
+                    )
+                    await bot.send_message(inviter_id,
+                                           f"""📈У Вас новый реферал
+└ Аккаунт: {message.from_user.id}""",
+                                           reply_markup=keyboard
+                                           )
+                except Exception as e:
+                    logging.warning(f"Не удалось отправить уведомление о реферале: {e}")
+    else:
+        default_ai = user["default_ai"]
+
+    # Отправляем приветственное сообщение
+    await message.answer("""<b>NeuronAgent</b>🤖 - <i>2 нейросети в одном месте!</i>
+<b>ChatGPT или Midjourney?</b>""", reply_markup=user_kb.get_menu(default_ai))
+
+    # Проверка промокода, если он был передан
+    # if code is not None:
+    #     await check_promocode(message.from_user.id, code, message.bot)
 
 # Снижение баланса пользователя
 async def remove_balance(bot: Bot, user_id):
@@ -299,9 +362,12 @@ def ensure_code_block_integrity(text: str) -> str:
 
 
 async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
-
+    """
+    Основной запрос к GPT.
+    Отличие от предыдущей версии: после отправки ответа пользователю «тяжёлые» шаги
+    (имя чата, keywords, summary) выполняются в фоне и НЕ блокируют обработку следующих апдейтов.
+    """
     text = '⏳ChatGPT генерирует ответ, ожидайте...'
-
     message_wait = await bot.send_message(user_id, text)
 
     user = await db.get_user(user_id)
@@ -313,6 +379,7 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     summary = current_chat["summary"] if current_chat else ""
     keywords = current_chat["keywords"] if current_chat and current_chat.get("keywords") else []
 
+    # Подмешиваем summary/keywords в промпт, если есть
     if summary:
         prompt = f"Ранее в этом чате обсуждалось: {summary.strip()}\n\n" + prompt
     if keywords:
@@ -326,11 +393,11 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     1. Если пользователь ЯВНО просит показать код (например, говорит «покажи код», «напиши функцию», «пример кода» и т.п.), только тогда включай код в ответ.
     2. Если в ответе присутствует код:
        - Он не должен превышать 2000 символов.
-       - Он должен быть заключен в блоки <pre><code> </code></pre> для правильного форматирования (parse_mode="HTML"), чтобы код был виден как отдельный элемент.
-    3. Если код состоит из одной строки, используй блок <code> </code>, чтобы выделить его как фрагмент кода.
-    4. Код должен быть четко выделен и не должен содержать лишних разделителей типа "--------------------------------------------------".
-    5. Если в ответе присутствует HTML или другие элементы разметки, обрабатывай их с учетом того, чтобы они отображались верно в Telegram. Для этого HTML-код также должен быть обернут в блоки <pre><code> </code></pre>.
-    6. Убедись, что любые специальные символы (например, угловые скобки или амперсанд в HTML) правильно экранированы, чтобы избежать ошибок в отображении.
+       - Он должен быть заключен в блоки <pre><code> </code></pre> для правильного форматирования (parse_mode="HTML").
+    3. Если код состоит из одной строки, используй блок <code> </code>.
+    4. Не добавляй лишние разделители типа "-----".
+    5. Если в ответе присутствует HTML, оборачивай в <pre><code>...</code></pre>.
+    6. Экранируй спецсимволы HTML.
     """
 
     message_user = prompt
@@ -340,33 +407,25 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     messages.append({"role": "user", "content": prompt})
 
     logger.info(f"Текстовый запрос к ChatGPT. User: {user}, Model: {model}, tokens: {user[f'tokens_{model_dashed}']}")
-
     await bot.send_chat_action(user_id, ChatActions.TYPING)
-
     res = await ai.get_gpt(messages, model)
 
-    # Удаляем сообщение "Ожидание..."
+    # Удаляем "ожидание"
     try:
         await bot.delete_message(chat_id=user_id, message_id=message_wait.message_id)
     except Exception as e:
         logger.warning(f"Не удалось удалить сообщение ожидания: {e}")
 
-    # Шаг 1: форматируем математические формулы внутри \( \)
+    # Форматируем и отправляем ответ (как у тебя было)
     html_content = format_math_in_text(res["content"])
-
-    # Ищем блоки кода и удаляем их из общего текста
     code_blocks = re.findall(r"(<pre><code>.*?</code></pre>)", html_content, re.DOTALL)
     non_code_content = re.sub(r"<pre><code>.*?</code></pre>", "", html_content, flags=re.DOTALL)
-
-    # Преобразуем экранированные символы в реальные
     non_code_content = html.unescape(non_code_content)
 
-    # Отправляем код отдельно
     for code in code_blocks:
         code = html.unescape(code)
-
         if len(code) > 3000:
-            parts = split_message(code, 3000)
+            parts = split_message(code, 3000, is_code=True)
             for part in parts:
                 part = ensure_code_block_integrity(part)
                 await send_message_with_html(bot, user_id, part, reply_markup=user_kb.get_clear_or_audio())
@@ -374,7 +433,6 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
             code = ensure_code_block_integrity(code)
             await send_message_with_html(bot, user_id, code, reply_markup=user_kb.get_clear_or_audio())
 
-    # Отправляем основной текст
     if len(non_code_content) <= 3000:
         non_code_content = ensure_code_block_integrity(non_code_content)
         await send_message_with_html(bot, user_id, non_code_content, reply_markup=user_kb.get_clear_or_audio())
@@ -392,49 +450,78 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     if not res["status"]:
         return
 
+    # Обновляем локальный контекст сообщений
     message_gpt = res["content"]
     messages.append({"role": "assistant", "content": message_gpt})
 
-    if not current_chat:
-        generated_name = await generate_chat_name(message_user, model, message_gpt)
-        new_chat_id = await db.create_chat(user_id, name=generated_name, summary="")
+    # Быстро обеспечиваем наличие chat_id без ожидания GPT-имени
+    had_chat = bool(current_chat)
+    if not had_chat:
+        # Временное имя — просто первые 50 символов вопроса пользователя
+        provisional_name = re.sub(r"\s+", " ", message_user).strip().strip('"')[:50] or "Новый чат"
+        new_chat_id = await db.create_chat(user_id, name=provisional_name, summary="")
         await db.set_current_chat(user_id, new_chat_id)
         chat_id = new_chat_id
     else:
         chat_id = current_chat["id"]
 
+    # Сохраняем реплики синхронно (это быстро)
     await db.add_message(chat_id, user_id, message_user)
     await db.add_message(chat_id, None, message_gpt)
-    keywords = await extract_keywords_from_message(message_user, chat_id, model)
-    await update_chat_keywords(chat_id, keywords)
 
-    old_summary = current_chat["summary"] if current_chat else ""
-    new_summary = await update_chat_summary(chat_id, message_user, message_gpt, model, old_summary)
-    await db.update_chat_summary(chat_id, new_summary)
-
+    # Списываем токены/триал и логируем действие — синхронно
     await db.remove_chatgpt(user_id, res["tokens"], model)
     await db.mark_used_trial(user_id)
-
-    # now = datetime.now()
-    # user_notified = await db.get_user_notified_gpt(user_id)
-    # user = await db.get_user(user_id)
-    # has_purchase = await db.has_matching_orders(user_id)
-
-    # if user[f"tokens_{model_dashed}"] <= 1000 and model_dashed != "4o":
-    #     logger.info(
-    #         f"Осталось {user[f'tokens_{model_dashed}']} токенов, уведомление: {user_notified}, покупка: {has_purchase}")
-    #     if user_notified is None and has_purchase:
-    #         await db.create_user_notification_gpt(user_id)
-    #         await notify_low_chatgpt_tokens(user_id, bot)
-    #     else:
-    #         last_notification = user_notified['last_notification'] if user_notified else None
-    #         if (last_notification is None or now > last_notification + timedelta(days=30)) and has_purchase:
-    #             await db.update_user_notification_gpt(user_id)
-    #             await notify_low_chatgpt_tokens(user_id, bot)
-
     await db.add_action(user_id, model)
 
+    # Запускаем тяжёлую пост-обработку в фоне: имя (если чат новый), keywords и summary
+    asyncio.create_task(_postprocess_chat(chat_id, user_id, message_user, message_gpt, model, had_chat))
+
     return messages
+
+async def _postprocess_chat(chat_id: int, user_id: int, message_user: str, message_gpt: str, model: str, had_chat: bool):
+    """
+    Фоновая пост-обработка чата:
+    - генерирует осмысленное имя для нового чата;
+    - извлекает ключевые слова;
+    - обновляет краткое summary.
+    Выполняется асинхронно в фоне и НЕ блокирует ответы на команды (/start и др.).
+    """
+    try:
+        # Имя для нового чата
+        if not had_chat:
+            try:
+                generated_name = await generate_chat_name(message_user, model, message_gpt)
+            except Exception as e:
+                logger.warning(f"Не удалось сгенерировать имя чата: {e}")
+                # Запасной вариант — обрезанный текст вопроса
+                generated_name = (re.sub(r"\s+", " ", message_user).strip().strip('"')[:50] or "Новый чат")
+            try:
+                conn = await db.get_conn()
+                await conn.execute("UPDATE chats SET name = $1, updated_at = NOW() WHERE id = $2",
+                                   generated_name, chat_id)
+                await conn.close()
+            except Exception as e:
+                logger.warning(f"Не удалось сохранить имя чата: {e}")
+
+        # Ключевые слова
+        try:
+            keywords = await extract_keywords_from_message(message_user, chat_id, model)
+            await update_chat_keywords(chat_id, keywords)
+        except Exception as e:
+            logger.warning(f"Не удалось обновить ключевые слова: {e}")
+
+        # Сводка (summary)
+        try:
+            row = await db.get_chat_by_id(chat_id)
+            old_summary = row["summary"] if row else ""
+            new_summary = await update_chat_summary(chat_id, message_user, message_gpt, model, old_summary)
+            await db.update_chat_summary(chat_id, new_summary)
+        except Exception as e:
+            logger.warning(f"Не удалось обновить summary: {e}")
+
+    except Exception:
+        logger.exception("postprocess failed")
 
 
 async def update_chat_keywords(chat_id: int, new_keywords: list[str]):
@@ -604,69 +691,6 @@ async def all_callback_handler(call: CallbackQuery):
     logging.info(f"Received callback_data: {call.data}")
     await call.message.answer("Callback received")
 '''
-
-
-# Хэндлер команды /start
-@dp.message_handler(state="*", commands='start')
-async def start_message(message: Message, state: FSMContext):
-    try:
-        # Завершаем текущее состояние (если оно есть)
-        await state.finish()
-    except Exception as e:
-        # На случай, если FSM отключено или пустое
-        logger.warning(f"Не удалось очистить состояние: {e}")
-
-        # Дополнительно очищаем данные, если они остались
-    try:
-        await state.reset_data()
-    except Exception:
-        pass
-
-    # Обрабатываем параметры команды /start (например, реферальные коды)
-    msg_args = message.get_args().split("_")
-    inviter_id = 0
-    code = None
-    if msg_args != ['']:
-        for msg_arg in msg_args:
-            if msg_arg[0] == "r":
-                try:
-                    inviter_id = int(msg_arg[1:])
-                except ValueError:
-                    continue
-            elif msg_arg[0] == "p":
-                code = msg_arg[1:]
-
-    user = await db.get_user(message.from_user.id)
-
-    if user is None:
-        await db.add_user(message.from_user.id, message.from_user.username, message.from_user.first_name,
-                          int(inviter_id))
-        default_ai = "chatgpt"
-        # Уведомление пригласившего пользователя
-        if inviter_id != 0:
-            inviter = await db.get_user(inviter_id)
-            if inviter and inviter.get("ref_notifications_enabled", True):
-                try:
-                    keyboard = InlineKeyboardMarkup().add(
-                        InlineKeyboardButton("Отключить уведомления", callback_data="disable_ref_notifications")
-                    )
-                    await bot.send_message(inviter_id,
-                                           f"""📈У Вас новый реферал
-└ Аккаунт: {message.from_user.id}""",
-                                           reply_markup=keyboard
-                                           )
-                except Exception as e:
-                    logging.warning(f"Не удалось отправить уведомление о реферале: {e}")
-    else:
-        default_ai = user["default_ai"]
-
-    # Отправляем приветственное сообщение
-    await message.answer("""<b>NeuronAgent</b>🤖 - <i>2 нейросети в одном месте!</i>
-<b>ChatGPT или Midjourney?</b>""", reply_markup=user_kb.get_menu(default_ai))
-
-    # Проверка промокода, если он был передан
-    # if code is not None:
-    #     await check_promocode(message.from_user.id, code, message.bot)
 
 
 # Хендлер настроек ChatGPT
@@ -1212,7 +1236,7 @@ async def change_profile_settings(message: Message, state: FSMContext):
 
 
 # Основной хендлер для обработки сообщений и генерации запросов
-@dp.message_handler()
+@dp.message_handler(content_types=['text'], regexp=r'^(?!/).+')
 async def gen_prompt(message: Message, state: FSMContext):
     if not await check_access_or_prompt(message):
         return
