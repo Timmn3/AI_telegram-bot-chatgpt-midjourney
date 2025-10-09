@@ -609,7 +609,18 @@ async def all_callback_handler(call: CallbackQuery):
 # Хэндлер команды /start
 @dp.message_handler(state="*", commands='start')
 async def start_message(message: Message, state: FSMContext):
-    await state.finish()  # Завершаем любое текущее состояние
+    try:
+        # Завершаем текущее состояние (если оно есть)
+        await state.finish()
+    except Exception as e:
+        # На случай, если FSM отключено или пустое
+        logger.warning(f"Не удалось очистить состояние: {e}")
+
+        # Дополнительно очищаем данные, если они остались
+    try:
+        await state.reset_data()
+    except Exception:
+        pass
 
     # Обрабатываем параметры команды /start (например, реферальные коды)
     msg_args = message.get_args().split("_")
