@@ -1235,6 +1235,7 @@ async def gen_prompt(message: Message, state: FSMContext):
         messages = [{"role": "system", "content": system_msg}] if "messages" not in data else data["messages"]
         update_messages = await get_gpt(prompt=message.text, messages=messages, user_id=user_id,
                                         bot=message.bot, state=state)  # Генерация ответа от ChatGPT
+        update_messages = update_messages[-10:]  # хранить только последние 10 сообщений
         await state.update_data(messages=update_messages)
 
     elif user["default_ai"] == "image":
