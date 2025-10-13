@@ -954,6 +954,7 @@ async def ask_question(message: Message, state: FSMContext):
     if state:
         await state.finish()  # Завершаем текущее состояние
     await db.change_default_ai(message.from_user.id, "chatgpt")  # Устанавливаем ChatGPT как основной AI
+    await message.answer("Режим: ChatGPT", reply_markup=user_kb.get_menu("chatgpt"))
 
     user_id = message.from_user.id
     user = await db.get_user(user_id)  # Получаем данные пользователя
