@@ -2167,6 +2167,5 @@ async def close_inactive_chat_and_prompt(message, *, with_mode_banner: bool):
         parse_mode="Markdown",
         reply_markup=kb
     )
-
     return True
 
