@@ -2168,15 +2168,5 @@ async def close_inactive_chat_and_prompt(message, *, with_mode_banner: bool):
         reply_markup=kb
     )
 
-    # И сразу просим ввести новый запрос (чтобы не нужно было вручную создавать чат)
-    example_prompt = await generate_example_prompt()
-    await message.answer(
-        f"""<b>Введите запрос</b>
-Например: <code>{example_prompt}</code>
-
-<u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
-        reply_markup=user_kb.get_menu("chatgpt"),
-        disable_web_page_preview=True
-    )
     return True
 
