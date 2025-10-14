@@ -2140,12 +2140,13 @@ async def close_inactive_chat_and_prompt(message, *, with_mode_banner: bool):
         await db.set_current_chat(user_id, None)
         return False
 
-    last_touch = chat.get("updated_at")
+    last_touch = await db.get_chat_last_activity(chat_id)
     if not last_touch:
         return False
 
-    # Проверка неактивности
-    if datetime.now() - last_touch <= timedelta(minutes=INACTIVITY_HOURS):
+    now = datetime.utcnow()  # работаем в UTC
+    if now - last_touch <= timedelta(hours=INACTIVITY_HOURS):
+        logger.info(f"last_touch={last_touch}, now={now}, delta={(now - last_touch)}")
         return False
 
     # Снимаем активный чат и переводим в ChatGPT

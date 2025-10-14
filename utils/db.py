@@ -1300,7 +1300,7 @@ async def add_message(chat_id: int, user_id: int, text: str):
         INSERT INTO messages (chat_id, user_id, text, created_at)
         VALUES ($1, $2, $3, NOW());
     """, chat_id, user_id, text)
-    # НОВОЕ: считаем это активностью — обновим "updated_at" чата
+    # ВАЖНО: фиксируем активность чата
     await conn.execute("UPDATE chats SET updated_at = NOW() WHERE id = $1", chat_id)
     await conn.close()
 
@@ -1439,3 +1439,19 @@ async def set_ref_notifications(user_id: int, enabled: bool):
     conn = await get_conn()
     await conn.execute("UPDATE users SET ref_notifications_enabled = $1 WHERE user_id = $2", enabled, user_id)
     await conn.close()
+
+
+async def get_chat_last_activity(chat_id: int):
+    conn = await get_conn()
+    row = await conn.fetchrow("""
+        SELECT GREATEST(
+            c.updated_at,
+            COALESCE(MAX(m.created_at), c.updated_at)
+        ) AS last_activity
+        FROM chats c
+        LEFT JOIN messages m ON m.chat_id = c.id
+        WHERE c.id = $1
+        GROUP BY c.updated_at
+    """, chat_id)
+    await conn.close()
+    return row["last_activity"] if row else None
