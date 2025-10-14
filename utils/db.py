@@ -1455,3 +1455,35 @@ async def get_chat_last_activity(chat_id: int):
     """, chat_id)
     await conn.close()
     return row["last_activity"] if row else None
+
+
+# пользователи, у кого выбран активный чат
+async def get_users_with_active_chat():
+    conn = await get_conn()
+    rows = await conn.fetch("""
+        SELECT user_id, current_chat_id
+        FROM users
+        WHERE current_chat_id IS NOT NULL
+    """)
+    await conn.close()
+    return rows
+
+
+# последняя активность пользователя по ВСЕМ его чатам
+async def get_user_last_activity(user_id: int):
+    conn = await get_conn()
+    row = await conn.fetchrow("""
+        WITH t AS (
+            SELECT MAX(c.updated_at) AS ts
+            FROM chats c
+            WHERE c.user_id = $1
+            UNION ALL
+            SELECT MAX(m.created_at) AS ts
+            FROM messages m
+            JOIN chats c2 ON c2.id = m.chat_id
+            WHERE c2.user_id = $1
+        )
+        SELECT MAX(ts) AS last_activity FROM t
+    """, user_id)
+    await conn.close()
+    return row["last_activity"] if row and row["last_activity"] else None

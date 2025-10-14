@@ -8,6 +8,7 @@ from utils.ai import mj_api
 from handlers import admin, users, sub, users_image_openai # ← Регистрация хэндлеров
 import logging
 
+from utils.scheduled_tasks.close_stale import close_stale_chats_job
 from utils.scheduled_tasks.daily_token_reset import refill_tokens
 
 logger = logging.getLogger(__name__)
@@ -48,9 +49,14 @@ async def on_startup(_):
 def set_scheduled_jobs():
     """Добавление задач в планировщик"""
     try:
+        # ежедневное пополнение токенов
         scheduler.add_job(refill_tokens, "cron", hour=0, minute=0)
+
+        # проверка неактивных чатов каждые 5 минут
+        scheduler.add_job(close_stale_chats_job, "interval", minutes=5, id="close_stale_chats")
     except Exception as e:
         logger.error(f"Error while adding scheduled jobs: {e}")
+
 
 
 async def on_shutdown(_):
