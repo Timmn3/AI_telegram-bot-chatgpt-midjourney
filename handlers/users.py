@@ -969,6 +969,10 @@ async def ask_question(message: Message, state: FSMContext):
     # Получаем текущий активный чат
     current_chat = await db.get_chat_by_id(user["current_chat_id"])
 
+    # если этот чат неактивен > 24ч — закрываем и просим ввести новый запрос
+    if await close_inactive_chat_and_prompt(message, with_mode_banner=False):
+        return
+
     # Отправляем пользователю имя текущего чата (если есть)
     if current_chat and current_chat["name"]:
         keyboard = InlineKeyboardMarkup(row_width=1).add(
@@ -1245,6 +1249,15 @@ async def change_profile_settings(message: Message, state: FSMContext):
 async def gen_prompt(message: Message, state: FSMContext):
     if not await check_access_or_prompt(message):
         return
+
+    user = await db.get_user(message.from_user.id)
+
+    # если чат неактивен > 24ч, очищаем его и переключаемся на ChatGPT
+    # with_mode_banner=True, если пользователь был НЕ в ChatGPT (например, в Midjourney)
+    with_mode_banner = (user and user.get("default_ai") != "chatgpt")
+    if await close_inactive_chat_and_prompt(message, with_mode_banner=with_mode_banner):
+        return
+
     await state.update_data(prompt=message.text)  # Сохраняем запрос пользователя
     user_id = message.from_user.id
     user = await db.get_user(user_id)
@@ -2104,4 +2117,65 @@ async def enable_notifications(call: CallbackQuery):
     await db.set_ref_notifications(call.from_user.id, True)
     await call.answer("Уведомления включены.", show_alert=True)
 
+from datetime import datetime, timedelta
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+INACTIVITY_HOURS = 24
+
+async def close_inactive_chat_and_prompt(message, *, with_mode_banner: bool):
+    """
+    Если у пользователя выбран активный чат, но в нём не было запросов > 24 ч,
+    снимаем активный чат, переводим бот в режим ChatGPT и отправляем нужные сообщения.
+    Возвращает True, если чат был закрыт и мы уже всё показали пользователю.
+    """
+    user_id = message.from_user.id
+    user = await db.get_user(user_id)
+    chat_id = user.get("current_chat_id")
+    if not chat_id:
+        return False
+
+    chat = await db.get_chat_by_id(chat_id)
+    if not chat:
+        # на всякий случай почистим ссылку у пользователя
+        await db.set_current_chat(user_id, None)
+        return False
+
+    last_touch = chat.get("updated_at")
+    if not last_touch:
+        return False
+
+    # Проверка неактивности
+    if datetime.now() - last_touch <= timedelta(minutes=INACTIVITY_HOURS):
+        return False
+
+    # Снимаем активный чат и переводим в ChatGPT
+    await db.set_current_chat(user_id, None)
+    await db.change_default_ai(user_id, "chatgpt")
+
+
+    if with_mode_banner:
+        await message.answer("Режим: ChatGPT", reply_markup=user_kb.get_menu("chatgpt"))
+
+    # Уведомление о закрытии + кнопка «Мои чаты»
+    kb = InlineKeyboardMarkup(row_width=1).add(
+        InlineKeyboardButton("🗂Мои чаты", callback_data="my_chats")
+    )
+    chat_name = chat["name"] or "Без названия"
+    await message.answer(
+        f'Ваш диалог "*{chat_name}*" был закрыт, введите новый запрос или откройте предыдущий диалог из списка ⤵️',
+        parse_mode="Markdown",
+        reply_markup=kb
+    )
+
+    # И сразу просим ввести новый запрос (чтобы не нужно было вручную создавать чат)
+    example_prompt = await generate_example_prompt()
+    await message.answer(
+        f"""<b>Введите запрос</b>
+Например: <code>{example_prompt}</code>
+
+<u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
+        reply_markup=user_kb.get_menu("chatgpt"),
+        disable_web_page_preview=True
+    )
+    return True
 

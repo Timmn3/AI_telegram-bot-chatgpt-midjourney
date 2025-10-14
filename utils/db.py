@@ -1300,6 +1300,8 @@ async def add_message(chat_id: int, user_id: int, text: str):
         INSERT INTO messages (chat_id, user_id, text, created_at)
         VALUES ($1, $2, $3, NOW());
     """, chat_id, user_id, text)
+    # НОВОЕ: считаем это активностью — обновим "updated_at" чата
+    await conn.execute("UPDATE chats SET updated_at = NOW() WHERE id = $1", chat_id)
     await conn.close()
 
 
