@@ -64,10 +64,7 @@ async def start_message(message: Message, state: FSMContext):
         # Завершаем текущее состояние (если оно есть)
         await state.finish()
     except Exception as e:
-        # На случай, если FSM отключено или пустое
         logger.warning(f"Не удалось очистить состояние: {e}")
-
-        # Дополнительно очищаем данные, если они остались
     try:
         await state.reset_data()
     except Exception:
@@ -90,9 +87,10 @@ async def start_message(message: Message, state: FSMContext):
     user = await db.get_user(message.from_user.id)
 
     if user is None:
-        await db.add_user(message.from_user.id, message.from_user.username, message.from_user.first_name,
-                          int(inviter_id))
+        await db.add_user(message.from_user.id, message.from_user.username, message.from_user.first_name, int(inviter_id))
+        await db.change_default_ai(message.from_user.id, "chatgpt")  # ← фиксируем ChatGPT в БД на этапе регистрации
         default_ai = "chatgpt"
+
         # Уведомление пригласившего пользователя
         if inviter_id != 0:
             inviter = await db.get_user(inviter_id)
@@ -101,23 +99,24 @@ async def start_message(message: Message, state: FSMContext):
                     keyboard = InlineKeyboardMarkup().add(
                         InlineKeyboardButton("Отключить уведомления", callback_data="disable_ref_notifications")
                     )
-                    await bot.send_message(inviter_id,
-                                           f"""📈У Вас новый реферал
+                    await bot.send_message(
+                        inviter_id,
+                        f"""📈У Вас новый реферал
 └ Аккаунт: {message.from_user.id}""",
-                                           reply_markup=keyboard
-                                           )
+                        reply_markup=keyboard
+                    )
                 except Exception as e:
                     logging.warning(f"Не удалось отправить уведомление о реферале: {e}")
     else:
         default_ai = user["default_ai"]
 
     # Отправляем приветственное сообщение
-    await message.answer("""<b>NeuronAgent</b>🤖 - <i>2 нейросети в одном месте!</i>
-<b>ChatGPT или Midjourney?</b>""", reply_markup=user_kb.get_menu(default_ai))
+    await message.answer(
+        """<b>NeuronAgent</b>🤖 - <i>2 нейросети в одном месте!</i>
+<b>ChatGPT или Midjourney?</b>""",
+        reply_markup=user_kb.get_menu(default_ai)
+    )
 
-    # Проверка промокода, если он был передан
-    # if code is not None:
-    #     await check_promocode(message.from_user.id, code, message.bot)
 
 # Снижение баланса пользователя
 async def remove_balance(bot: Bot, user_id):
