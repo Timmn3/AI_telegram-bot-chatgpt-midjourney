@@ -114,7 +114,7 @@ async def start_message(message: Message, state: FSMContext):
     await message.answer(
         """<b>NeuronAgent</b>🤖 - <i>2 нейросети в одном месте!</i>
 <b>ChatGPT или Midjourney?</b>""",
-        reply_markup=user_kb.get_menu(default_ai)
+        reply_markup=user_kb.get_start_inline()
     )
 
 
@@ -748,7 +748,7 @@ async def check_sub(call: CallbackQuery):
     await call.message.answer(
         "<b>NeuronAgent</b>🤖 - <i>2 нейросети в одном месте!</i>\n\n"
         "<b>ChatGPT или Midjourney?</b>",
-        reply_markup=user_kb.get_menu(user['default_ai'])
+        reply_markup=user_kb.get_start_inline()
     )
     await call.answer()
 
@@ -765,7 +765,7 @@ async def back_to_menu(call: CallbackQuery):
     user = await db.get_user(call.from_user.id)  # Получаем данные пользователя
     await call.message.answer("""NeuronAgent🤖 - 2 нейросети в одном месте!
 
-ChatGPT или Midjourney?""", reply_markup=user_kb.get_menu(user["default_ai"]))  # Меню выбора AI
+ChatGPT или Midjourney?""", reply_markup=user_kb.get_start_inline())  # Меню выбора AI
     await call.message.delete()  # Удаляем предыдущее сообщение
 
 
@@ -956,14 +956,23 @@ async def ask_question(message: Message, state: FSMContext):
     await message.answer("Режим: ChatGPT", reply_markup=user_kb.get_menu("chatgpt"))
 
     user_id = message.from_user.id
-    user = await db.get_user(user_id)  # Получаем данные пользователя
-    model = (user["gpt_model"]).replace("-", "_")
+    user = await db.get_user(user_id)
+    if user is None:
+        await db.add_user(user_id, message.from_user.username, message.from_user.first_name, 0)
+        try:
+            await db.set_model(user_id, "5")
+        except Exception:
+            pass
+        await db.change_default_ai(user_id, "chatgpt")
+        user = await db.get_user(user_id)
 
-    logger.info(f'Выбранная модель {model}')
+    # безопасно получаем модель
+    model = (user.get("gpt_model") or "5").replace("-", "_")
 
-    # Проверяем наличие токенов и подписки
-    if user[f"tokens_{model}"] <= 0:
-        return await not_enough_balance(message.bot, user_id, "chatgpt")  # Сообщаем об исчерпании лимита
+    # безопасно проверяем токены
+    tokens_left = int(user.get(f"tokens_{model}", 0) or 0)
+    if tokens_left <= 0:
+        return await not_enough_balance(message.bot, user_id, "chatgpt")
 
     # Получаем текущий активный чат
     current_chat = await db.get_chat_by_id(user["current_chat_id"])
@@ -2208,3 +2217,25 @@ async def close_inactive_chat_and_prompt(message, *, with_mode_banner: bool):
     )
     return True
 
+
+@dp.callback_query_handler(Text(startswith="choose_ai:"))
+async def choose_ai(call: CallbackQuery, state: FSMContext):
+    choice = call.data.split(":")[1]          # 'gpt' | 'mj'
+    user_id = call.from_user.id
+
+    # ⚙️ гарантируем, что пользователь есть в БД
+    user = await db.get_user(user_id)
+    if user is None:
+        await db.add_user(user_id, call.from_user.username, call.from_user.first_name, 0)
+        try:
+            await db.set_model(user_id, "5")  # дефолт для GPT
+        except Exception:
+            pass
+        await db.change_default_ai(user_id, "chatgpt" if choice == "gpt" else "image")
+
+    await call.answer()
+
+    if choice == "gpt":
+        await ask_question(call.message, state)
+    else:
+        await gen_img(call.message, state)

@@ -405,3 +405,11 @@ background_menu = InlineKeyboardMarkup(row_width=2).add(
     InlineKeyboardButton("auto", callback_data="set_background_auto"),
     InlineKeyboardButton("🔙 Назад", callback_data="back_to_settings")
 )
+
+def get_start_inline():
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("💬 ChatGPT", callback_data="choose_ai:gpt"),
+        InlineKeyboardButton("🎨 Midjourney", callback_data="choose_ai:mj"),
+    )
+    return kb
