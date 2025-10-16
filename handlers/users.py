@@ -1409,6 +1409,12 @@ async def handle_albums(message: Message, album: List[Message], state: FSMContex
     if len(album) != 2 or not (album[0].photo and album[1].photo):
         return await message.answer("Пришлите два фото, чтобы их склеить")
 
+    # ❗ Как в photo_imagine: требуем описание (подпись)
+    caption = (album[0].caption or album[1].caption or "").strip()
+    if not caption:
+        await message.answer("Добавьте описание к фотографии")
+        return
+
     # Получаем ссылки на обе картинки (через внешний хостинг)
     file1 = await album[0].photo[-1].get_file()
     url1 = f"https://api.telegram.org/file/bot{TOKEN}/{file1.file_path}"
@@ -1423,15 +1429,14 @@ async def handle_albums(message: Message, album: List[Message], state: FSMContex
         await message.bot.send_message(bug_id, "Необходимо заменить API-ключ фотохостинга")
         return
 
+    # Формируем общий промпт: обе ссылки + подпись
+    prompt = f"{ds_photo_url1} {ds_photo_url2} {caption}".strip()
+    await state.update_data(prompt=prompt)
+
     user = await db.get_user(message.from_user.id)
 
-    # ✅ Главное изменение: если активен ChatGPT — НЕ уходим в Midjourney.
+    # ✅ В режиме ChatGPT анализируем 2 фото, не вызывая Midjourney
     if user and user["default_ai"] == "chatgpt":
-        # Анализ двух изображений ChatGPT (подпись возьмём из первого фото, если есть)
-        caption = (album[0].caption or album[1].caption or "").strip()
-        prompt = f"{ds_photo_url1} {ds_photo_url2}" + (f" {caption}" if caption else "")
-        await state.update_data(prompt=prompt)
-
         model = (user["gpt_model"]).replace('-', '_')
         if user[f"tokens_{model}"] <= 0:
             return await not_enough_balance(message.bot, message.from_user.id, "chatgpt")
@@ -1444,10 +1449,9 @@ async def handle_albums(message: Message, album: List[Message], state: FSMContex
         await state.update_data(messages=update_messages)
         return  # Ничего больше не делаем — в ChatGPT-режиме MJ не вызываем
 
-    # В остальных режимах — прежнее поведение (склейка через Midjourney)
-    prompt = f"{ds_photo_url1} {ds_photo_url2}"
-    await state.update_data(prompt=prompt)
+    # 🎨 В остальных режимах — Midjourney (теперь тоже только после подписи)
     await get_mj(prompt, message.from_user.id, message.bot)
+
 
 
 # Вход в меню выбора модели GPT
