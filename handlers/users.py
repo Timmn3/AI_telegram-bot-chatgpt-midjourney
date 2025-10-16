@@ -1405,37 +1405,40 @@ async def photo_imagine(message: Message, state: FSMContext):
 # Хендлер для обработки альбомов (групповых фото)
 @dp.message_handler(is_media_group=True, content_types=ContentType.ANY)
 async def handle_albums(message: Message, album: List[Message], state: FSMContext):
-    # Ждём строго 2 фото
-    if len(album) != 2 or not (album[0].photo and album[1].photo):
-        return await message.answer("Пришлите два фото, чтобы их склеить")
+    # Собираем все фото из альбома
+    photos = [m for m in album if m.photo]
+    if len(photos) < 2:
+        return await message.answer("Пришлите как минимум 2 фото одним альбомом")
 
-    # ❗ Как в photo_imagine: требуем описание (подпись)
-    caption = (album[0].caption or album[1].caption or "").strip()
+    # (у альбома подпись чаще всего в первом элементе, но на всякий случай ищем по всем)
+    caption = ""
+    for m in album:
+        if (m.caption or "").strip():
+            caption = m.caption.strip()
+            break
     if not caption:
         await message.answer("Добавьте описание к фотографии")
         return
 
-    # Получаем ссылки на обе картинки (через внешний хостинг)
-    file1 = await album[0].photo[-1].get_file()
-    url1 = f"https://api.telegram.org/file/bot{TOKEN}/{file1.file_path}"
-    ds_photo_url1 = await more_api.upload_photo_to_host(url1)
+    # Грузим ВСЕ фото на внешний хостинг
+    ds_urls = []
+    for m in photos:
+        file = await m.photo[-1].get_file()
+        url = f"https://api.telegram.org/file/bot{TOKEN}/{file.file_path}"
+        ds_url = await more_api.upload_photo_to_host(url)
+        if ds_url == "error":
+            await message.answer("Генерация с фото недоступна, повторите попытку позже")
+            await message.bot.send_message(bug_id, "Необходимо заменить API-ключ фотохостинга")
+            return
+        ds_urls.append(ds_url)
 
-    file2 = await album[1].photo[-1].get_file()
-    url2 = f"https://api.telegram.org/file/bot{TOKEN}/{file2.file_path}"
-    ds_photo_url2 = await more_api.upload_photo_to_host(url2)
-
-    if ds_photo_url1 == "error" or ds_photo_url2 == "error":
-        await message.answer("Генерация с фото недоступна, повторите попытку позже")
-        await message.bot.send_message(bug_id, "Необходимо заменить API-ключ фотохостинга")
-        return
-
-    # Формируем общий промпт: обе ссылки + подпись
-    prompt = f"{ds_photo_url1} {ds_photo_url2} {caption}".strip()
+    # Промпт: все ссылки + подпись
+    prompt = (" ".join(ds_urls) + " " + caption).strip()
     await state.update_data(prompt=prompt)
 
     user = await db.get_user(message.from_user.id)
 
-    # ✅ В режиме ChatGPT анализируем 2 фото, не вызывая Midjourney
+    # ✅ Если выбран ChatGPT — анализируем изображения через ChatGPT и НЕ вызываем Midjourney
     if user and user["default_ai"] == "chatgpt":
         model = (user["gpt_model"]).replace('-', '_')
         if user[f"tokens_{model}"] <= 0:
@@ -1444,12 +1447,18 @@ async def handle_albums(message: Message, album: List[Message], state: FSMContex
         data = await state.get_data()
         system_msg = user["chatgpt_about_me"] + "\n" + user["chatgpt_settings"]
         messages = [{"role": "system", "content": system_msg}] if "messages" not in data else data["messages"]
-        update_messages = await get_gpt(prompt, messages=messages, user_id=message.from_user.id,
-                                        bot=message.bot, state=state)
-        await state.update_data(messages=update_messages)
-        return  # Ничего больше не делаем — в ChatGPT-режиме MJ не вызываем
 
-    # 🎨 В остальных режимах — Midjourney (теперь тоже только после подписи)
+        update_messages = await get_gpt(
+            prompt,
+            messages=messages,
+            user_id=message.from_user.id,
+            bot=message.bot,
+            state=state
+        )
+        await state.update_data(messages=update_messages)
+        return  # В ChatGPT-режиме Midjourney не трогаем
+
+    # 🎨 Иначе — режимы изображений (Midjourney и т.п.)
     await get_mj(prompt, message.from_user.id, message.bot)
 
 
