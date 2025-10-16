@@ -30,7 +30,6 @@ mj_api = MidJourneyAPI(primary_api="goapi")  # Начнем с GoAPI
 
 # Функция для получения MidJourney токена в зависимости от индекса
 def get_mj_token(index):
-
     if index == 0:
         return TNL_API_KEY
     elif index == 1:
@@ -39,15 +38,21 @@ def get_mj_token(index):
 
 # Добавление действия пользователя в базу данных (например, создание изображения или запрос в AI)
 async def add_mj_action(user_id, action_type):
-
+    """
+    Создаём запись действия и НЕ блокируем event loop при уведомлении внешнего сервиса:
+    requests.post вынесен в отдельный поток через asyncio.to_thread.
+    """
     action_id = await db.add_action(user_id, action_type)  # Сохраняем действие в базе
     try:
-        requests.post(NOTIFY_URL + f"/action/{action_id}")  # Отправляем уведомление о новом действии
-    except:
+        # Отправляем уведомление о новом действии (в отдельном потоке)
+        await asyncio.to_thread(requests.post, NOTIFY_URL + f"/action/{action_id}")
+    except Exception:
         pass
     return action_id
 
+
 my_bot = Bot(TOKEN)
+
 # Функция для отправки сообщения об ошибке админу бота
 async def send_error(text):
     await my_bot.send_message(ADMINS_CODER, text)
@@ -72,7 +77,6 @@ async def get_translate(text):
     # Склеиваем всё
     result = f"{translated.strip()} {' '.join(special_tags)}"
     return result
-
 
 
 import base64
@@ -142,26 +146,23 @@ async def get_gpt(messages, model):
                 # Заменяем оригинальное сообщение на преобразованное
                 message["content"] = new_content
 
-
         logger.info(f'MESSAGES: {messages}')
         try:
             response = await asyncio.to_thread(
                 client.chat.completions.create,
                 model=f"{model_map[model]}",
-                messages=messages[-10:]
+                messages=messages[-10:]  # Последние 10 сообщений
             )
         except Exception as e:
             response = await asyncio.to_thread(
                 client.chat.completions.create,
                 model=f"{model_map['5']}",
-                messages=messages[-10:]
+                messages=messages[-10:]  # Последние 10 сообщений
             )
             logging.error(f'ChatGPT Error model {model} \n {e}')
 
-
         content = response.choices[0].message.content  # Получаем ответ
         tokens = response.usage.total_tokens  # Получаем количество использованных токенов
-
 
     except openai.OpenAIError as e:
         status = False
@@ -177,26 +178,32 @@ async def get_gpt(messages, model):
 
 # Функция для отправки запроса в MidJourney
 async def get_mdjrny(prompt, user_id):
-
+    """
+    Переводим промпт, создаём действие и отправляем imagine через mj_api.
+    Сетевых блокирующих вызовов здесь нет.
+    """
     translated_prompt = await get_translate(prompt)  # Переводим запрос на английский
     request_id = await db.add_action(user_id, "image", "imagine")  # Сохраняем действие в базе данных
     response = await mj_api.imagine(translated_prompt, request_id)  # Отправляем запрос в Midjourney
-
     return response
 
 
 # Функция для выбора и улучшения изображения в MidJourney
 async def get_choose_mdjrny(task_id, image_id, user_id):
-
+    """
+    upscale через mj_api — корутина, не блокирует event loop.
+    """
     action_id = await db.add_action(user_id, "image", "upscale")  # Сохраняем действие в базе данных
-
     response = await mj_api.upscale(task_id, image_id, action_id)  # Отправляем запрос на улучшение изображения
     return response
 
 
 # Функция для нажатия кнопок MidJourney (вариации или улучшения)
 async def press_mj_button(button, buttonMessageId, user_id, api_key_number):
-    
+    """
+    Нажатие на кнопку MJ. Внешний вызов requests.post вынесен в отдельный поток,
+    чтобы не блокировать обработку других апдейтов.
+    """
     action_id = await db.add_action(user_id, "image", "imagine")  # Сохраняем действие в базе данных
     status = True
     api_key = get_mj_token(api_key_number)  # Получаем токен
@@ -211,10 +218,19 @@ async def press_mj_button(button, buttonMessageId, user_id, api_key_number):
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {api_key}'
         }
-        res = requests.post("https://api.justimagineapi.org/v1" + "/button", json=payload, headers=headers)  # Отправляем запрос
+        # Вынесли синхронный HTTP-запрос в отдельный поток
+        res = await asyncio.to_thread(
+            requests.post,
+            "https://api.justimagineapi.org/v1/button",
+            json=payload,
+            headers=headers,
+            timeout=30
+        )
         res = res.json()
     except requests.exceptions.JSONDecodeError:
         status = False  # Ошибка при обработке JSON
+    except Exception:
+        status = False
     return status
 
 
@@ -223,7 +239,7 @@ async def press_mj_button(button, buttonMessageId, user_id, api_key_number):
 def voice_to_text(file_path):
     recognizer = sr.Recognizer()
     audio = AudioSegment.from_file(file_path)
-    
+
     # Сохраняем аудио как временный wav-файл
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav_file:
         audio.export(temp_wav_file.name, format="wav")
@@ -231,9 +247,9 @@ def voice_to_text(file_path):
 
     with sr.AudioFile(temp_wav_file_path) as source:
         audio_data = recognizer.record(source)
-        
+
     os.remove(temp_wav_file_path)  # Удаляем временный файл
-    
+
     try:
         text = recognizer.recognize_google(audio_data, language="ru-RU")
         return text
@@ -242,8 +258,8 @@ def voice_to_text(file_path):
     except sr.RequestError:
         return "Ошибка запроса к сервису распознавания"
 
-def text_to_speech(text, model="tts-1", voice="onyx"):
 
+def text_to_speech(text, model="tts-1", voice="onyx"):
     # Создаем временный файл для аудио
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_audio_file:
         temp_audio_path = temp_audio_file.name
@@ -260,5 +276,3 @@ def text_to_speech(text, model="tts-1", voice="onyx"):
     audio_file = InputFile(temp_audio_path)
 
     return audio_file
-
-
