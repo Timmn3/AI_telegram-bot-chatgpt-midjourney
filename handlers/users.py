@@ -1405,22 +1405,49 @@ async def photo_imagine(message: Message, state: FSMContext):
 # Хендлер для обработки альбомов (групповых фото)
 @dp.message_handler(is_media_group=True, content_types=ContentType.ANY)
 async def handle_albums(message: Message, album: List[Message], state: FSMContext):
+    # Ждём строго 2 фото
     if len(album) != 2 or not (album[0].photo and album[1].photo):
         return await message.answer("Пришлите два фото, чтобы их склеить")
 
-    # Обработка первого фото
-    file = await album[0].photo[-1].get_file()
-    photo_url = f"https://api.telegram.org/file/bot{TOKEN}/{file.file_path}"
-    ds_photo_url1 = await more_api.upload_photo_to_host(photo_url)
+    # Получаем ссылки на обе картинки (через внешний хостинг)
+    file1 = await album[0].photo[-1].get_file()
+    url1 = f"https://api.telegram.org/file/bot{TOKEN}/{file1.file_path}"
+    ds_photo_url1 = await more_api.upload_photo_to_host(url1)
 
-    # Обработка второго фото
-    file = await album[1].photo[-1].get_file()
-    photo_url = f"https://api.telegram.org/file/bot{TOKEN}/{file.file_path}"
-    ds_photo_url2 = await more_api.upload_photo_to_host(photo_url)
+    file2 = await album[1].photo[-1].get_file()
+    url2 = f"https://api.telegram.org/file/bot{TOKEN}/{file2.file_path}"
+    ds_photo_url2 = await more_api.upload_photo_to_host(url2)
 
-    prompt = f"{ds_photo_url1} {ds_photo_url2}"  # Создаем запрос для двух фото
+    if ds_photo_url1 == "error" or ds_photo_url2 == "error":
+        await message.answer("Генерация с фото недоступна, повторите попытку позже")
+        await message.bot.send_message(bug_id, "Необходимо заменить API-ключ фотохостинга")
+        return
+
+    user = await db.get_user(message.from_user.id)
+
+    # ✅ Главное изменение: если активен ChatGPT — НЕ уходим в Midjourney.
+    if user and user["default_ai"] == "chatgpt":
+        # Анализ двух изображений ChatGPT (подпись возьмём из первого фото, если есть)
+        caption = (album[0].caption or album[1].caption or "").strip()
+        prompt = f"{ds_photo_url1} {ds_photo_url2}" + (f" {caption}" if caption else "")
+        await state.update_data(prompt=prompt)
+
+        model = (user["gpt_model"]).replace('-', '_')
+        if user[f"tokens_{model}"] <= 0:
+            return await not_enough_balance(message.bot, message.from_user.id, "chatgpt")
+
+        data = await state.get_data()
+        system_msg = user["chatgpt_about_me"] + "\n" + user["chatgpt_settings"]
+        messages = [{"role": "system", "content": system_msg}] if "messages" not in data else data["messages"]
+        update_messages = await get_gpt(prompt, messages=messages, user_id=message.from_user.id,
+                                        bot=message.bot, state=state)
+        await state.update_data(messages=update_messages)
+        return  # Ничего больше не делаем — в ChatGPT-режиме MJ не вызываем
+
+    # В остальных режимах — прежнее поведение (склейка через Midjourney)
+    prompt = f"{ds_photo_url1} {ds_photo_url2}"
     await state.update_data(prompt=prompt)
-    await get_mj(prompt, message.from_user.id, message.bot)  # Генерация изображения через MidJourney
+    await get_mj(prompt, message.from_user.id, message.bot)
 
 
 # Вход в меню выбора модели GPT
