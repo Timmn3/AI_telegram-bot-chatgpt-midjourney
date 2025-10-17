@@ -754,12 +754,16 @@ async def check_sub(call: CallbackQuery):
     # Обновляем статус в БД (если используешь is_subscribed)
     await db.update_is_subscribed(user_id, True)
 
+    # Сообщение с запросом ввода
+    example_prompt = await generate_example_prompt()
     await call.message.answer(
-        "<b>NeuronAgent</b>🤖 - <i>2 нейросети в одном месте!</i>\n\n"
-        "<b>ChatGPT или Midjourney?</b>",
-        reply_markup=user_kb.get_start_inline()
+        f"""<b>Введите запрос</b>
+    Например: <code>{example_prompt}</code>
+
+    <u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
+        reply_markup=user_kb.get_menu("chatgpt"),
+        disable_web_page_preview=True
     )
-    await call.answer()
 
 
 # Хендлер для удаления сообщения через callback-запрос
@@ -772,9 +776,21 @@ async def delete_msg(call: CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(text="back_to_menu")
 async def back_to_menu(call: CallbackQuery):
     user = await db.get_user(call.from_user.id)  # Получаем данные пользователя
-    await call.message.answer("""NeuronAgent🤖 - 2 нейросети в одном месте!
 
-ChatGPT или Midjourney?""", reply_markup=user_kb.get_start_inline())  # Меню выбора AI
+    # Сообщение с запросом ввода
+    example_prompt = await generate_example_prompt()
+    await call.message.answer(
+        f"""<b>Введите запрос</b>
+        Например: <code>{example_prompt}</code>
+
+        <u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
+        reply_markup=user_kb.get_menu("chatgpt"),
+        disable_web_page_preview=True
+    )
+
+#     await call.message.answer("""NeuronAgent🤖 - 2 нейросети в одном месте!
+#
+# ChatGPT или Midjourney?""", reply_markup=user_kb.get_start_inline())  # Меню выбора AI
     await call.message.delete()  # Удаляем предыдущее сообщение
 
 
