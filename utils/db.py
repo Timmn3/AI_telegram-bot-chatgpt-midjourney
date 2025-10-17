@@ -218,7 +218,7 @@ async def add_user(user_id, username, first_name, inviter_id):
             gpt_model,
             is_subscribed, used_trial
         )
-        VALUES ($1, $2, $3, $4, $5, 3, 200000, 200000, '5_mini', FALSE, FALSE)
+        VALUES ($1, $2, $3, $4, $5, 0, 200000, 200000, '5_mini', FALSE, FALSE)
         ON CONFLICT (user_id) DO NOTHING
         """,
         user_id, username, first_name, int(datetime.now().timestamp()), inviter_id
