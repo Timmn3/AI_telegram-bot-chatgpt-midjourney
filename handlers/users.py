@@ -109,13 +109,22 @@ async def start_message(message: Message, state: FSMContext):
                     logging.warning(f"Не удалось отправить уведомление о реферале: {e}")
     else:
         default_ai = user["default_ai"]
-
-    # Отправляем приветственное сообщение
+        # Сообщение с запросом ввода
+    example_prompt = await generate_example_prompt()
     await message.answer(
-        """<b>NeuronAgent</b>🤖 - <i>2 нейросети в одном месте!</i>
-<b>ChatGPT или Midjourney?</b>""",
-        reply_markup=user_kb.get_start_inline()
+        f"""<b>Введите запрос</b>
+Например: <code>{example_prompt}</code>
+
+<u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
+        reply_markup=user_kb.get_menu("chatgpt"),
+        disable_web_page_preview=True
     )
+    # Отправляем приветственное сообщение
+#     await message.answer(
+#         """<b>NeuronAgent</b>🤖 - <i>2 нейросети в одном месте!</i>
+# <b>ChatGPT или Midjourney?</b>""",
+#         reply_markup=user_kb.get_start_inline()
+#     )
 
 
 # Снижение баланса пользователя
