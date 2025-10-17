@@ -170,17 +170,13 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
             # Если уведомление было менее 24 часов назад, показываем меню со скидкой
             if now < last_notification + timedelta(hours=24):
                 await bot.send_message(user_id, """
-⚠️Запросы для Midjourney закончились!
-
-Выберите интересующий вас вариант⤵️
+Выберите количество запросов⤵️
                 """,
                                        reply_markup=user_kb.get_midjourney_discount_requests_menu()
                                        )
                 return
         await bot.send_message(user_id, """
-⚠️Запросы для Midjourney закончились!
-
-Выберите интересующий вас вариант⤵️
+Выберите количество запросов⤵️
         """,
                                reply_markup=user_kb.get_midjourney_requests_menu())  # Отправляем уведомление с клавиатурой для пополнения запросов
 
