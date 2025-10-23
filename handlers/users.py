@@ -108,7 +108,7 @@ async def start_message(message: Message, state: FSMContext):
                 except Exception as e:
                     logging.warning(f"Не удалось отправить уведомление о реферале: {e}")
     else:
-        default_ai = user["default_ai"]
+        await db.change_default_ai(message.from_user.id, "chatgpt")
         # Сообщение с запросом ввода
     example_prompt = await generate_example_prompt()
     await message.answer(
