@@ -1026,7 +1026,7 @@ async def fetch_short_statistics() -> str:
         chatgpt_requests_today = await conn.fetchval("""
             SELECT COUNT(*)
             FROM usage
-            WHERE ai_type IN ('5', '5-mini') AND create_time >= $1
+            WHERE ai_type IN ('5', '5-mini', '5_mini') AND create_time >= $1
         """, start_of_day)
         logger.info(f"ChatGPT запросов за сегодня: {chatgpt_requests_today}")
 
