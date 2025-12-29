@@ -1519,3 +1519,31 @@ async def extend_gpt_access(user_id: int, days: int = 14):
         int(user_id), int(days)
     )
     await conn.close()
+
+# Пользователи, у которых доступ к ChatGPT истекает в ближайшие N дней и которым ещё не отправляли предупреждение
+async def get_users_gpt_expiring(days_left: int = 3):
+    conn: Connection = await get_conn()
+    rows = await conn.fetch(
+        """
+        SELECT user_id, gpt_access_until
+        FROM users
+        WHERE gpt_access_until IS NOT NULL
+          AND gpt_expire_warned = FALSE
+          AND gpt_access_until > (NOW() AT TIME ZONE 'utc')
+          AND gpt_access_until <= (NOW() AT TIME ZONE 'utc') + ($1 || ' days')::interval
+        ORDER BY gpt_access_until ASC
+        """,
+        int(days_left)
+    )
+    await conn.close()
+    return rows
+
+
+# Помечаем, что предупреждение об окончании доступа уже отправляли (чтобы не спамить)
+async def set_gpt_expire_warned(user_id: int, value: bool = True):
+    conn: Connection = await get_conn()
+    await conn.execute(
+        "UPDATE users SET gpt_expire_warned = $2 WHERE user_id = $1",
+        int(user_id), bool(value)
+    )
+    await conn.close()

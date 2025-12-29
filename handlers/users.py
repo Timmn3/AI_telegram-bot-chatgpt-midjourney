@@ -91,22 +91,43 @@ async def start_message(message: Message, state: FSMContext):
         await db.change_default_ai(message.from_user.id, "chatgpt")  # ← фиксируем ChatGPT в БД на этапе регистрации
         default_ai = "chatgpt"
 
-        # Уведомление пригласившего пользователя
-        if inviter_id != 0:
+        # Уведомление пригласившего пользователя + продление ChatGPT на 14 дней
+        if inviter_id != 0 and int(inviter_id) != int(message.from_user.id):
             inviter = await db.get_user(inviter_id)
-            if inviter and inviter.get("ref_notifications_enabled", True):
-                try:
-                    keyboard = InlineKeyboardMarkup().add(
-                        InlineKeyboardButton("Отключить уведомления", callback_data="disable_ref_notifications")
-                    )
-                    await bot.send_message(
-                        inviter_id,
-                        f"""📈У Вас новый реферал
-└ Аккаунт: {message.from_user.id}""",
-                        reply_markup=keyboard
-                    )
-                except Exception as e:
-                    logging.warning(f"Не удалось отправить уведомление о реферале: {e}")
+            if inviter:
+                # ✅ продлеваем доступ пригласившему
+                await db.extend_gpt_access(inviter_id, 14)
+
+                # берём обновлённые данные, чтобы показать новую дату
+                inviter_after = await db.get_user(inviter_id)
+                access_until = inviter_after.get("gpt_access_until")
+
+                if access_until:
+                    until_str = access_until.strftime("%d.%m.%Y %H:%M")
+                else:
+                    until_str = "—"
+
+                # 🔔 уведомление (если включено)
+                if inviter_after.get("ref_notifications_enabled", True):
+                    try:
+                        keyboard = InlineKeyboardMarkup().add(
+                            InlineKeyboardButton(
+                                "Отключить уведомления",
+                                callback_data="disable_ref_notifications"
+                            )
+                        )
+                        await bot.send_message(
+                            inviter_id,
+                            f"""🎉 <b>У Вас новый реферал</b>
+└ Аккаунт: <code>{message.from_user.id}</code>
+
+✅ <b>Добавили вам +14 дней ChatGPT</b>
+⏳ Доступ до: <b>{until_str}</b>""",
+                            reply_markup=keyboard
+                        )
+                    except Exception as e:
+                        logging.warning(f"Не удалось отправить уведомление о реферале: {e}")
+
     else:
         await db.change_default_ai(message.from_user.id, "chatgpt")
         # Сообщение с запросом ввода
