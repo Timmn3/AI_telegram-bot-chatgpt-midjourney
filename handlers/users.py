@@ -824,8 +824,8 @@ async def ref_menu(message: Message):
     orders_count = int(ref_data.get("orders_count") or 0)
     available_for_withdrawal = ref_data.get("available_for_withdrawal") or 0
 
-    # +14 дней за каждого приглашённого
-    total_gpt_days = count_refs * 14
+    # ✅ Всего заработано дней доступа к ChatGPT за рефералов (накопительно, не зависит от старых инвайтов)
+    total_gpt_days = int((user.get("gpt_referral_days_earned") if user else 0) or 0)
 
     ref_link = f'{bot_url}?start=r{user_id}'
 
