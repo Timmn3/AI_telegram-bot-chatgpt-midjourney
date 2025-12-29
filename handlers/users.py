@@ -2222,6 +2222,13 @@ async def check_access_or_prompt(message) -> bool:
     now = datetime.utcnow()
     access_until = user.get("gpt_access_until")
 
+    # Если у пользователя ещё нет срока — выдаём дефолтные 14 дней и сохраняем в БД
+    if not access_until:
+        await db.extend_gpt_access(user_id, 14)
+        user = await db.get_user(user_id)
+        access_until = user.get("gpt_access_until")
+
+
     # страховка: если в БД по какой-то причине NULL — даём 14 дней (пока без сохранения в БД)
     if access_until is None:
         access_until = now + timedelta(days=14)
