@@ -869,36 +869,47 @@ async def ref_menu(message: Message):
     )
 
 
-# Хендлер для показа профиля пользователя (страница аккаунта)
 @dp.message_handler(state="*", text="⚙Аккаунт")
 @dp.message_handler(state="*", commands="account")
 async def show_profile(message: Message, state: FSMContext):
     if not await check_access_or_prompt(message):
         return
+
     await state.finish()
     user_id = message.from_user.id
-    user = await db.get_user(user_id)  # Получаем данные пользователя
+    user = await db.get_user(user_id)
     user_lang = user['chat_gpt_lang']
 
-    mj = int(user['mj']) + int(user['free_image']) if int(user['mj']) + int(user['free_image']) >= 0 else 0
-    gpt_5 = max(int(user.get('tokens_5', 0)), 0)
-    gpt_5_mini = max(int(user.get('tokens_5_mini', 0)), 0)
+    mj = int(user['mj']) + int(user['free_image'])
+    mj = mj if mj >= 0 else 0
 
-    logger.info(
-        f"Количество токенов и запросов для {user_id}:mj: {mj}, gpt_5: {gpt_5}, gpt_5_mini: {gpt_5_mini}")
+    # ✅ дни доступа к ChatGPT
+    from math import ceil
+    from datetime import datetime
 
-    # Формируем текст с количеством доступных генераций и токенов
+    access_until = user.get("gpt_access_until")
+    days_left = 0
+    if access_until:
+        now = datetime.utcnow()
+        delta_sec = (access_until - now).total_seconds()
+        if delta_sec > 0:
+            days_left = int(ceil(delta_sec / 86400))
+
+    logger.info(f"Аккаунт {user_id}: mj={mj}, gpt_days_left={days_left}")
+
     sub_text = f"""
 Вам доступно⤵️
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
-Токены 💬GPT-5:  ♾️
-Токены 💬GPT-5-mini:  ♾️
+💬GPT-5:  {days_left} дней
+💬GPT-5-mini:  {days_left} дней
         """
 
-    # Отправляем сообщение с обновленными данными аккаунта
-    await message.answer(f"""🆔: <code>{user_id}</code>
-{sub_text}""", reply_markup=user_kb.get_account(user_lang, "account"))
+    await message.answer(
+        f"""🆔: <code>{user_id}</code>
+{sub_text}""",
+        reply_markup=user_kb.get_account(user_lang, "account")
+    )
 
 
 # Хендлер для возврата к профилю пользователя через callback-запрос
@@ -927,14 +938,26 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
 
         keyboard = user_kb.get_account(user_lang, "account")
 
+        # ✅ дни доступа к ChatGPT
+        from math import ceil
+        from datetime import datetime
+
+        access_until = user.get("gpt_access_until")
+        days_left = 0
+        if access_until:
+            now = datetime.utcnow()
+            delta_sec = (access_until - now).total_seconds()
+            if delta_sec > 0:
+                days_left = int(ceil(delta_sec / 86400))
+
         # Формируем текст с количеством доступных генераций и токенов
         sub_text = f"""
 Вам доступно⤵️
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
-Токены 💬GPT-5:  ♾️
-Токены 💬GPT-5-mini:  ♾️
-            """
+💬GPT-5:  {days_left} дней
+💬GPT-5-mini:  {days_left} дней
+                    """
 
         # Отправляем сообщение с обновленными данными аккаунта
         await call.message.answer(f"""🆔: <code>{user_id}</code>
