@@ -206,7 +206,8 @@ async def set_model(user_id, gpt_model):
 # Функция для добавления нового пользователя
 async def add_user(user_id, username, first_name, inviter_id):
     """
-    Регистрируем нового пользователя с дневным лимитом токенов для GPT-5 моделей.
+    Регистрируем нового пользователя.
+    ChatGPT бесплатный, но доступ выдаём на 14 дней (gpt_access_until).
     """
     conn: Connection = await get_conn()
     await conn.execute(
@@ -216,9 +217,17 @@ async def add_user(user_id, username, first_name, inviter_id):
             free_image,
             tokens_5, tokens_5_mini,
             gpt_model,
-            is_subscribed, used_trial
+            is_subscribed, used_trial,
+            gpt_access_until, gpt_expire_warned
         )
-        VALUES ($1, $2, $3, $4, $5, 0, 200000, 200000, '5_mini', FALSE, FALSE)
+        VALUES (
+            $1, $2, $3, $4, $5,
+            0,
+            200000, 200000,
+            '5_mini',
+            FALSE, FALSE,
+            (NOW() AT TIME ZONE 'utc') + INTERVAL '14 days', FALSE
+        )
         ON CONFLICT (user_id) DO NOTHING
         """,
         user_id, username, first_name, int(datetime.now().timestamp()), inviter_id
@@ -1487,3 +1496,26 @@ async def get_user_last_activity(user_id: int):
     """, user_id)
     await conn.close()
     return row["last_activity"] if row and row["last_activity"] else None
+
+
+async def extend_gpt_access(user_id: int, days: int = 14):
+    """
+    Продлеваем доступ к ChatGPT на N дней.
+    Если срок уже истёк или NULL — начинаем отсчёт от текущего момента.
+    Также сбрасываем флаг предупреждения за 3 дня (если уже стоял).
+    """
+    conn: Connection = await get_conn()
+    await conn.execute(
+        """
+        UPDATE users
+        SET gpt_access_until = CASE
+            WHEN gpt_access_until IS NULL THEN (NOW() AT TIME ZONE 'utc') + ($2 || ' days')::interval
+            WHEN gpt_access_until < (NOW() AT TIME ZONE 'utc') THEN (NOW() AT TIME ZONE 'utc') + ($2 || ' days')::interval
+            ELSE gpt_access_until + ($2 || ' days')::interval
+        END,
+        gpt_expire_warned = FALSE
+        WHERE user_id = $1
+        """,
+        int(user_id), int(days)
+    )
+    await conn.close()

@@ -2152,19 +2152,50 @@ async def confirm_delete_chat(call: CallbackQuery):
     await call.answer()
 
 
-# Проверка доступа: подписан или ещё не использовал пробный доступ
-# Если доступ запрещён — отправляет сообщение и возвращает False
+# Проверка доступа к ChatGPT по сроку (14 дней + продления за рефералов)
+# Если доступ закончился — отправляет сообщение и возвращает False
 async def check_access_or_prompt(message) -> bool:
-    if not check_channel:
-        return True
     user_id = message.from_user.id
     user = await db.get_user(user_id)
-    if not await check_reg(user_id) and user.get("used_trial"):
-        await bot.send_message(user_id,
-            "Для продолжения использования, подпишитесь на наш канал⤵️",
-            reply_markup=partner
+
+    # если вдруг пользователя нет в БД (например, старые апдейты/ручные тесты)
+    if user is None:
+        await db.add_user(
+            user_id,
+            getattr(message.from_user, "username", None),
+            getattr(message.from_user, "first_name", None),
+            0
+        )
+        user = await db.get_user(user_id)
+
+    now = datetime.utcnow()
+    access_until = user.get("gpt_access_until")
+
+    # страховка: если в БД по какой-то причине NULL — даём 14 дней (пока без сохранения в БД)
+    if access_until is None:
+        access_until = now + timedelta(days=14)
+
+    if now >= access_until:
+        ref_link = f"{bot_url}?start=r{user_id}"
+
+        from urllib.parse import quote
+        share_url = f"https://t.me/share/url?url={quote(ref_link)}"
+
+        keyboard = InlineKeyboardMarkup(row_width=1)
+        keyboard.add(
+            InlineKeyboardButton("📩 Поделиться ссылкой (+14 дней)", url=share_url)
+        )
+
+        await bot.send_message(
+            user_id,
+            f"⛔️ Доступ к ChatGPT закончился.\n\n"
+            f"Приглашай друзей по своей ссылке — за каждого даём +14 дней.\n\n"
+            f"Твоя ссылка:\n{ref_link}",
+            reply_markup=keyboard,
+            disable_web_page_preview=True
         )
         return False
+
     return True
 
 async def check_reg(user_id) -> bool:
