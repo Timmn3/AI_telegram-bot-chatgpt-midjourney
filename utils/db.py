@@ -1515,13 +1515,20 @@ async def get_user_last_activity(user_id: int):
     await conn.close()
     return row["last_activity"] if row and row["last_activity"] else None
 
-async def add_gpt_referral_days(self, user_id: int, days: int) -> None:
-    async with self.pool.acquire() as conn:
-        await conn.execute("""
-            UPDATE users
-            SET gpt_referral_days_earned = COALESCE(gpt_referral_days_earned, 0) + $1
-            WHERE user_id = $2
-        """, days, user_id)
+async def add_gpt_referral_days(user_id: int, days: int) -> None:
+    """
+    Учитываем, сколько дней ChatGPT пользователь заработал по рефералам (для статистики).
+    """
+    conn: Connection = await get_conn()
+    await conn.execute(
+        """
+        UPDATE users
+        SET gpt_referral_days_earned = COALESCE(gpt_referral_days_earned, 0) + $1
+        WHERE user_id = $2
+        """,
+        int(days), int(user_id)
+    )
+    await conn.close()
 
 async def extend_gpt_access(user_id: int, days: int = 14):
     """
