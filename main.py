@@ -57,7 +57,7 @@ def set_scheduled_jobs():
         scheduler.add_job(close_stale_chats_job, "interval", minutes=5, id="close_stale_chats")
 
         # ✅ предупреждение за 3 дня до окончания ChatGPT
-        scheduler.add_job(gpt_expiry_warn_job, "interval", minutes=1, id="gpt_expiry_warn")
+        scheduler.add_job(gpt_expiry_warn_job, "interval", minutes=60, id="gpt_expiry_warn")
 
     except Exception as e:
         logger.error(f"Error while adding scheduled jobs: {e}")
