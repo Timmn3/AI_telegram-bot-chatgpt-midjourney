@@ -811,7 +811,6 @@ async def back_to_menu(call: CallbackQuery):
     await call.message.delete()  # Удаляем предыдущее сообщение
 
 
-# Хендлер для партнерской программы
 @dp.message_handler(state="*", text="🤝Партнерская программа")
 @dp.message_handler(commands='partner')
 async def ref_menu(message: Message):
@@ -819,7 +818,13 @@ async def ref_menu(message: Message):
     ref_data = await db.get_ref_stat(user_id)
     user = await db.get_user(user_id)
 
-    all_income = ref_data['all_income'] if ref_data['all_income'] is not None else 0
+    all_income = ref_data['all_income'] if ref_data.get('all_income') is not None else 0
+    count_refs = int(ref_data.get("count_refs") or 0)
+    orders_count = int(ref_data.get("orders_count") or 0)
+    available_for_withdrawal = ref_data.get("available_for_withdrawal") or 0
+
+    # +14 дней за каждого приглашённого
+    total_gpt_days = count_refs * 14
 
     ref_link = f'{bot_url}?start=r{user_id}'
 
@@ -834,7 +839,7 @@ async def ref_menu(message: Message):
     )
 
     # Добавляем кнопку включения уведомлений, если они отключены
-    if not user.get("ref_notifications_enabled", True):
+    if user and not user.get("ref_notifications_enabled", True):
         keyboard.add(
             InlineKeyboardButton("🔔 Включить уведомления о рефералах", callback_data="enable_ref_notifications")
         )
@@ -846,16 +851,18 @@ async def ref_menu(message: Message):
         more_api.get_qr_photo(ref_link),
         caption=f'''<b>🤝 Партнёрская программа</b>
 
-<i>Приводи друзей и зарабатывай 15% с их пополнений, пожизненно!</i>
+<i>Приводи друзей и получай 2 недели ChatGPT бесплатно.</i>
+<i>Зарабатывай 15% с их пополнений, пожизненно!</i>
 
 <b>⬇️ Твоя реферальная ссылка:</b>
 └ {ref_link}
 
 <b>🏅 Статистика:</b>
-├ Лично приглашённых: <b>{ref_data["count_refs"]}</b>
-├ Количество оплат: <b>{ref_data["orders_count"]}</b>
+├ Лично приглашённых: <b>{count_refs}</b>
+├ Количество оплат: <b>{orders_count}</b>
+├ Всего получено дней для ChatGPT: <b>{total_gpt_days}</b>
 ├ Всего заработано: <b>{all_income}</b> рублей
-└ Доступно к выводу: <b>{ref_data["available_for_withdrawal"]}</b> рублей
+└ Доступно к выводу: <b>{available_for_withdrawal}</b> рублей
 
 Ваша реферальная ссылка: ''',
         reply_markup=keyboard
