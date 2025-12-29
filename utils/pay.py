@@ -226,8 +226,6 @@ async def process_purchase(bot, order_id):
                 )
 
                 try:
-                    # ✅ добавляем пригласившему +14 дней доступа к ChatGPT
-                    await db.extend_gpt_access(inviter_id, 14)
 
                     await bot.send_message(
                         inviter_id,

@@ -97,6 +97,7 @@ async def start_message(message: Message, state: FSMContext):
             if inviter:
                 # ✅ продлеваем доступ пригласившему
                 await db.extend_gpt_access(inviter_id, 14)
+                await db.add_gpt_referral_days(inviter_id, 14)
 
                 # берём обновлённые данные, чтобы показать новую дату
                 inviter_after = await db.get_user(inviter_id)
