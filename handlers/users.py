@@ -888,6 +888,18 @@ async def show_profile(message: Message, state: FSMContext):
     from math import ceil
     from datetime import datetime
 
+    def ru_days(n: int) -> str:
+        n = abs(int(n))
+        n100 = n % 100
+        n10 = n % 10
+        if 11 <= n100 <= 14:
+            return "дней"
+        if n10 == 1:
+            return "день"
+        if 2 <= n10 <= 4:
+            return "дня"
+        return "дней"
+
     access_until = user.get("gpt_access_until")
     days_left = 0
     if access_until:
@@ -895,6 +907,7 @@ async def show_profile(message: Message, state: FSMContext):
         delta_sec = (access_until - now).total_seconds()
         if delta_sec > 0:
             days_left = int(ceil(delta_sec / 86400))
+    days_word = ru_days(days_left)
 
     logger.info(f"Аккаунт {user_id}: mj={mj}, gpt_days_left={days_left}")
 
@@ -902,9 +915,9 @@ async def show_profile(message: Message, state: FSMContext):
 Вам доступно⤵️
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
-💬GPT-5:  {days_left} дней
-💬GPT-5-mini:  {days_left} дней
-        """
+💬GPT-5:  {days_left} {days_word}
+💬GPT-5-mini:  {days_left} {days_word}
+                    """
 
     await message.answer(
         f"""🆔: <code>{user_id}</code>

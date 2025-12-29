@@ -1523,7 +1523,6 @@ async def add_gpt_referral_days(self, user_id: int, days: int) -> None:
             WHERE user_id = $2
         """, days, user_id)
 
-
 async def extend_gpt_access(user_id: int, days: int = 14):
     """
     Продлеваем доступ к ChatGPT на N дней.
@@ -1535,9 +1534,9 @@ async def extend_gpt_access(user_id: int, days: int = 14):
         """
         UPDATE users
         SET gpt_access_until = CASE
-            WHEN gpt_access_until IS NULL THEN (NOW() AT TIME ZONE 'utc') + ($2 || ' days')::interval
-            WHEN gpt_access_until < (NOW() AT TIME ZONE 'utc') THEN (NOW() AT TIME ZONE 'utc') + ($2 || ' days')::interval
-            ELSE gpt_access_until + ($2 || ' days')::interval
+            WHEN gpt_access_until IS NULL THEN (NOW() AT TIME ZONE 'utc') + ($2::int * INTERVAL '1 day')
+            WHEN gpt_access_until < (NOW() AT TIME ZONE 'utc') THEN (NOW() AT TIME ZONE 'utc') + ($2::int * INTERVAL '1 day')
+            ELSE gpt_access_until + ($2::int * INTERVAL '1 day')
         END,
         gpt_expire_warned = FALSE
         WHERE user_id = $1
