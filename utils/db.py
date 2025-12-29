@@ -935,6 +935,7 @@ def format_statistics(statistics: Dict[str, Any]) -> str:
     return f"{all_time}\n\n{today}"
 
 
+
 async def fetch_short_statistics() -> str:
     """
     Асинхронно собирает краткую статистику из базы данных и возвращает отформатированную строку.
@@ -952,21 +953,18 @@ async def fetch_short_statistics() -> str:
         logger.info(f"Сбор краткой статистики с начала дня: {start_of_day.isoformat()}")
 
         # За все время
-        # Количество пользователей
         users_all_time = await conn.fetchval("""
             SELECT COUNT(*)
             FROM users
         """)
         logger.info(f"Количество пользователей за всё время: {users_all_time}")
 
-        # Запросов
         total_requests_all_time = await conn.fetchval("""
             SELECT COUNT(*)
             FROM usage
         """)
         logger.info(f"Количество запросов за всё время: {total_requests_all_time}")
 
-        # Оплат
         total_payments_all_time = await conn.fetchval("""
             SELECT COUNT(*)
             FROM orders
@@ -974,7 +972,6 @@ async def fetch_short_statistics() -> str:
         """)
         logger.info(f"Количество оплат за всё время: {total_payments_all_time}")
 
-        # ChatGPT запросов
         chatgpt_requests_all_time = await conn.fetchval("""
             SELECT COUNT(*)
             FROM usage
@@ -982,7 +979,6 @@ async def fetch_short_statistics() -> str:
         """)
         logger.info(f"ChatGPT запросов за всё время: {chatgpt_requests_all_time}")
 
-        # ChatGPT оплат
         chatgpt_payments_all_time = await conn.fetchval("""
             SELECT COUNT(*)
             FROM orders
@@ -990,7 +986,6 @@ async def fetch_short_statistics() -> str:
         """)
         logger.info(f"ChatGPT оплат за всё время: {chatgpt_payments_all_time}")
 
-        # Midjourney запросов
         midjourney_requests_all_time = await conn.fetchval("""
             SELECT COUNT(*)
             FROM usage
@@ -998,7 +993,6 @@ async def fetch_short_statistics() -> str:
         """)
         logger.info(f"Midjourney запросов за всё время: {midjourney_requests_all_time}")
 
-        # Midjourney оплат
         midjourney_payments_all_time = await conn.fetchval("""
             SELECT COUNT(*)
             FROM orders
@@ -1007,7 +1001,6 @@ async def fetch_short_statistics() -> str:
         logger.info(f"Midjourney оплат за всё время: {midjourney_payments_all_time}")
 
         # За 24 часа (с начала дня)
-        # Количество пользователей, которые зарегистрировались сегодня
         users_today = await conn.fetchval("""
             SELECT COUNT(DISTINCT user_id)
             FROM users
@@ -1015,7 +1008,6 @@ async def fetch_short_statistics() -> str:
         """, start_of_day)
         logger.info(f"Количество пользователей, зарегистрировавшихся сегодня: {users_today}")
 
-        # Запросов
         total_requests_today = await conn.fetchval("""
             SELECT COUNT(*)
             FROM usage
@@ -1023,7 +1015,6 @@ async def fetch_short_statistics() -> str:
         """, start_of_day)
         logger.info(f"Количество запросов за сегодня: {total_requests_today}")
 
-        # Оплат
         total_payments_today = await conn.fetchval("""
             SELECT COUNT(*)
             FROM orders
@@ -1031,7 +1022,6 @@ async def fetch_short_statistics() -> str:
         """, start_of_day)
         logger.info(f"Количество оплат за сегодня: {total_payments_today}")
 
-        # ChatGPT запросов
         chatgpt_requests_today = await conn.fetchval("""
             SELECT COUNT(*)
             FROM usage
@@ -1039,7 +1029,6 @@ async def fetch_short_statistics() -> str:
         """, start_of_day)
         logger.info(f"ChatGPT запросов за сегодня: {chatgpt_requests_today}")
 
-        # ChatGPT оплат
         chatgpt_payments_today = await conn.fetchval("""
             SELECT COUNT(*)
             FROM orders
@@ -1047,7 +1036,6 @@ async def fetch_short_statistics() -> str:
         """, start_of_day)
         logger.info(f"ChatGPT оплат за сегодня: {chatgpt_payments_today}")
 
-        # Midjourney запросов
         midjourney_requests_today = await conn.fetchval("""
             SELECT COUNT(*)
             FROM usage
@@ -1055,7 +1043,6 @@ async def fetch_short_statistics() -> str:
         """, start_of_day)
         logger.info(f"Midjourney запросов за сегодня: {midjourney_requests_today}")
 
-        # Midjourney оплат
         midjourney_payments_today = await conn.fetchval("""
             SELECT COUNT(*)
             FROM orders
@@ -1064,34 +1051,18 @@ async def fetch_short_statistics() -> str:
         logger.info(f"Midjourney оплат за сегодня: {midjourney_payments_today}")
 
         # --- СТАТИСТИКА ЗВЁЗД ---
-        # Получаем текущее время в Москве
-        moscow_tz = ZoneInfo("Europe/Moscow")
-        now_moscow = datetime.now(moscow_tz)
-
-        # Словарь месяцев на русском
         months = {
-            1: 'Январь',
-            2: 'Февраль',
-            3: 'Март',
-            4: 'Апрель',
-            5: 'Май',
-            6: 'Июнь',
-            7: 'Июль',
-            8: 'Август',
-            9: 'Сентябрь',
-            10: 'Октябрь',
-            11: 'Ноябрь',
-            12: 'Декабрь'
+            1: 'Январь', 2: 'Февраль', 3: 'Март', 4: 'Апрель',
+            5: 'Май', 6: 'Июнь', 7: 'Июль', 8: 'Август',
+            9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь'
         }
 
-        # Названия текущего и предыдущего месяцев
         current_month_number = now_moscow.month
         current_month_name = months[current_month_number]
 
         prev_month_number = current_month_number - 1 if current_month_number > 1 else 12
         prev_month_name = months[prev_month_number]
 
-        # Сбор данных по звёздам
         stars_today_count = await conn.fetchval(
             "SELECT COALESCE(SUM(amount), 0) FROM stars WHERE DATE(date) = CURRENT_DATE AND paid = TRUE"
         )
@@ -1113,12 +1084,9 @@ async def fetch_short_statistics() -> str:
             now_moscow.year if prev_month_number != 12 else now_moscow.year - 1
         )
 
-        # Количество уникальных пользователей, отправивших звёзды за сегодня
         stars_users_today = await conn.fetchval(
             "SELECT COUNT(DISTINCT user_id) FROM stars WHERE DATE(date) = CURRENT_DATE AND paid = TRUE"
         )
-
-        # Количество уникальных пользователей за текущий месяц
         stars_users_current_month = await conn.fetchval(
             """
             SELECT COUNT(DISTINCT user_id)
@@ -1127,8 +1095,6 @@ async def fetch_short_statistics() -> str:
             """,
             current_month_number, now_moscow.year
         )
-
-        # Количество уникальных пользователей за предыдущий месяц
         stars_users_prev_month = await conn.fetchval(
             """
             SELECT COUNT(DISTINCT user_id)
@@ -1138,6 +1104,39 @@ async def fetch_short_statistics() -> str:
             prev_month_number,
             now_moscow.year if prev_month_number != 12 else now_moscow.year - 1
         )
+
+        # --- СТАТИСТИКА РЕФЕРАЛОВ ---
+        start_of_week = (now_moscow - timedelta(days=now_moscow.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).replace(tzinfo=None)
+        start_of_month = now_moscow.replace(day=1, hour=0, minute=0, second=0, microsecond=0).replace(tzinfo=None)
+
+        referrals_total = await conn.fetchval("""
+            SELECT COUNT(*)
+            FROM users
+            WHERE inviter_id IS NOT NULL AND inviter_id <> 0
+        """)
+
+        referrals_day = await conn.fetchval("""
+            SELECT COUNT(*)
+            FROM users
+            WHERE inviter_id IS NOT NULL AND inviter_id <> 0
+              AND to_timestamp(reg_time) >= $1
+        """, start_of_day)
+
+        referrals_week = await conn.fetchval("""
+            SELECT COUNT(*)
+            FROM users
+            WHERE inviter_id IS NOT NULL AND inviter_id <> 0
+              AND to_timestamp(reg_time) >= $1
+        """, start_of_week)
+
+        referrals_month = await conn.fetchval("""
+            SELECT COUNT(*)
+            FROM users
+            WHERE inviter_id IS NOT NULL AND inviter_id <> 0
+              AND to_timestamp(reg_time) >= $1
+        """, start_of_month)
 
         # Закрываем соединение
         await conn.close()
@@ -1175,10 +1174,18 @@ async def fetch_short_statistics() -> str:
             'prev_month_name': prev_month_name
         }
 
+        referrals_data = {
+            'total': int(referrals_total or 0),
+            'day': int(referrals_day or 0),
+            'week': int(referrals_week or 0),
+            'month': int(referrals_month or 0),
+        }
+
         short_statistics = format_short_statistics(
             all_time=all_time,
             today=today,
-            stars=stars_data
+            stars=stars_data,
+            referrals=referrals_data
         )
 
         return short_statistics
@@ -1188,7 +1195,7 @@ async def fetch_short_statistics() -> str:
         return f"Ошибка при сборе статистики: {e}"
 
 
-def format_short_statistics(all_time: Dict[str, Any], today: Dict[str, Any], stars: Dict[str, Any]) -> str:
+def format_short_statistics(all_time: Dict[str, Any], today: Dict[str, Any], stars: Dict[str, Any], referrals: Dict[str, Any]) -> str:
     """
     Форматирует краткую статистику в строку для отправки в Telegram.
     """
@@ -1200,29 +1207,40 @@ def format_short_statistics(all_time: Dict[str, Any], today: Dict[str, Any], sta
         lines.append(f"**Количество пользователей:** {escape_markdown(str(data['users']))}")
 
         # Запросы и оплаты
-        lines.append(f"Запросов \| Оплат \| {data['requests']} \| {data['payments']}")
+        lines.append(f"Запросов \\| Оплат \\| {data['requests']} \\| {data['payments']}")
 
         # ChatGPT
         chatgpt_payments = data['chatgpt_payments'] if data['chatgpt_payments'] > 0 else "0"
-        lines.append(f"ChatGPT \| {data['chatgpt_requests']} \| {chatgpt_payments}")
+        lines.append(f"ChatGPT \\| {data['chatgpt_requests']} \\| {chatgpt_payments}")
 
         # Midjourney
         midjourney_payments = data['midjourney_payments'] if data['midjourney_payments'] > 0 else "0"
-        lines.append(f"Midjourney \| {data['midjourney_requests']} \| {midjourney_payments}")
+        lines.append(f"Midjourney \\| {data['midjourney_requests']} \\| {midjourney_payments}")
 
         return '\n'.join(lines)
 
     all_time_section = format_section("За все время", all_time)
     today_section = format_section("За 24 часа", today)
+
     # --- Форматирование Stars ---
     stars_section = (
         "**Stars:**\n"
-        f"За сегодня: {stars.get('users_today', 0)} \({stars.get('today', 0)} руб\)\n"
-        f"За {stars['current_month_name']}: {stars.get('users_current_month', 0)} \({stars.get('current_month', 0)} руб\)\n"
-        f"За {stars['prev_month_name']}: {stars.get('users_prev_month', 0)} \({stars.get('prev_month', 0)} руб\)"
+        f"За сегодня: {stars.get('users_today', 0)} \\({stars.get('today', 0)} руб\\)\n"
+        f"За {stars['current_month_name']}: {stars.get('users_current_month', 0)} \\({stars.get('current_month', 0)} руб\\)\n"
+        f"За {stars['prev_month_name']}: {stars.get('users_prev_month', 0)} \\({stars.get('prev_month', 0)} руб\\)"
     )
 
-    return f"{all_time_section}\n\n{today_section}\n\n{stars_section}"
+    # --- Форматирование рефералов ---
+    referrals_section = (
+        "**🤝 Реферальная программа:**\n"
+        f"├ Всего: {referrals.get('total', 0)}\n"
+        f"├ За день: {referrals.get('day', 0)}\n"
+        f"├ За неделю: {referrals.get('week', 0)}\n"
+        f"└ За месяц: {referrals.get('month', 0)}"
+    )
+
+    return f"{all_time_section}\n\n{today_section}\n\n{stars_section}\n\n{referrals_section}"
+
 
 
 # Функция для установления соединения с базой данных
@@ -1547,3 +1565,66 @@ async def set_gpt_expire_warned(user_id: int, value: bool = True):
         int(user_id), bool(value)
     )
     await conn.close()
+
+async def fetch_gpt_access_admin_stats(days_left: int = 3, limit: int = 10):
+    """
+    Админ-статистика по доступу ChatGPT.
+    Возвращает:
+      - total_users: всего пользователей
+      - active_users: у кого доступ активен (gpt_access_until > now)
+      - expired_users: у кого доступ истёк или не задан (<= now или NULL)
+      - expiring_users: у кого истекает в ближайшие N дней
+      - warned_users: у кого уже стоит флаг предупреждения
+      - expiring_list: список ближайших истечений (user_id, gpt_access_until)
+    """
+    conn: Connection = await get_conn()
+    try:
+        now_utc = "NOW() AT TIME ZONE 'utc'"
+
+        total_users = await conn.fetchval("SELECT COUNT(*) FROM users")
+
+        active_users = await conn.fetchval(
+            f"SELECT COUNT(*) FROM users WHERE gpt_access_until IS NOT NULL AND gpt_access_until > ({now_utc})"
+        )
+
+        expired_users = await conn.fetchval(
+            f"SELECT COUNT(*) FROM users WHERE gpt_access_until IS NULL OR gpt_access_until <= ({now_utc})"
+        )
+
+        expiring_users = await conn.fetchval(
+            f"""
+            SELECT COUNT(*)
+            FROM users
+            WHERE gpt_access_until IS NOT NULL
+              AND gpt_access_until > ({now_utc})
+              AND gpt_access_until <= ({now_utc}) + ($1 || ' days')::interval
+            """,
+            int(days_left)
+        )
+
+        warned_users = await conn.fetchval(
+            "SELECT COUNT(*) FROM users WHERE gpt_expire_warned = TRUE"
+        )
+
+        expiring_list = await conn.fetch(
+            f"""
+            SELECT user_id, gpt_access_until
+            FROM users
+            WHERE gpt_access_until IS NOT NULL
+              AND gpt_access_until > ({now_utc})
+            ORDER BY gpt_access_until ASC
+            LIMIT $1
+            """,
+            int(limit)
+        )
+
+        return {
+            "total_users": int(total_users or 0),
+            "active_users": int(active_users or 0),
+            "expired_users": int(expired_users or 0),
+            "expiring_users": int(expiring_users or 0),
+            "warned_users": int(warned_users or 0),
+            "expiring_list": expiring_list,
+        }
+    finally:
+        await conn.close()
