@@ -1553,7 +1553,6 @@ async def extend_gpt_access(user_id: int, days: int = 14):
     await conn.close()
 
 # Пользователи, у которых доступ к ChatGPT истекает в ближайшие N дней и которым ещё не отправляли предупреждение
-# Пользователи, у которых доступ к ChatGPT истекает в ближайшие N дней и которым ещё не отправляли предупреждение
 async def get_users_gpt_expiring(days_left: int = 3):
     conn: Connection = await get_conn()
     rows = await conn.fetch(
