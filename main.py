@@ -7,6 +7,7 @@ from utils import db
 from utils.ai import mj_api
 from handlers import admin, users, sub, users_image_openai # ← Регистрация хэндлеров
 import logging
+from utils.scheduled_tasks.gpt_expiry_warn import gpt_expiry_warn_job
 
 from utils.scheduled_tasks.close_stale import close_stale_chats_job
 from utils.scheduled_tasks.daily_token_reset import refill_tokens
@@ -54,6 +55,10 @@ def set_scheduled_jobs():
 
         # проверка неактивных чатов каждые 5 минут
         scheduler.add_job(close_stale_chats_job, "interval", minutes=5, id="close_stale_chats")
+
+        # ✅ предупреждение за 3 дня до окончания ChatGPT
+        scheduler.add_job(gpt_expiry_warn_job, "interval", minutes=60, id="gpt_expiry_warn")
+
     except Exception as e:
         logger.error(f"Error while adding scheduled jobs: {e}")
 
