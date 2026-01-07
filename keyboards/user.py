@@ -166,8 +166,8 @@ def get_ref_menu(url):
     text_url = parse.quote(url)  # Кодируем URL
     url = f'https://t.me/share/url?url={text_url}'  # Формируем ссылку для поделиться
     return InlineKeyboardMarkup(row_width=1).add(InlineKeyboardButton('📩Поделится ссылкой', url=url),
-                                                 InlineKeyboardButton('💳Вывод средств',
-                                                                      callback_data='withdraw_ref_menu'),
+                                                 # InlineKeyboardButton('💳Вывод средств',
+                                                 #                      callback_data='withdraw_ref_menu'),
                                                  InlineKeyboardButton('🔙Назад', callback_data='check_sub'))
 
 

@@ -836,7 +836,7 @@ async def ref_menu(message: Message):
     keyboard = InlineKeyboardMarkup(row_width=1)
     keyboard.add(
         InlineKeyboardButton('📩Поделится ссылкой', url=share_url),
-        InlineKeyboardButton('💳Вывод средств', callback_data='withdraw_ref_menu')
+        # InlineKeyboardButton('💳Вывод средств', callback_data='withdraw_ref_menu')
     )
 
     # Добавляем кнопку включения уведомлений, если они отключены
