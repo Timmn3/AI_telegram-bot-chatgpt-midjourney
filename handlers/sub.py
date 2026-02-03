@@ -248,3 +248,24 @@ async def open_url(call: CallbackQuery):
 Не открывайте через Telegram-браузер')
 
     await call.answer()
+
+
+# Обработчик для покупки доступа к ChatGPT на 14 дней
+@dp.callback_query_handler(text="buy_chatgpt_14days")
+async def handle_chatgpt_14days_purchase(call: CallbackQuery):
+    user_id = call.from_user.id
+    amount = 199
+    days = 14
+    model = "gpt14"
+
+    # Создаем заказ
+    order_id = await db.add_order(user_id, amount, model, days)
+
+    # Генерируем ссылки для оплаты
+    urls = get_pay_urls(order_id, amount)
+
+    # Отправляем сообщение с выбором способа оплаты
+    await call.message.edit_text(
+        f"✅14 дней для ChatGPT\n💰Сумма: {amount}₽.",
+        reply_markup=user_kb.get_pay_urls(urls, order_id, model, src='acc')
+    )

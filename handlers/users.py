@@ -171,13 +171,13 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
         logger.info(f"Токены для ChatGPT закончились. User: {user}, Model: {model}")
 
         if model == '5':
-            await db.set_model(user_id, "5-mini")
-            await bot.send_message(user_id, "⚠️Превышен допустимый лимит запросов модели GPT-5\n"
-                                            "✅Модель для ChatGPT изменена на GPT-5-mini")
+            await db.set_model(user_id, "5.2-mini")
+            await bot.send_message(user_id, "⚠️Превышен допустимый лимит запросов модели GPT-5.2\n"
+                                            "✅Модель для ChatGPT изменена на GPT-5.2-mini")
         elif model == '5-mini':
             await db.set_model(user_id, "5")
-            await bot.send_message(user_id, "⚠️Превышен допустимый лимит запросов модели GPT-5-mini\n"
-                                            "✅Модель для ChatGPT изменена на GPT-5")
+            # await bot.send_message(user_id, "⚠️Превышен допустимый лимит запросов модели GPT-5.2-mini\n"
+            #                                 "✅Модель для ChatGPT изменена на GPT-5")
         else:
             await bot.send_message(user_id,
                                f"⚠️Превышен допустимый лимит запросов, попробуйте позже")  # Отправляем уведомление с клавиатурой для пополнения токенов
@@ -911,8 +911,8 @@ async def show_profile(message: Message, state: FSMContext):
 Вам доступно⤵️
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
-💬GPT-5:  {days_left} {days_word}
-💬GPT-5-mini:  {days_left} {days_word}
+💬GPT-5.2:  {days_left} {days_word}
+💬GPT-5.2-mini:  {days_left} {days_word}
                     """
 
     await message.answer(
@@ -2251,13 +2251,15 @@ async def check_access_or_prompt(message) -> bool:
 
         keyboard = InlineKeyboardMarkup(row_width=1)
         keyboard.add(
+            InlineKeyboardButton("💰Доступ к ChatGPT", callback_data="buy_chatgpt_14days"),
             InlineKeyboardButton("📩 Поделиться ссылкой (+14 дней)", url=share_url)
         )
 
         await bot.send_message(
             user_id,
             f"⛔️ Доступ к ChatGPT закончился.\n\n"
-            f"Приглашай друзей по своей ссылке — за каждого даём +14 дней.\n\n"
+            f"Приглашай друзей по своей ссылке — за каждого даём +14 дней.\n"
+            f"Или оплатите доступ к ChatGPT на 14 дней\n\n"
             f"Твоя ссылка:\n{ref_link}",
             reply_markup=keyboard,
             disable_web_page_preview=True

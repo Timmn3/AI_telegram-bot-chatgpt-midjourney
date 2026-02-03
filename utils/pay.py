@@ -202,6 +202,9 @@ async def process_purchase(bot, order_id):
         new_requests = user["mj"] + order["quantity"]
         await db.update_requests(user_id, new_requests)
         await bot.send_message(user_id, f"✅Добавлено {order['quantity']} запросов для MidJourney.")
+    elif order["model"] == "gpt14":  # Обработка покупки доступа к ChatGPT на 14 дней
+        await db.extend_gpt_access(user_id, order["quantity"])  # Предполагается, что quantity = 14 (дней)
+        await bot.send_message(user_id, f"✅ Вам добавлено {order['quantity']} дней доступа к ChatGPT.")
     else:
         new_tokens = int(user[f"tokens_{model}"]) + int(order["quantity"])
         await db.update_tokens(user_id, new_tokens, model)
@@ -241,3 +244,4 @@ async def process_purchase(bot, order_id):
                     )
                 except Exception as e:
                     logger.warning(f"Не удалось отправить уведомление о партнерском доходе: {e}")
+

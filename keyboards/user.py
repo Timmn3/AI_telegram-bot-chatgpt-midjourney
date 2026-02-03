@@ -56,6 +56,7 @@ def get_clear_or_audio():
 def get_account(lang, from_msg):
 
     return InlineKeyboardMarkup(row_width=1).add(
+        InlineKeyboardButton("💰Доступ к ChatGPT", callback_data="buy_chatgpt_14days"),
         InlineKeyboardButton("💰Купить запросы для Midjourney", callback_data="buy_midjourney_requests"),
         InlineKeyboardButton("⚙️Настройки ChatGPT", callback_data="settings")
     )
@@ -76,8 +77,8 @@ def settings(lang, from_msg):
 
 # Выбор модели GPT для диалогов
 def model_keyboard(selected_model: str):
-    models = {"5": "GPT-5",
-              "5-mini": "GPT-5-mini",
+    models = {"5.2": "GPT-5",
+              "5.2-mini": "GPT-5-mini",
               }
     buttons = [
         InlineKeyboardButton(
