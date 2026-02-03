@@ -965,8 +965,8 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
 Вам доступно⤵️
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
-💬GPT-5:  {days_left} дней
-💬GPT-5-mini:  {days_left} дней
+💬GPT-5.2:  {days_left} дней
+💬GPT-5.2-mini:  {days_left} дней
                     """
 
         # Отправляем сообщение с обновленными данными аккаунта
@@ -1589,7 +1589,10 @@ async def select_model(call: CallbackQuery):
 
         await call.message.edit_text("Выберите модель GPT для диалогов⤵️:", reply_markup=keyboard)
 
-        await call.message.answer(f"✅Модель для ChatGPT изменена на GPT-{selected_model}")
+        if selected_model == '5':
+            await call.message.answer(f"✅Модель для ChatGPT изменена на GPT-5.2")
+        else:
+            await call.message.answer(f"✅Модель для ChatGPT изменена на GPT-5.2-mini")
     except Exception as e:
         logger.error(f"Ошибка при выборе модели GPT: {e}")
         await call.answer()

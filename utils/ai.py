@@ -101,8 +101,8 @@ async def get_gpt(messages, model):
 
     try:
         model_map = {
-            '5-mini': 'gpt-5-mini',
-            '5': 'gpt-5',
+            '5-mini': 'gpt-5.2-mini',
+            '5': 'gpt-5.2',
         }
 
         # Проверка и обработка изображений в сообщении пользователя
