@@ -171,12 +171,12 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
         logger.info(f"Токены для ChatGPT закончились. User: {user}, Model: {model}")
 
         if model == '5':
-            await db.set_model(user_id, "5.2-mini")
+            await db.set_model(user_id, "5-mini")
             await bot.send_message(user_id, "⚠️Превышен допустимый лимит запросов модели GPT-5.2\n"
-                                            "✅Модель для ChatGPT изменена на GPT-5.2-mini")
+                                            "✅Модель для ChatGPT изменена на GPT-5-mini")
         elif model == '5-mini':
             await db.set_model(user_id, "5")
-            # await bot.send_message(user_id, "⚠️Превышен допустимый лимит запросов модели GPT-5.2-mini\n"
+            # await bot.send_message(user_id, "⚠️Превышен допустимый лимит запросов модели GPT-5-mini\n"
             #                                 "✅Модель для ChatGPT изменена на GPT-5")
         else:
             await bot.send_message(user_id,
@@ -912,7 +912,7 @@ async def show_profile(message: Message, state: FSMContext):
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
 💬GPT-5.2:  {days_left} {days_word}
-💬GPT-5.2-mini:  {days_left} {days_word}
+💬GPT-5-mini:  {days_left} {days_word}
                     """
 
     await message.answer(
@@ -966,7 +966,7 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
 
 Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
 💬GPT-5.2:  {days_left} дней
-💬GPT-5.2-mini:  {days_left} дней
+💬GPT-5-mini:  {days_left} дней
                     """
 
         # Отправляем сообщение с обновленными данными аккаунта
@@ -1592,7 +1592,7 @@ async def select_model(call: CallbackQuery):
         if selected_model == '5':
             await call.message.answer(f"✅Модель для ChatGPT изменена на GPT-5.2")
         else:
-            await call.message.answer(f"✅Модель для ChatGPT изменена на GPT-5.2-mini")
+            await call.message.answer(f"✅Модель для ChatGPT изменена на GPT-5-mini")
     except Exception as e:
         logger.error(f"Ошибка при выборе модели GPT: {e}")
         await call.answer()
