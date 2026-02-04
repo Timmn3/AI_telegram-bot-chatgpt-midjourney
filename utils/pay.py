@@ -172,7 +172,14 @@ def get_pay_url_lava(user_id, amount):
 
 # Функция для обработки успешной оплаты токенов/запросов
 async def process_purchase(bot, order_id):
-    
+    """
+    Обрабатывает успешную оплату заказа.
+
+    ВАЖНО:
+    - Тип покупки берём из order["order_type"].
+    - Для покупки "gpt14" (доступ к ChatGPT на 14 дней) продлеваем доступ через extend_gpt_access().
+    """
+
     # Получаем информацию о заказе
     order = await db.get_order(order_id)
 
@@ -185,35 +192,42 @@ async def process_purchase(bot, order_id):
 
     user_id = order["user_id"]  # Получаем ID пользователя
     user = await db.get_user(user_id)  # Получаем информацию о пользователе
-    model = (order["order_type"]).replace('-', '_')
+
+    # Тип заказа хранится в order_type
+    model = ((order.get("order_type") or "").strip()).replace("-", "_").replace(".", "_")
     amount = order["amount"]  # Заплаченная сумма
-    discounts = {189, 315, 412, 628, 949, 1619, 2166, 3199, 227, 386, 509, 757, 550, 246, 989} # Сумма соответсвующая скидкам
+
+    discounts = {189, 315, 412, 628, 949, 1619, 2166, 3199, 227, 386, 509, 757, 550, 246, 989}  # Сумма соответсвующая скидкам
     user_discount = await db.get_user_notified_gpt(user_id)
 
-    logger.info(f"Оплата пользователя {user_id} успешно обработана. Тип заказа: {model}, количество: {order['quantity']}")
-
-    # Начисление бонусных токенов
-    bonus = 20000 if int(order["quantity"]) == 100000 else int((order["quantity"]) / 4) 
-    total_bonus = user["tokens_4_1"] + bonus
-    model = model.replace(".", "_")
+    logger.info(
+        f"Оплата пользователя {user_id} успешно обработана. Тип заказа: {model}, количество: {order['quantity']}"
+    )
 
     # Обновляем токены или запросы в зависимости от типа заказа
     if model == "midjourney":
         new_requests = user["mj"] + order["quantity"]
         await db.update_requests(user_id, new_requests)
         await bot.send_message(user_id, f"✅Добавлено {order['quantity']} запросов для MidJourney.")
-    elif order["model"] == "gpt14":  # Обработка покупки доступа к ChatGPT на 14 дней
-        await db.extend_gpt_access(user_id, order["quantity"])  # Предполагается, что quantity = 14 (дней)
-        await bot.send_message(user_id, f"✅ Вам добавлено {order['quantity']} дней доступа к ChatGPT.")
+
+    elif model == "gpt14":
+        # ✅ Покупка доступа к ChatGPT на N дней (обычно 14)
+        days = int(order["quantity"])
+        await db.extend_gpt_access(user_id, days)
+        await bot.send_message(user_id, f"✅ Вам добавлено {days} дней доступа к ChatGPT.")
+
     else:
         new_tokens = int(user[f"tokens_{model}"]) + int(order["quantity"])
         await db.update_tokens(user_id, new_tokens, model)
-        await bot.send_message(user_id, f"✅Добавлено {int(order['quantity'] / 1000)} тыс. токенов для GPT-{model}.\nБлагодарим за покупку!")
+        await bot.send_message(
+            user_id,
+            f"✅Добавлено {int(order['quantity'] / 1000)} тыс. токенов для GPT-{model}.\nБлагодарим за покупку!"
+        )
 
-
+    # Логика скидок / партнёрки (оставляем как было)
     if user_discount is not None and user_discount["used"] != True and amount in discounts:
         logger.info(f'Скидка использована: {user_discount["used"]}, покупка на сумму: {amount}')
-        # Если была предложена скидка, пользователь ею не пользовался, но текущий заказ равен скидочной цене - значит убираем возможность скидки. 
+        # Если была предложена скидка, пользователь ею не пользовался, но текущий заказ равен скидочной цене - значит убираем возможность скидки.
         await db.update_used_discount_gpt(user_id)
 
         # 💰 Уведомление о партнерском доходе + +14 дней ChatGPT
@@ -229,7 +243,6 @@ async def process_purchase(bot, order_id):
                 )
 
                 try:
-
                     await bot.send_message(
                         inviter_id,
                         f"""📈У Вас новый реферал
