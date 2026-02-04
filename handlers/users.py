@@ -869,9 +869,6 @@ async def ref_menu(message: Message):
 @dp.message_handler(state="*", text="⚙Аккаунт")
 @dp.message_handler(state="*", commands="account")
 async def show_profile(message: Message, state: FSMContext):
-    if not await check_access_or_prompt(message):
-        return
-
     await state.finish()
     user_id = message.from_user.id
     user = await db.get_user(user_id)
@@ -879,6 +876,10 @@ async def show_profile(message: Message, state: FSMContext):
 
     mj = int(user['mj']) + int(user['free_image'])
     mj = mj if mj >= 0 else 0
+
+    access_ok = await check_access_or_prompt(message)
+    if not access_ok and mj == 0:
+        return
 
     # ✅ дни доступа к ChatGPT
     from math import ceil
