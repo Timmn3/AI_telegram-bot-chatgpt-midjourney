@@ -399,115 +399,120 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     """
     text = '⏳ChatGPT генерирует ответ, ожидайте...'
     message_wait = await bot.send_message(user_id, text)
-
-    user = await db.get_user(user_id)
-    lang_text = {"en": "compose an answer in English", "ru": "составь ответ на русском языке"}
-    model = user['gpt_model']
-    model_dashed = model.replace("-", "_")
-
-    current_chat = await db.get_chat_by_id(user["current_chat_id"])
-    summary = current_chat["summary"] if current_chat else ""
-    keywords = current_chat["keywords"] if current_chat and current_chat.get("keywords") else []
-
-    # Подмешиваем summary/keywords в промпт, если есть
-    if summary:
-        prompt = f"Ранее в этом чате обсуждалось: {summary.strip()}\n\n" + prompt
-    if keywords:
-        joined_keywords = ', '.join(keywords)
-        prompt = f"Ключевые слова, которые стоит учитывать: {joined_keywords}\n\n" + prompt
-
-    prompt += f"\n{lang_text[user['chat_gpt_lang']]}"
-    prompt += """
-    Ты должен отправлять сообщения, отформатированные под Telegram, в следующем формате:
-
-    1. Если пользователь ЯВНО просит показать код (например, говорит «покажи код», «напиши функцию», «пример кода» и т.п.), только тогда включай код в ответ.
-    2. Если в ответе присутствует код:
-       - Он не должен превышать 2000 символов.
-       - Он должен быть заключен в блоки <pre><code> </code></pre> для правильного форматирования (parse_mode="HTML").
-    3. Если код состоит из одной строки, используй блок <code> </code>.
-    4. Не добавляй лишние разделители типа "-----".
-    5. Если в ответе присутствует HTML, оборачивай в <pre><code>...</code></pre>.
-    6. Экранируй спецсимволы HTML.
-    """
-
-    message_user = prompt
-
-    if messages is None:
-        messages = []
-    messages.append({"role": "user", "content": prompt})
-
-    logger.info(f"Текстовый запрос к ChatGPT. User: {user}, Model: {model}, tokens: {user[f'tokens_{model_dashed}']}")
-    await bot.send_chat_action(user_id, ChatActions.TYPING)
-    res = await ai.get_gpt(messages, model)
-
-    # Удаляем "ожидание"
     try:
-        await bot.delete_message(chat_id=user_id, message_id=message_wait.message_id)
-    except Exception as e:
-        logger.warning(f"Не удалось удалить сообщение ожидания: {e}")
+        user = await db.get_user(user_id)
+        lang_text = {"en": "compose an answer in English", "ru": "составь ответ на русском языке"}
+        model = user['gpt_model']
+        model_dashed = model.replace("-", "_")
 
-    # Форматируем и отправляем ответ (как у тебя было)
-    html_content = format_math_in_text(res["content"])
-    code_blocks = re.findall(r"(<pre><code>.*?</code></pre>)", html_content, re.DOTALL)
-    non_code_content = re.sub(r"<pre><code>.*?</code></pre>", "", html_content, flags=re.DOTALL)
-    non_code_content = html.unescape(non_code_content)
+        current_chat = await db.get_chat_by_id(user["current_chat_id"])
+        summary = current_chat["summary"] if current_chat else ""
+        keywords = current_chat["keywords"] if current_chat and current_chat.get("keywords") else []
 
-    for code in code_blocks:
-        code = html.unescape(code)
-        if len(code) > 3000:
-            parts = split_message(code, 3000, is_code=True)
-            for part in parts:
-                part = ensure_code_block_integrity(part)
-                await send_message_with_html(bot, user_id, part, reply_markup=user_kb.get_clear_or_audio())
-        else:
-            code = ensure_code_block_integrity(code)
-            await send_message_with_html(bot, user_id, code, reply_markup=user_kb.get_clear_or_audio())
+        # Подмешиваем summary/keywords в промпт, если есть
+        if summary:
+            prompt = f"Ранее в этом чате обсуждалось: {summary.strip()}\n\n" + prompt
+        if keywords:
+            joined_keywords = ', '.join(keywords)
+            prompt = f"Ключевые слова, которые стоит учитывать: {joined_keywords}\n\n" + prompt
 
-    if len(non_code_content) <= 3000:
-        non_code_content = ensure_code_block_integrity(non_code_content)
-        await send_message_with_html(bot, user_id, non_code_content, reply_markup=user_kb.get_clear_or_audio())
-    else:
-        parts = split_message(non_code_content, 3000)
-        for idx, part in enumerate(parts):
-            part = ensure_code_block_integrity(part)
-            if idx == len(parts) - 1:
-                await send_message_with_html(bot, user_id, part, reply_markup=user_kb.get_clear_or_audio())
+        prompt += f"\n{lang_text[user['chat_gpt_lang']]}"
+        prompt += """
+        Ты должен отправлять сообщения, отформатированные под Telegram, в следующем формате:
+    
+        1. Если пользователь ЯВНО просит показать код (например, говорит «покажи код», «напиши функцию», «пример кода» и т.п.), только тогда включай код в ответ.
+        2. Если в ответе присутствует код:
+           - Он не должен превышать 2000 символов.
+           - Он должен быть заключен в блоки <pre><code> </code></pre> для правильного форматирования (parse_mode="HTML").
+        3. Если код состоит из одной строки, используй блок <code> </code>.
+        4. Не добавляй лишние разделители типа "-----".
+        5. Если в ответе присутствует HTML, оборачивай в <pre><code>...</code></pre>.
+        6. Экранируй спецсимволы HTML.
+        """
+
+        message_user = prompt
+
+        if messages is None:
+            messages = []
+        messages.append({"role": "user", "content": prompt})
+
+        logger.info(f"Текстовый запрос к ChatGPT. User: {user}, Model: {model}, tokens: {user[f'tokens_{model_dashed}']}")
+        await bot.send_chat_action(user_id, ChatActions.TYPING)
+        res = await ai.get_gpt(messages, model)
+
+        # Удаляем "ожидание"
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message_wait.message_id)
+        except Exception as e:
+            logger.warning(f"Не удалось удалить сообщение ожидания: {e}")
+
+        # Форматируем и отправляем ответ (как у тебя было)
+        html_content = format_math_in_text(res["content"])
+        code_blocks = re.findall(r"(<pre><code>.*?</code></pre>)", html_content, re.DOTALL)
+        non_code_content = re.sub(r"<pre><code>.*?</code></pre>", "", html_content, flags=re.DOTALL)
+        non_code_content = html.unescape(non_code_content)
+
+        for code in code_blocks:
+            code = html.unescape(code)
+            if len(code) > 3000:
+                parts = split_message(code, 3000, is_code=True)
+                for part in parts:
+                    part = ensure_code_block_integrity(part)
+                    await send_message_with_html(bot, user_id, part, reply_markup=user_kb.get_clear_or_audio())
             else:
-                await send_message_with_html(bot, user_id, part)
+                code = ensure_code_block_integrity(code)
+                await send_message_with_html(bot, user_id, code, reply_markup=user_kb.get_clear_or_audio())
 
-    await state.update_data(content=res["content"])
+        if len(non_code_content) <= 3000:
+            non_code_content = ensure_code_block_integrity(non_code_content)
+            await send_message_with_html(bot, user_id, non_code_content, reply_markup=user_kb.get_clear_or_audio())
+        else:
+            parts = split_message(non_code_content, 3000)
+            for idx, part in enumerate(parts):
+                part = ensure_code_block_integrity(part)
+                if idx == len(parts) - 1:
+                    await send_message_with_html(bot, user_id, part, reply_markup=user_kb.get_clear_or_audio())
+                else:
+                    await send_message_with_html(bot, user_id, part)
 
-    if not res["status"]:
-        return
+        await state.update_data(content=res["content"])
 
-    # Обновляем локальный контекст сообщений
-    message_gpt = res["content"]
-    messages.append({"role": "assistant", "content": message_gpt})
+        if not res["status"]:
+            return
 
-    # Быстро обеспечиваем наличие chat_id без ожидания GPT-имени
-    had_chat = bool(current_chat)
-    if not had_chat:
-        # Временное имя — просто первые 50 символов вопроса пользователя
-        provisional_name = re.sub(r"\s+", " ", message_user).strip().strip('"')[:50] or "Новый чат"
-        new_chat_id = await db.create_chat(user_id, name=provisional_name, summary="")
-        await db.set_current_chat(user_id, new_chat_id)
-        chat_id = new_chat_id
-    else:
-        chat_id = current_chat["id"]
+        # Обновляем локальный контекст сообщений
+        message_gpt = res["content"]
+        messages.append({"role": "assistant", "content": message_gpt})
 
-    # Сохраняем реплики синхронно (это быстро)
-    await db.add_message(chat_id, user_id, message_user)
-    await db.add_message(chat_id, None, message_gpt)
+        # Быстро обеспечиваем наличие chat_id без ожидания GPT-имени
+        had_chat = bool(current_chat)
+        if not had_chat:
+            # Временное имя — просто первые 50 символов вопроса пользователя
+            provisional_name = re.sub(r"\s+", " ", message_user).strip().strip('"')[:50] or "Новый чат"
+            new_chat_id = await db.create_chat(user_id, name=provisional_name, summary="")
+            await db.set_current_chat(user_id, new_chat_id)
+            chat_id = new_chat_id
+        else:
+            chat_id = current_chat["id"]
 
-    # Списываем токены/триал и логируем действие — синхронно
-    await db.remove_chatgpt(user_id, res["tokens"], model)
-    await db.mark_used_trial(user_id)
-    await db.add_action(user_id, model)
+        # Сохраняем реплики синхронно (это быстро)
+        await db.add_message(chat_id, user_id, message_user)
+        await db.add_message(chat_id, None, message_gpt)
 
-    # Запускаем тяжёлую пост-обработку в фоне: имя (если чат новый), keywords и summary
-    asyncio.create_task(_postprocess_chat(chat_id, user_id, message_user, message_gpt, model, had_chat))
+        # Списываем токены/триал и логируем действие — синхронно
+        await db.remove_chatgpt(user_id, res["tokens"], model)
+        await db.mark_used_trial(user_id)
+        await db.add_action(user_id, model)
 
-    return messages
+        # Запускаем тяжёлую пост-обработку в фоне: имя (если чат новый), keywords и summary
+        asyncio.create_task(_postprocess_chat(chat_id, user_id, message_user, message_gpt, model, had_chat))
+
+        return messages
+    finally:
+        try:
+            await bot.delete_message(chat_id=user_id, message_id=message_wait.message_id)
+        except Exception as e:
+            logger.warning(f"Не удалось удалить сообщение ожидания: {e}")
 
 async def _postprocess_chat(chat_id: int, user_id: int, message_user: str, message_gpt: str, model: str, had_chat: bool):
     """

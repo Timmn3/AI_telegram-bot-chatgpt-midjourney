@@ -85,12 +85,34 @@ import re
 
 
 # Функция для конвертации изображения в base64
-def image_url_to_base64(url):
-    response = requests.get(url)
-    if response.status_code == 200:
-        image_base64 = base64.b64encode(response.content).decode('utf-8')
-        return f"data:image/jpeg;base64,{image_base64}"  # Используйте правильный MIME-тип (jpeg/png)
-    return None
+def image_url_to_base64(url: str, *, timeout: int = 15) -> str | None:
+    """
+    Преобразует URL изображения в data: URI (base64).
+
+    - Если url уже data:image/...;base64,... — возвращаем как есть (не делаем requests.get).
+    - Если схема не http/https — пропускаем, чтобы не валить весь запрос.
+    """
+    if not url:
+        return None
+
+    # Уже base64 data-uri
+    if url.startswith("data:image"):
+        return url
+
+    # Неизвестная/неподдерживаемая схема
+    if not (url.startswith("http://") or url.startswith("https://")):
+        logger.warning(f"image_url_to_base64: unsupported url schema: {url!r}")
+        return None
+
+    try:
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()
+        image_base64 = base64.b64encode(response.content).decode("utf-8")
+        return f"data:image/jpeg;base64,{image_base64}"
+    except Exception as e:
+        logger.exception(f"image_url_to_base64: failed url={url!r} err={e}")
+        return None
+
 
 
 # Функция для отправки запроса в ChatGPT
