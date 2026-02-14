@@ -1125,9 +1125,9 @@ async def support(message: Message, state: FSMContext):
 @dp.message_handler(state="*", text="🎨Midjourney")
 @dp.message_handler(state="*", commands="midjourney")
 async def gen_img(message: Message, state: FSMContext):
-    if not await check_access_or_prompt(message):
-        return
-    user_id = message.from_user.id
+    # if not await check_access_or_prompt(message):
+    #     return
+    # user_id = message.from_user.id
     await state.finish()  # Завершаем текущее состояние
     await db.change_default_ai(message.from_user.id, "image")  # Устанавливаем MidJourney как основной AI
     user = await db.get_user(message.from_user.id)  # Получаем данные пользователя
