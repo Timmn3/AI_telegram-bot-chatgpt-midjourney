@@ -19,7 +19,7 @@ import keyboards.user as user_kb  # Клавиатуры для взаимоде
 from config import bot_url, TOKEN, NOTIFY_URL, bug_id, PHOTO_PATH, MJ_PHOTO_BASE_URL, ADMINS_CODER, check_channel
 from create_bot import dp, bot  # Диспетчер из create_bot.py
 from utils.ai import mj_api, text_to_speech, voice_to_text
-from aiogram.utils.exceptions import CantParseEntities
+from aiogram.utils.exceptions import CantParseEntities, RetryAfter
 import html
 import asyncio
 
@@ -351,31 +351,130 @@ def process_formula(match):
     return f"<pre>{html.escape(formula.strip())}</pre>"
 
 
+
+
+def normalize_telegram_html(text: str) -> str:
+    """
+    Нормализует HTML-ответ под ограничения Telegram HTML.
+
+    Что делает:
+    - заменяет <br>, <br/>, <br /> на обычные переводы строк;
+    - убирает проблемные блочные теги <p>, <div>;
+    - очищает лишние атрибуты у <pre> и <code>;
+    - приводит текст к более безопасному виду для parse_mode="HTML".
+
+    :param text: Исходный текст ответа
+    :return: Нормализованный текст для Telegram HTML
+    """
+    if not text:
+        return ""
+
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+    # Telegram HTML не поддерживает <br/>
+    text = re.sub(r"(?i)<br\s*/?>", "\n", text)
+
+    # Убираем часто встречающиеся блочные теги, которые Telegram тоже не любит
+    text = re.sub(r"(?i)<p\s*>", "", text)
+    text = re.sub(r"(?i)</p\s*>", "\n\n", text)
+    text = re.sub(r"(?i)<div\s*>", "", text)
+    text = re.sub(r"(?i)</div\s*>", "\n", text)
+
+    # Неразрывные пробелы
+    text = text.replace("&nbsp;", " ")
+
+    # Нормализуем code/pre, если модель добавила атрибуты
+    text = re.sub(r"(?is)<pre\b[^>]*>\s*<code\b[^>]*>", "<pre><code>", text)
+    text = re.sub(r"(?is)</code>\s*</pre>", "</code></pre>", text)
+    text = re.sub(r"(?is)<pre\b[^>]*>", "<pre>", text)
+    text = re.sub(r"(?is)<code\b[^>]*>", "<code>", text)
+
+    # Чистим избыточные пустые строки
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    return text.strip()
+
+
 def format_math_in_text(text: str) -> str:
-    # Обработка формул внутри \[ ... \] или \( ... \)
-    text = re.sub(r"\\\[(.*?)\\\]", process_formula, text)  # Обработка формул внутри \[...\]
-    text = re.sub(r"\\\((.*?)\\\)", process_formula, text)  # Обработка формул внутри \(...\)
+    """
+    Обрабатывает LaTeX-подобные формулы в тексте и сохраняет Telegram HTML-разметку.
 
-    # Экранирование всех символов HTML в тексте
-    return html.escape(text)
+    Важно:
+    - не экранирует весь текст через html.escape(...),
+      иначе ломаются <b>, <i>, <code>, <pre> и другие допустимые Telegram HTML-теги;
+    - только преобразует формулы и затем нормализует HTML под Telegram.
 
+    :param text: Исходный текст ответа модели
+    :return: Подготовленный текст для отправки в Telegram
+    """
+    if not text:
+        return ""
 
-from aiogram.utils.exceptions import CantParseEntities, RetryAfter
-import asyncio
+    # Обработка формул внутри \[...\] и \(...\)
+    text = re.sub(r"\\\[(.*?)\\\]", process_formula, text, flags=re.DOTALL)
+    text = re.sub(r"\\\((.*?)\\\)", process_formula, text, flags=re.DOTALL)
+
+    return normalize_telegram_html(text)
+
 
 async def send_message_with_html(bot: Bot, chat_id: int, text: str, reply_markup=None):
+    """
+    Отправляет сообщение в Telegram с parse_mode="HTML".
+
+    Логика:
+    1. Сначала нормализуем HTML под ограничения Telegram.
+    2. Пробуем отправить как HTML.
+    3. Если Telegram не смог распарсить сущности, отправляем безопасный plain text,
+       чтобы пользователь не видел сырые HTML-теги.
+
+    :param bot: Экземпляр бота
+    :param chat_id: ID чата
+    :param text: Текст сообщения
+    :param reply_markup: Клавиатура (опционально)
+    """
+    safe_text = normalize_telegram_html(text)
+
     try:
-        await bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=reply_markup)
-    except CantParseEntities:
-        escaped_text = html.escape(text)
-        await bot.send_message(chat_id, escaped_text, parse_mode="HTML", reply_markup=reply_markup)
+        await bot.send_message(
+            chat_id,
+            safe_text,
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+
+    except CantParseEntities as e:
+        logger.warning(f"Telegram не смог распарсить HTML: {e}")
+
+        # Запасной вариант: убираем все HTML-теги, чтобы не показывать пользователю сырой HTML
+        plain_text = re.sub(r"(?is)<[^>]+>", "", safe_text)
+        plain_text = html.unescape(plain_text).strip()
+
+        await bot.send_message(
+            chat_id,
+            plain_text if plain_text else "Произошла ошибка форматирования ответа.",
+            reply_markup=reply_markup
+        )
+
     except RetryAfter as e:
-        # Не блокируем цикл — корректно ждём и пытаемся снова
         await asyncio.sleep(e.timeout + 0.1)
-        await bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=reply_markup)
+        await bot.send_message(
+            chat_id,
+            safe_text,
+            parse_mode="HTML",
+            reply_markup=reply_markup
+        )
+
     except Exception as e:
-        # как запасной вариант — без parse_mode
-        await bot.send_message(chat_id, text, reply_markup=reply_markup)
+        logger.exception(f"Ошибка отправки сообщения: {e}")
+
+        plain_text = re.sub(r"(?is)<[^>]+>", "", safe_text)
+        plain_text = html.unescape(plain_text).strip()
+
+        await bot.send_message(
+            chat_id,
+            plain_text if plain_text else "Произошла ошибка отправки ответа.",
+            reply_markup=reply_markup
+        )
 
 
 
@@ -417,18 +516,70 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
             prompt = f"Ключевые слова, которые стоит учитывать: {joined_keywords}\n\n" + prompt
 
         prompt += f"\n{lang_text[user['chat_gpt_lang']]}"
+
         prompt += """
-        Ты должен отправлять сообщения, отформатированные под Telegram, в следующем формате:
-    
-        1. Если пользователь ЯВНО просит показать код (например, говорит «покажи код», «напиши функцию», «пример кода» и т.п.), только тогда включай код в ответ.
-        2. Если в ответе присутствует код:
-           - Он не должен превышать 2000 символов.
-           - Он должен быть заключен в блоки <pre><code> </code></pre> для правильного форматирования (parse_mode="HTML").
-        3. Если код состоит из одной строки, используй блок <code> </code>.
-        4. Не добавляй лишние разделители типа "-----".
-        5. Если в ответе присутствует HTML, оборачивай в <pre><code>...</code></pre>.
-        6. Экранируй спецсимволы HTML.
-        """
+                Ты — полезный, понятный и внимательный AI-помощник для Telegram-бота.
+
+                Отвечай так, чтобы сообщения были: 
+                - структурированными; 
+                - развёрнутыми и содержательными; 
+                - легко читаемыми в Telegram; 
+                - визуально аккуратными; 
+                - полезными уже с первого абзаца; 
+                - дружелюбными, но без лишней воды.
+
+                Общие правила ответа:
+                1. Всегда сначала давай прямой, содержательный ответ по сути вопроса.
+                2. Если вопрос требует объяснения, анализа, сравнения, интерпретации, причин, морали, вывода или совета — отвечай развёрнуто, а не поверхностно.
+                3. Не ограничивайся общими фразами. Раскрывай причинно-следственные связи: почему именно, за счёт чего, в чём это проявляется, к чему приводит.
+                4. Строй ответ по понятным смысловым блокам с абзацами и подзаголовками, вначале абзаца добавляй уместный эмодзи.
+                5. По необходимости используй в тексте эмодзи.
+                6. Если у вопроса есть несколько уровней раскрытия, строй ответ по логике:
+                   - вывод;
+                   - основная мысль;
+                   - разбор по пунктам;
+                   - общий смысл / контекст;
+                   - при необходимости короткий итог.
+                7. Первый абзац всегда должен сразу давать полезный ответ, а не начинаться с общих рассуждений.
+                8. Не делай ответ шаблонным. Количество смысловых блоков определяй по теме, а не по фиксированному шаблону.
+                9. Не добавляй бесполезные вступления, повторы и очевидные фразы ради объёма.
+                10. Если пользователь просит кратко — отвечай кратко. Если не просит кратко и тема требует раскрытия — отвечай максимально подробно.
+                11. Добавляй полезное продолжение только если оно действительно уместно.
+                13. Если уместно, в конце можно добавить один полезный follow-up: 
+                    - предложить краткую или более простую версию; 
+                    - предложить пример; 
+                    - предложить современную формулировку; 
+                    - предложить переформулировать ответ под конкретный формат.
+
+                Требования к качеству объяснения:
+                1. Ответ должен быть не просто правильным, а понятным: читатель должен увидеть логику рассуждения.
+                2. Если вопрос начинается со слов «почему», «зачем», «в чём смысл», «чем отличается», «объясни», «докажи», «сравни», «какова мораль», «в чём причина» — обязательно раскрывай тему глубже среднего.
+                3. Если вопрос допускает неоднозначность, показывай основной вывод и затем поясняй нюансы.
+
+                Стиль:
+                1. Пиши естественно, уверенно, ясно и содержательно.
+                2. Дружелюбный тон допустим, но без излишней легковесности.
+
+                Форматирование под Telegram HTML:
+                1. Отправляй сообщения в формате Telegram HTML.
+                2. Экранируй спецсимволы HTML в обычном тексте.
+                3. Используй только поддерживаемые Telegram HTML-теги.
+                4. Для акцента на ключевых мыслях используй <b>...</b>.
+                5. Разбивай ответ на удобные абзацы и смысловые блоки.
+                6. Не используй длинные сплошные полотна текста.
+                7. Не используй Markdown-разметку вместо Telegram HTML.
+                8. Не добавляй лишние декоративные разделители.
+
+                Правила для кода:
+                1. Показывай код только если пользователь явно просит код, функцию, пример кода или техническую реализацию.
+                2. Если в ответе есть программный код:
+                   - код не должен превышать 2000 символов;
+                   - многострочный код заключай в <pre><code>...</code></pre>;
+                   - однострочный код заключай в <code>...</code>.
+                3. Если в ответе присутствует HTML-код как пример, оборачивай его в <pre><code>...</code></pre>.
+                4. Не смешивай плохо читаемый текст и код в одном абзаце.
+
+                """
 
         message_user = prompt
 
