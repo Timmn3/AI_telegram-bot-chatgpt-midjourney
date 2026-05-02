@@ -1497,7 +1497,7 @@ async def create_character_instructions(message: Message, state: FSMContext):
     await db.set_active_character(message.from_user.id, char_id)
     await state.finish()
     await message.answer(
-        f"✅ <b>{html.escape(name)}</b> успешно создан и загружен!\n\nВведите запрос:",
+        f"<b>{html.escape(name)}</b> успешно создан\n\n<b>{html.escape(name)}</b> успешно загружен\n\nВведите запрос⤵️",
         parse_mode="HTML"
     )
 
@@ -1513,7 +1513,7 @@ async def character_settings(call: CallbackQuery, state: FSMContext):
         return
     active = await db.get_active_character(call.from_user.id)
     active_mark = " ✅" if active and active["id"] == char_id else ""
-    text = f"<b>Настройки: {html.escape(char['name'])}{active_mark}</b>\n\n<i>{html.escape(char['instructions'])}</i>"
+    text = f"<b>Настройки для {html.escape(char['name'])}{active_mark}</b>\n\n<i>{html.escape(char['instructions'])}</i>"
     try:
         await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_settings_keyboard(char_id))
     except Exception:
@@ -1530,13 +1530,18 @@ async def select_character(call: CallbackQuery, state: FSMContext):
         await call.answer("Характер не найден", show_alert=True)
         return
     await db.set_active_character(call.from_user.id, char_id)
-    await call.answer(f"✅ {char['name']} загружен!", show_alert=False)
-    active_mark = " ✅"
-    text = f"<b>Настройки: {html.escape(char['name'])}{active_mark}</b>\n\n<i>{html.escape(char['instructions'])}</i>"
+    # Обновляем заголовок с ✅
+    text = f"<b>Настройки для {html.escape(char['name'])} ✅</b>\n\n<i>{html.escape(char['instructions'])}</i>"
     try:
         await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_settings_keyboard(char_id))
     except Exception:
         pass
+    # Обычное сообщение по схеме
+    await call.message.answer(
+        f"<b>{html.escape(char['name'])}</b> успешно загружен\n\nВведите запрос⤵️",
+        parse_mode="HTML"
+    )
+    await call.answer()
 
 
 # Редактировать характер — запрос нового названия
@@ -1585,13 +1590,20 @@ async def edit_character_instructions(message: Message, state: FSMContext):
     if not char:
         await state.finish()
         return await message.answer("Характер не найден")
-    new_name = data.get("new_name", char["name"])
+    name_changed = "new_name" in data
+    new_name = data["new_name"] if name_changed else char["name"]
     await db.update_character(char_id, new_name, message.text)
     await state.finish()
-    await message.answer(
-        f"✅ Характер переименован в <b>{html.escape(new_name)}</b>, инструкции обновлены.\n\nВведите запрос:",
-        parse_mode="HTML"
-    )
+    if name_changed:
+        await message.answer(
+            f"Характер переименован в <b>{html.escape(new_name)}</b>\n\nВведите запрос⤵️",
+            parse_mode="HTML"
+        )
+    else:
+        await message.answer(
+            f"Инструкции для <b>{html.escape(new_name)}</b> успешно изменены",
+            parse_mode="HTML"
+        )
 
 
 # Удалить характер — показать подтверждение
@@ -1627,17 +1639,11 @@ async def confirm_delete_character(call: CallbackQuery, state: FSMContext):
     if active and active["id"] == char_id:
         await db.set_active_character(call.from_user.id, None)
     await db.delete_character(char_id)
-    await call.answer(f"🗑 {name} удалён", show_alert=False)
-    characters = await db.get_characters(call.from_user.id)
-    active = await db.get_active_character(call.from_user.id)
-    active_name = active["name"] if active else "не выбран"
-    text = f"<b>🎭 Характер ChatGPT</b>\n\nАктивный: <b>{active_name}</b>"
-    if not characters:
-        text = "<b>🎭 Характер ChatGPT</b>\n\nУ вас ещё нет характеров. Создайте первый!"
-    try:
-        await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters))
-    except Exception:
-        await call.message.answer(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters))
+    await call.answer()
+    await call.message.answer(
+        f"<b>{html.escape(name)}</b> успешно удален",
+        parse_mode="HTML"
+    )
 
 
 # Удалить все характеры
