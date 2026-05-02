@@ -12,7 +12,7 @@ withdraw_ref_menu = InlineKeyboardMarkup(row_width=2).add(
 
 
 # Клавиатура с ссылками для информации о проекте и поддержке
-about = InlineKeyboardMarkup(row_width=2).add(InlineKeyboardButton("📢Канал проекта", url="https://t.me/NeuronAgent"),
+about = InlineKeyboardMarkup(row_width=2).add(InlineKeyboardButton("📢 Канал проекта", url="https://t.me/NeuronAgent"),
                                               InlineKeyboardButton("🆘Помощь", url="https://t.me/NeuronSupportBot"),
                                               InlineKeyboardButton("Инструкция для Midjourney", url="https://telegra.ph/Kak-polzovatsya-MidJourney-podrobnaya-instrukciya-10-16"))
 
@@ -23,18 +23,18 @@ cancel = ReplyKeyboardMarkup(resize_keyboard=True, row_width=1).add(KeyboardButt
 
 # Клавиатура для пополнения баланса (предлагает выбрать тариф)
 top_up_balance = InlineKeyboardMarkup(row_width=1).add(
-    InlineKeyboardButton("💰Выбрать тариф", callback_data="buy_sub"))
+    InlineKeyboardButton("💰 Выбрать тариф", callback_data="buy_sub"))
 
 
 # Кнопка для подтверждения подписки на канал и проверки подписки
 partner = InlineKeyboardMarkup(row_width=1).add(
-    InlineKeyboardButton("↗️Перейти и подписаться", url="https://t.me/NeuronAgent"),
-    InlineKeyboardButton("✅Я подписался", callback_data="check_sub"))
+    InlineKeyboardButton("↗️ Перейти и подписаться", url="https://t.me/NeuronAgent"),
+    InlineKeyboardButton("✅ Я подписался", callback_data="check_sub"))
 
 
 # Кнопка для возврата к выбору суммы пополнения
 back_to_choose = InlineKeyboardMarkup(row_width=1).add(
-    InlineKeyboardButton("🔙Назад", callback_data="back_to_choose_balance"))
+    InlineKeyboardButton("🔙 Назад", callback_data="back_to_choose_balance"))
 
 
 # Языковые настройки для клавиатур
@@ -45,10 +45,10 @@ lang_text = {"en": "ENG", "ru": "RUS"}
 def get_clear_or_audio():    
     
     return InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton("⚙️Настройки ChatGPT", callback_data="settings"),
-        InlineKeyboardButton("🗣Озвучить текст", callback_data="text_to_audio"),
-        InlineKeyboardButton("🗂Мои чаты", callback_data="my_chats"),
-        InlineKeyboardButton("🗑Удалить чат", callback_data="delete_chat")
+        InlineKeyboardButton("⚙️ Настройки ChatGPT", callback_data="settings"),
+        InlineKeyboardButton("🗣 Озвучить текст", callback_data="text_to_audio"),
+        InlineKeyboardButton("🗂 Мои чаты", callback_data="my_chats"),
+        InlineKeyboardButton("🗑 Удалить чат", callback_data="delete_chat")
         )
 
 
@@ -56,9 +56,9 @@ def get_clear_or_audio():
 def get_account(lang, from_msg):
 
     return InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton("💰Доступ к ChatGPT", callback_data="buy_chatgpt_14days"),
-        InlineKeyboardButton("💰Купить запросы для Midjourney", callback_data="buy_midjourney_requests"),
-        InlineKeyboardButton("⚙️Настройки ChatGPT", callback_data="settings")
+        InlineKeyboardButton("💰 Доступ к ChatGPT", callback_data="buy_chatgpt_14days"),
+        InlineKeyboardButton("💰 Купить запросы для Midjourney", callback_data="buy_midjourney_requests"),
+        InlineKeyboardButton("⚙️ Настройки ChatGPT", callback_data="settings")
     )
 
 # Настройки ChatGPT
@@ -66,13 +66,13 @@ def settings(lang, from_msg):
     flag = '🇷🇺' if lang == 'ru' else '🇬🇧'
 
     return InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton("🤖Выбрать модель ChatGPT", callback_data="model_menu"),
+        InlineKeyboardButton("🤖 Выбрать модель ChatGPT", callback_data="model_menu"),
         InlineKeyboardButton(f"Ответы ChatGPT: {flag}", callback_data=f"change_lang:{lang}:{from_msg}"),
-        InlineKeyboardButton("✍🏻Рассказать о себе", callback_data="chatgpt_about_me"),
-        InlineKeyboardButton("🎭Характер ChatGPT", callback_data="character_menu"),
-        InlineKeyboardButton("🗣Изменить голос ChatGPT", callback_data="voice_menu"),
-        InlineKeyboardButton("🗂Мои чаты", callback_data="my_chats"),
-        InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
+        InlineKeyboardButton("✍🏻 Рассказать о себе", callback_data="chatgpt_about_me"),
+        InlineKeyboardButton("🎭 Характер ChatGPT", callback_data="character_menu"),
+        InlineKeyboardButton("🗣 Изменить голос ChatGPT", callback_data="voice_menu"),
+        InlineKeyboardButton("🗂 Мои чаты", callback_data="my_chats"),
+        InlineKeyboardButton("🔙 Назад", callback_data="back_to_profile:acc")
     )
 
 # Выбор модели GPT для диалогов
@@ -82,14 +82,14 @@ def model_keyboard(selected_model: str):
               }
     buttons = [
         InlineKeyboardButton(
-            f"{value}✅" if key == selected_model else value,
+            f"{value}✅ " if key == selected_model else value,
             callback_data=f"select_model:{key}"
         )
         for key, value in models.items()
     ]
     return InlineKeyboardMarkup(row_width=1).add(*buttons).add(
-        # InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
-        InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
+        # InlineKeyboardButton("📋 Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
+        InlineKeyboardButton("🔙 Назад", callback_data="back_to_profile:acc")
     )
 
 # Выбор голоса для ChatGPT
@@ -102,14 +102,14 @@ def voice_keyboard(selected_voice: str):
               "shimmer": "Сидни(Shimmer)"}
     buttons = [
         InlineKeyboardButton(
-            f"{value}✅" if key == selected_voice else value, 
+            f"{value}✅ " if key == selected_voice else value,
             callback_data=f"select_voice:{key}"
         )
         for key, value in voices.items()
     ]
     return InlineKeyboardMarkup(row_width=2).add(*buttons).add(
-        InlineKeyboardButton("🔉Прослушать голоса", callback_data="check_voice"),
-        InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
+        InlineKeyboardButton("🔉 Прослушать голоса", callback_data="check_voice"),
+        InlineKeyboardButton("🔙 Назад", callback_data="back_to_profile:acc")
     )
 
 
@@ -117,8 +117,8 @@ def voice_keyboard(selected_voice: str):
 def clear_description():
 
     return InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton("✖️Удалить описание", callback_data="reset_chatgpt_settings"),
-        InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
+        InlineKeyboardButton("✖️ Удалить описание", callback_data="reset_chatgpt_settings"),
+        InlineKeyboardButton("🔙 Назад", callback_data="back_to_profile:acc")
     )
 
 
@@ -132,12 +132,12 @@ def get_try_prompt(ai_type):
 # Главное меню бота, где пользователь выбирает, с каким AI он хочет работать (ChatGPT или MidJourney)
 def get_menu(default_ai):
 
-    return ReplyKeyboardMarkup(resize_keyboard=True, row_width=2).add(KeyboardButton(f"{'💬ChatGPT✅' if default_ai == 'chatgpt' else '💬ChatGPT'}"),
-                                                                      # KeyboardButton(f"{'🎨Image OpenAI✅' if default_ai == 'image_openai' else '🎨Image OpenAI'}"),
-                                                                      KeyboardButton(f"{'🎨Midjourney✅' if default_ai == 'image' else '🎨Midjourney'}"),
-                                                                      KeyboardButton("⚙Аккаунт"),
-                                                                      KeyboardButton("👨🏻‍💻Поддержка"),
-                                                                      KeyboardButton("🤝Партнерская программа"))
+    return ReplyKeyboardMarkup(resize_keyboard=True, row_width=2).add(KeyboardButton(f"{'💬 ChatGPT ✅' if default_ai == 'chatgpt' else '💬 ChatGPT'}"),
+                                                                      # KeyboardButton(f"{'🎨 Image OpenAI ✅' if default_ai == 'image_openai' else '🎨 Image OpenAI'}"),
+                                                                      KeyboardButton(f"{'🎨 Midjourney ✅' if default_ai == 'image' else '🎨 Midjourney'}"),
+                                                                      KeyboardButton("⚙ Аккаунт"),
+                                                                      KeyboardButton("👨🏻‍💻 Поддержка"),
+                                                                      KeyboardButton("🤝 Партнерская программа"))
 
 
 # Кнопки для выбора способа оплаты (Tinkoff, криптовалюта и т.д.)
@@ -149,7 +149,7 @@ def get_pay_urls(urls, order_id, model, src='acc'):
         InlineKeyboardButton("Банковская карта", url=urls["tinkoff"]),
         # InlineKeyboardButton("Криптовалюта", web_app=WebAppInfo(url=urls["freekassa"])),
         InlineKeyboardButton("Telegram Stars", callback_data=f"tg_stars:{order_id}"),
-        InlineKeyboardButton("🔙Назад", callback_data=back))
+        InlineKeyboardButton("🔙 Назад", callback_data=back))
 
 
 # Клавиатура для оплаты через Telegram Stars
@@ -157,7 +157,7 @@ def get_tg_stars_pay():
 
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(InlineKeyboardButton("Telegram Stars", pay=True))  # Кнопка для оплаты через Telegram
-    kb.add(InlineKeyboardButton("🔙Назад", callback_data=f"delete_msg"))  # Кнопка для возврата
+    kb.add(InlineKeyboardButton("🔙 Назад", callback_data=f"delete_msg"))  # Кнопка для возврата
     return kb
 
 
@@ -166,10 +166,10 @@ def get_ref_menu(url):
 
     text_url = parse.quote(url)  # Кодируем URL
     url = f'https://t.me/share/url?url={text_url}'  # Формируем ссылку для поделиться
-    return InlineKeyboardMarkup(row_width=1).add(InlineKeyboardButton('📩Поделится ссылкой', url=url),
-                                                 # InlineKeyboardButton('💳Вывод средств',
+    return InlineKeyboardMarkup(row_width=1).add(InlineKeyboardButton('📩 Поделится ссылкой', url=url),
+                                                 # InlineKeyboardButton('💳 Вывод средств',
                                                  #                      callback_data='withdraw_ref_menu'),
-                                                 InlineKeyboardButton('🔙Назад', callback_data='check_sub'))
+                                                 InlineKeyboardButton('🔙 Назад', callback_data='check_sub'))
 
 
 # Кнопки для выбора изображения (вариации, зум и т.д.)
@@ -201,8 +201,8 @@ def get_choose(task_id):
 def get_neural_network_menu():
 
     return InlineKeyboardMarkup(row_width=2).add(
-        InlineKeyboardButton("💬ChatGPT", callback_data="select_gpt_tokens"),
-        InlineKeyboardButton("🎨Midjourney", callback_data="buy_midjourney_requests")
+        InlineKeyboardButton("💬 ChatGPT", callback_data="select_gpt_tokens"),
+        InlineKeyboardButton("🎨 Midjourney", callback_data="buy_midjourney_requests")
     )
 
 # def get_chatgpt_models():
@@ -210,8 +210,8 @@ def get_neural_network_menu():
 #     return InlineKeyboardMarkup(row_width=1).add(
 #         InlineKeyboardButton("GPT-5", callback_data="buy_chatgpt_tokens:4.1:normal"),
 #         InlineKeyboardButton("GPT-o1", callback_data="buy_chatgpt_tokens:o1:normal"),
-#         InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
-#         InlineKeyboardButton("🔙Назад", callback_data="buy_sub")
+#         InlineKeyboardButton("📋 Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
+#         InlineKeyboardButton("🔙 Назад", callback_data="buy_sub")
 #     )
 
 # def get_chatgpt_models_noback(discount=None):
@@ -220,7 +220,7 @@ def get_neural_network_menu():
 #     return InlineKeyboardMarkup(row_width=1).add(
 #         InlineKeyboardButton("GPT-4.1", callback_data=f"buy_chatgpt_tokens:4.1:{target}"),
 #         InlineKeyboardButton("GPT-o1", callback_data=f"buy_chatgpt_tokens:o1:{target}"),
-#         InlineKeyboardButton("📋Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
+#         InlineKeyboardButton("📋 Отличия моделей GPT", url="https://telegra.ph/Otlichiya-modelej-GPT-12-24"),
 #     )
 
 
@@ -261,8 +261,8 @@ def get_neural_network_menu():
 #         # InlineKeyboardButton(
 #         #     f"1 тыс токенов, {prices[model][mode]['price'][4]}₽ (-{prices[model][mode]['percent'][4]}%)",
 #         #     callback_data=f"tokens:1000:{model}:{prices[model][mode]['price'][4] if mode == 'normal' else prices[model][mode]['price_data'][4]}:{source}"),
-#         InlineKeyboardButton("📋Что такое токены", url="https://telegra.ph/CHto-takoe-tokeny-12-23-3"),
-#         InlineKeyboardButton("🔙Назад", callback_data=back)
+#         InlineKeyboardButton("📋 Что такое токены", url="https://telegra.ph/CHto-takoe-tokeny-12-23-3"),
+#         InlineKeyboardButton("🔙 Назад", callback_data=back)
 #     )
 
 
@@ -274,7 +274,7 @@ def get_midjourney_requests_menu():
         InlineKeyboardButton("20 генераций, 259₽ (-13%)", callback_data="select_midjourney_requests:20:259:acc"),
         InlineKeyboardButton("50 генераций, 599₽ (-19%)", callback_data="select_midjourney_requests:50:599:acc"),
         InlineKeyboardButton("100 генераций, 1099₽ (-26%)", callback_data="select_midjourney_requests:100:1099:acc"),
-        InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
+        InlineKeyboardButton("🔙 Назад", callback_data="back_to_profile:acc")
     )
 
 '''
@@ -285,7 +285,7 @@ def get_chatgpt_discount_tokens_menu():
         InlineKeyboardButton("100 тыс токенов, 149₽ > 139₽ (-5%)", callback_data="select_chatgpt_tokens:100000:139:acc"),
         InlineKeyboardButton("200 тыс токенов, 249₽ > 224₽ (-10%)", callback_data="select_chatgpt_tokens:200000:224:acc"),
         InlineKeyboardButton("500 тыс токенов, 449₽ > 381₽ (-15%)", callback_data="select_chatgpt_tokens:500000:381:acc"),
-        InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
+        InlineKeyboardButton("🔙 Назад", callback_data="back_to_profile:acc")
     )
 '''
 
@@ -297,7 +297,7 @@ def get_midjourney_discount_requests_menu():
         InlineKeyboardButton("20 генераций, 259₽ > 246₽ (-5%)", callback_data="select_midjourney_requests:20:246:acc"),
         InlineKeyboardButton("50 генераций, 599₽ > 550₽ (-8%)", callback_data="select_midjourney_requests:50:550:acc"),
         InlineKeyboardButton("100 генераций, 1099₽ > 989₽ (-10%)", callback_data="select_midjourney_requests:100:989:acc"),
-        InlineKeyboardButton("🔙Назад", callback_data="back_to_profile:acc")
+        InlineKeyboardButton("🔙 Назад", callback_data="back_to_profile:acc")
     )
 
 '''    

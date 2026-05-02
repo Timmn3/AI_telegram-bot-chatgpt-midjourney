@@ -349,7 +349,7 @@ async def process_user_id(message: Message, state: FSMContext):
     balance_info = (f"Текущий баланс пользователя {user_id}\n"
                     f"tokens_5: {user['tokens_5']}\n"
                     f"tokens_5_mini: {user['tokens_5_mini']}\n"
-                    f"Генерации 🎨Midjourney: {mj}")
+                    f"Генерации 🎨 Midjourney: {mj}")
 
 
     await message.answer(balance_info)
@@ -401,7 +401,7 @@ async def process_amount(message: Message, state: FSMContext):
     balance_info = (f"Текущий баланс пользователя {user_id}\n"
                     f"tokens_5: {user['tokens_5']}\n"
                     f"tokens_5_mini: {user['tokens_5_mini']}\n"
-                    f"Генерации 🎨Midjourney: {mj}")
+                    f"Генерации 🎨 Midjourney: {mj}")
 
     await message.answer(balance_info)
 

@@ -208,7 +208,7 @@ async def process_purchase(bot, order_id):
     if model == "midjourney":
         new_requests = user["mj"] + order["quantity"]
         await db.update_requests(user_id, new_requests)
-        await bot.send_message(user_id, f"✅Добавлено {order['quantity']} запросов для MidJourney.")
+        await bot.send_message(user_id, f"✅ Добавлено {order['quantity']} запросов для MidJourney.")
 
     elif model == "gpt14":
         # ✅ Покупка доступа к ChatGPT на N дней (обычно 14)
@@ -221,7 +221,7 @@ async def process_purchase(bot, order_id):
         await db.update_tokens(user_id, new_tokens, model)
         await bot.send_message(
             user_id,
-            f"✅Добавлено {int(order['quantity'] / 1000)} тыс. токенов для GPT-{model}.\nБлагодарим за покупку!"
+            f"✅ Добавлено {int(order['quantity'] / 1000)} тыс. токенов для GPT-{model}.\nБлагодарим за покупку!"
         )
 
     # Логика скидок / партнёрки (оставляем как было)
@@ -245,10 +245,10 @@ async def process_purchase(bot, order_id):
                 try:
                     await bot.send_message(
                         inviter_id,
-                        f"""📈У Вас новый реферал
+                        f"""📈 У Вас новый реферал
         └ Аккаунт: {user_id}
 
-        ✅Партнерское вознаграждение
+        ✅ Партнерское вознаграждение
         ├ Аккаунт: {user_id}
         ├ Сумма зачисления: {amount}₽
         ├ Ваш доход: {partner_reward}₽ (15%)

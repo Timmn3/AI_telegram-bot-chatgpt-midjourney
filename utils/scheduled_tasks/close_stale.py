@@ -29,7 +29,7 @@ async def close_stale_chats_job():
 
 
         kb = InlineKeyboardMarkup(row_width=1).add(
-            InlineKeyboardButton("🗂Мои чаты", callback_data="my_chats")
+            InlineKeyboardButton("🗂 Мои чаты", callback_data="my_chats")
         )
 
         try:
