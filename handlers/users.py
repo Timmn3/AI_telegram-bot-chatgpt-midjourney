@@ -1567,6 +1567,31 @@ async def skip_character_name(call: CallbackQuery, state: FSMContext):
     await call.answer()
 
 
+# Пропустить смену инструкций — оставить старые
+@dp.callback_query_handler(text="skip_character_instructions", state=states.EditCharacter.instructions)
+async def skip_character_instructions(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    char_id = data["char_id"]
+    char = await db.get_character(char_id)
+    if not char:
+        await state.finish()
+        await call.answer("Характер не найден", show_alert=True)
+        return
+    name_changed = "new_name" in data
+    new_name = data["new_name"] if name_changed else char["name"]
+    if name_changed:
+        await db.update_character(char_id, new_name, char["instructions"])
+    await state.finish()
+    await call.answer()
+    if name_changed:
+        await call.message.answer(
+            f"Характер переименован в <b>{html.escape(new_name)}</b>\n\nВведите запрос⤵️",
+            parse_mode="HTML"
+        )
+    else:
+        await call.message.answer("Инструкции не изменены")
+
+
 # Получаем новое название
 @dp.message_handler(state=states.EditCharacter.name)
 async def edit_character_name(message: Message, state: FSMContext):

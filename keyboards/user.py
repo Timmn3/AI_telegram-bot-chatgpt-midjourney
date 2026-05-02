@@ -452,5 +452,6 @@ def edit_character_name_keyboard():
 
 def edit_character_instructions_keyboard():
     return InlineKeyboardMarkup(row_width=1).add(
+        InlineKeyboardButton("Не менять инструкции", callback_data="skip_character_instructions"),
         InlineKeyboardButton("Отмена", callback_data="character_menu")
     )
