@@ -129,24 +129,27 @@ async def start_message(message: Message, state: FSMContext):
                     except Exception as e:
                         logging.warning(f"Не удалось отправить уведомление о реферале: {e}")
 
+        await message.answer(
+            """ 👋 Добро пожаловать!
+🎁 <b>У вас активирован пробный тариф на 14 дней.</b>
+
+Бот подходит для множества задач:
+💬 <b>ChatGPT</b> — ответы на вопросы, анализ изображений, помощь с текстами, идеями и задачами
+🎨 <b>Midjourney</b> — создание изображений по вашему описанию
+<b>Выберите, с чего хотите начать</b> 👇 """,
+            reply_markup=user_kb.get_start_inline()
+        )
     else:
         await db.change_default_ai(message.from_user.id, "chatgpt")
-        # Сообщение с запросом ввода
-    example_prompt = await generate_example_prompt()
-    await message.answer(
-        f"""<b>Введите запрос</b>
+        example_prompt = await generate_example_prompt()
+        await message.answer(
+            f"""<b>Введите запрос</b>
 Например: <code>{example_prompt}</code>
 
 <u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
-        reply_markup=user_kb.get_menu("chatgpt"),
-        disable_web_page_preview=True
-    )
-    # Отправляем приветственное сообщение
-#     await message.answer(
-#         """<b>NeuronAgent</b>🤖 - <i>2 нейросети в одном месте!</i>
-# <b>ChatGPT или Midjourney?</b>""",
-#         reply_markup=user_kb.get_start_inline()
-#     )
+            reply_markup=user_kb.get_menu("chatgpt"),
+            disable_web_page_preview=True
+        )
 
 
 # Снижение баланса пользователя
@@ -156,7 +159,7 @@ async def remove_balance(bot: Bot, user_id):
     # Если баланс меньше 50, отправляем уведомление о необходимости пополнения
     if user["balance"] <= 50:
         await db.update_stock_time(user_id, int(datetime.now().timestamp()))
-        await bot.send_message(user_id, """⚠️Заканчивается баланс!
+        await bot.send_message(user_id, """ ⚠️ Заканчивается баланс!
 Успей пополнить в течении 24 часов и получи на счёт +10% от суммы пополнения ⤵️""",
                                reply_markup=user_kb.get_pay(user_id, 10))  # Кнопка пополнения баланса
 
@@ -172,15 +175,15 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
 
         if model == '5':
             await db.set_model(user_id, "5-mini")
-            await bot.send_message(user_id, "⚠️Превышен допустимый лимит запросов модели GPT-5.2\n"
-                                            "✅Модель для ChatGPT изменена на GPT-5-mini")
+            await bot.send_message(user_id, "⚠️ Превышен допустимый лимит запросов модели GPT-5.2\n"
+                                            "✅ Модель для ChatGPT изменена на GPT-5-mini")
         elif model == '5-mini':
             await db.set_model(user_id, "5")
-            # await bot.send_message(user_id, "⚠️Превышен допустимый лимит запросов модели GPT-5-mini\n"
-            #                                 "✅Модель для ChatGPT изменена на GPT-5")
+            # await bot.send_message(user_id, "⚠️ Превышен допустимый лимит запросов модели GPT-5-mini\n"
+            #                                 "✅ Модель для ChatGPT изменена на GPT-5")
         else:
             await bot.send_message(user_id,
-                               f"⚠️Превышен допустимый лимит запросов, попробуйте позже")  # Отправляем уведомление с клавиатурой для пополнения токенов
+                               f"⚠️ Превышен допустимый лимит запросов, попробуйте позже")  # Отправляем уведомление с клавиатурой для пополнения токенов
 
 
     elif ai_type == "image":
@@ -204,7 +207,7 @@ async def not_enough_balance(bot: Bot, user_id: int, ai_type: str):
 
     elif ai_type == "image_openai":
         await bot.send_message(user_id, """
-        ⚠️Запросы для "Изображения от OpenAI" закончились!
+        ⚠️ Запросы для "Изображения от OpenAI" закончились!
 
         Выберите интересующий вас вариант⤵️
                 """,
@@ -220,7 +223,7 @@ async def get_mj(prompt, user_id, bot: Bot):
         await not_enough_balance(bot, user_id, "image")  # Отправляем уведомление о недостатке средств
         return
 
-    await bot.send_message(user_id, "Ожидайте, генерирую изображение..🕙",
+    await bot.send_message(user_id, "Ожидайте, генерирую изображение.. 🕙 ",
                            reply_markup=user_kb.get_menu(user["default_ai"]))
     # await bot.send_message(user_id, "В настоящее время генерация не доступна, попробуйте позже!")
     await bot.send_chat_action(user_id, ChatActions.UPLOAD_PHOTO)
@@ -496,7 +499,7 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
     Отличие от предыдущей версии: после отправки ответа пользователю «тяжёлые» шаги
     (имя чата, keywords, summary) выполняются в фоне и НЕ блокируют обработку следующих апдейтов.
     """
-    text = '⏳ChatGPT генерирует ответ, ожидайте...'
+    text = '⏳ ChatGPT генерирует ответ, ожидайте...'
     message_wait = await bot.send_message(user_id, text)
     try:
         user = await db.get_user(user_id)
@@ -848,7 +851,7 @@ async def generate_example_prompt() -> str:
 #     logger.info('Внутри скидочного уведомления - выбираем модель')
 #
 #     await bot.send_message(user_id, """
-# У вас заканчиваются запросы для 💬ChatGPT
+# У вас заканчиваются запросы для 💬 ChatGPT
 # Специально для вас мы подготовили <b>персональную скидку</b>!
 # Выберите интересующую Вас модель⤵️
 #     """, reply_markup=user_kb.get_chatgpt_models_noback('discount'))
@@ -857,7 +860,7 @@ async def generate_example_prompt() -> str:
 # Уведомление о низком количестве запросов MidJourney
 async def notify_low_midjourney_requests(user_id, bot: Bot):
     await bot.send_message(user_id, """
-У вас заканчиваются запросы для 🎨Midjourney
+У вас заканчиваются запросы для 🎨 Midjourney
 Специально для вас мы подготовили <b>персональную скидку</b>!
 
 Успейте приобрести запросы со скидкой, предложение актуально <b>24 часа</b>⤵️
@@ -962,13 +965,13 @@ async def back_to_menu(call: CallbackQuery):
         disable_web_page_preview=True
     )
 
-#     await call.message.answer("""NeuronAgent🤖 - 2 нейросети в одном месте!
+#     await call.message.answer("""NeuronAgent 🤖 - 2 нейросети в одном месте!
 #
 # ChatGPT или Midjourney?""", reply_markup=user_kb.get_start_inline())  # Меню выбора AI
     await call.message.delete()  # Удаляем предыдущее сообщение
 
 
-@dp.message_handler(state="*", text="🤝Партнерская программа")
+@dp.message_handler(state="*", text="🤝 Партнерская программа")
 @dp.message_handler(commands='partner')
 async def ref_menu(message: Message):
     user_id = message.from_user.id
@@ -991,8 +994,8 @@ async def ref_menu(message: Message):
 
     keyboard = InlineKeyboardMarkup(row_width=1)
     keyboard.add(
-        InlineKeyboardButton('📩Поделится ссылкой', url=share_url),
-        # InlineKeyboardButton('💳Вывод средств', callback_data='withdraw_ref_menu')
+        InlineKeyboardButton('📩 Поделится ссылкой', url=share_url),
+        # InlineKeyboardButton('💳 Вывод средств', callback_data='withdraw_ref_menu')
     )
 
     # Добавляем кнопку включения уведомлений, если они отключены
@@ -1002,7 +1005,7 @@ async def ref_menu(message: Message):
         )
 
     # Добавляем кнопку назад в конце
-    keyboard.add(InlineKeyboardButton('🔙Назад', callback_data='check_sub'))
+    keyboard.add(InlineKeyboardButton(' 🔙 Назад', callback_data='check_sub'))
 
     await message.answer_photo(
         more_api.get_qr_photo(ref_link),
@@ -1022,7 +1025,7 @@ async def ref_menu(message: Message):
     )
 
 
-@dp.message_handler(state="*", text="⚙Аккаунт")
+@dp.message_handler(state="*", text="⚙ Аккаунт")
 @dp.message_handler(state="*", commands="account")
 async def show_profile(message: Message, state: FSMContext):
     await state.finish()
@@ -1067,9 +1070,9 @@ async def show_profile(message: Message, state: FSMContext):
     sub_text = f"""
 Вам доступно⤵️
 
-Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
-💬GPT-5.2:  {days_left} {days_word}
-💬GPT-5-mini:  {days_left} {days_word}
+Генерации 🎨 Midjourney:  {format(mj, ',').replace(',', ' ')}
+💬 GPT-5.2:  {days_left} {days_word}
+💬 GPT-5-mini:  {days_left} {days_word}
                     """
 
     await message.answer(
@@ -1121,9 +1124,9 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
         sub_text = f"""
 Вам доступно⤵️
 
-Генерации 🎨Midjourney:  {format(mj, ',').replace(',', ' ')}
-💬GPT-5.2:  {days_left} дней
-💬GPT-5-mini:  {days_left} дней
+Генерации 🎨 Midjourney:  {format(mj, ',').replace(',', ' ')}
+💬 GPT-5.2:  {days_left} дней
+💬 GPT-5-mini:  {days_left} дней
                     """
 
         # Отправляем сообщение с обновленными данными аккаунта
@@ -1135,7 +1138,7 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
 
 #         if src == "not_gpt":
 #             await call.message.edit_text("""
-# У вас заканчиваются токены для 💬ChatGPT
+# У вас заканчиваются токены для 💬 ChatGPT
 # Специально для вас мы подготовили <b>персональную скидку</b>!
 #
 # Успейте приобрести токены со скидкой, предложение актуально <b>24 часа</b>⤵️
@@ -1143,7 +1146,7 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
 
         if src == "not_mj":
             await call.message.edit_text("""
-У вас заканчиваются запросы для 🎨Midjourney
+У вас заканчиваются запросы для 🎨 Midjourney
 Специально для вас мы подготовили <b>персональную скидку</b>!
 
 Успейте приобрести запросы со скидкой, предложение актуально <b>24 часа</b>⤵️
@@ -1169,8 +1172,8 @@ async def change_lang(call: CallbackQuery):
 
 
 # Главное меню для генерации изображений от OpenAI
-@dp.message_handler(state="*", text="🎨Image OpenAI✅")
-@dp.message_handler(state="*", text="🎨Image OpenAI")
+@dp.message_handler(state="*", text="🎨 Image OpenAI ✅")
+@dp.message_handler(state="*", text="🎨 Image OpenAI")
 @dp.message_handler(state="*", commands="image_openai")
 async def image_openai_menu_handler(message: Message, state: FSMContext):
     if not await check_access_or_prompt(message):
@@ -1183,8 +1186,8 @@ async def image_openai_menu_handler(message: Message, state: FSMContext):
     await gen_image_openai(message)
 
 # Хендлер для ChatGPT
-@dp.message_handler(state="*", text="💬ChatGPT✅")
-@dp.message_handler(state="*", text="💬ChatGPT")
+@dp.message_handler(state="*", text="💬 ChatGPT ✅")
+@dp.message_handler(state="*", text="💬 ChatGPT")
 @dp.message_handler(state="*", commands="chatgpt")
 async def ask_question(message: Message, state: FSMContext):
     if not await check_access_or_prompt(message):
@@ -1223,11 +1226,11 @@ async def ask_question(message: Message, state: FSMContext):
     # Отправляем пользователю имя текущего чата (если есть)
     if current_chat and current_chat["name"]:
         keyboard = InlineKeyboardMarkup(row_width=1).add(
-            InlineKeyboardButton("🗂Мои чаты", callback_data="my_chats"),
-            InlineKeyboardButton("➕Новый чат", callback_data="create_new_chat"),
+            InlineKeyboardButton("🗂 Мои чаты", callback_data="my_chats"),
+            InlineKeyboardButton("➕ Новый чат", callback_data="create_new_chat"),
         )
         await message.answer(
-            f"💬 Активный чат: *{current_chat['name']}*\n\n"
+            f" 💬 Активный чат: *{current_chat['name']}*\n\n"
             f"Выберите чат или введите запрос⤵️",
             parse_mode="Markdown",
             reply_markup=keyboard
@@ -1238,9 +1241,13 @@ async def ask_question(message: Message, state: FSMContext):
         await message.answer(
             f"""<b>Введите запрос</b>
 Например: <code>{example_prompt}</code>
-        
+
+Или настройте ChatGPT под свои задачи по кнопке ⤵️
+
 <u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
-            reply_markup=user_kb.get_menu("chatgpt"),
+            reply_markup=InlineKeyboardMarkup(row_width=1).add(
+                InlineKeyboardButton("⚙️ Настройки ChatGPT", callback_data="settings")
+            ),
             disable_web_page_preview=True
         )
 
@@ -1263,7 +1270,7 @@ async def handle_create_new_chat(call: CallbackQuery, state: FSMContext):
 
 
 # Хендлер для вывода информации о поддержке
-@dp.message_handler(state="*", text="👨🏻‍💻Поддержка")
+@dp.message_handler(state="*", text="👨🏻‍💻 Поддержка")
 @dp.message_handler(state="*", commands="help")
 async def support(message: Message, state: FSMContext):
     await state.finish()  # Завершаем текущее состояние
@@ -1272,8 +1279,8 @@ async def support(message: Message, state: FSMContext):
 
 
 # Хендлер для MidJourney
-@dp.message_handler(state="*", text="🎨Midjourney✅")
-@dp.message_handler(state="*", text="🎨Midjourney")
+@dp.message_handler(state="*", text="🎨 Midjourney ✅")
+@dp.message_handler(state="*", text="🎨 Midjourney")
 @dp.message_handler(state="*", commands="midjourney")
 async def gen_img(message: Message, state: FSMContext):
     # if not await check_access_or_prompt(message):
@@ -1332,7 +1339,7 @@ async def choose_image(call: CallbackQuery):
     action_id = call.data.split(":")[1]
     image_id = call.data.split(":")[2]
     task_id = (await db.get_task_by_action_id(int(action_id)))["external_task_id"]
-    await call.message.answer("Ожидайте, сохраняю изображение в отличном качестве…⏳",
+    await call.message.answer("Ожидайте, сохраняю изображение в отличном качестве… ⏳ ",
                               reply_markup=user_kb.get_menu(user["default_ai"]))
     res = await ai.get_choose_mdjrny(task_id, image_id, call.from_user.id)  # Запрос к MidJourney API
 
@@ -1357,7 +1364,7 @@ async def change_image(call: CallbackQuery):
     button_type = call.data.split(":")[1]
     value = call.data.split(":")[2]
     task_id = (await db.get_task_by_action_id(int(action)))["external_task_id"]
-    await call.message.answer("Ожидайте, обрабатываю изображение⏳",
+    await call.message.answer("Ожидайте, обрабатываю изображение ⏳ ",
                               reply_markup=user_kb.get_menu(user["default_ai"]))
 
     action_id = await db.add_action(user_id, "image", button_type)
@@ -1432,7 +1439,7 @@ async def change_profile_info(message: Message, state: FSMContext):
     if len(message.text) > 256:
         return await message.answer("Максимальная длина 256 символов")
     await db.update_chatgpt_about_me(message.from_user.id, message.text)  # Обновляем данные в базе
-    await message.answer("✅Описание обновлено!")
+    await message.answer("✅ Описание обновлено!")
     await state.finish()
 
 
@@ -1457,7 +1464,7 @@ async def change_character(message: Message, state: FSMContext):
     if len(message.text) > 256:
         return await message.answer("Максимальная длина 256 символов")
     await db.update_chatgpt_character(message.from_user.id, message.text)  # Обновляем данные в базе
-    await message.answer("✅Описание обновлено!")
+    await message.answer("✅ Описание обновлено!")
     await state.finish()
 
 
@@ -1577,7 +1584,7 @@ async def handle_voice(message: Message, state: FSMContext):
 async def return_voice(call: CallbackQuery, state: FSMContext):
     if not await check_access_or_prompt(call):
         return
-    processing_message = await call.message.answer("⏳Идёт запись голосового, ожидайте")
+    processing_message = await call.message.answer("⏳ Идёт запись голосового, ожидайте")
     user_id = call.from_user.id
 
     # Пытаемся получить текущий голос пользователя
@@ -1598,7 +1605,7 @@ async def return_voice(call: CallbackQuery, state: FSMContext):
 
     # Генерация аудио из текста
     audio_response = text_to_speech(content, voice=user_voice)
-    # Удаляем сообщение "⏳Идёт запись голосового, ожидайте"
+    # Удаляем сообщение "⏳ Идёт запись голосового, ожидайте"
     await processing_message.delete()
     # Отправляем голосовое сообщение
     await call.message.answer_voice(voice=audio_response)
@@ -1747,9 +1754,9 @@ async def select_model(call: CallbackQuery):
         await call.message.edit_text("Выберите модель GPT для диалогов⤵️:", reply_markup=keyboard)
 
         if selected_model == '5':
-            await call.message.answer(f"✅Модель для ChatGPT изменена на GPT-5.2")
+            await call.message.answer(f"✅ Модель для ChatGPT изменена на GPT-5.2")
         else:
-            await call.message.answer(f"✅Модель для ChatGPT изменена на GPT-5-mini")
+            await call.message.answer(f"✅ Модель для ChatGPT изменена на GPT-5-mini")
     except Exception as e:
         logger.error(f"Ошибка при выборе модели GPT: {e}")
         await call.answer()
@@ -1788,7 +1795,7 @@ async def select_voice(call: CallbackQuery):
         await call.message.edit_reply_markup(reply_markup=updated_keyboard)
 
         # Отправляем уведомление об успешном выборе
-        await call.answer(f"Выбран голос: {selected_voice} ✅")
+        await call.answer(f"Выбран голос: {selected_voice} ✅ ")
     except Exception as e:
         logger.error(f"Ошибка при выборе голоса: {e}")
         await call.answer("Произошла ошибка. Попробуйте снова.", show_alert=True)
@@ -1879,8 +1886,8 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
 
     # Кнопки: удалить все и создать новый
     kb.add(
-        InlineKeyboardButton("❌Удалить все чаты", callback_data="delete_all_chats"),
-        InlineKeyboardButton("➕Новый чат", callback_data="create_chat")
+        InlineKeyboardButton("❌ Удалить все чаты", callback_data="delete_all_chats"),
+        InlineKeyboardButton("➕ Новый чат", callback_data="create_chat")
     )
 
     # Кнопки чатов
@@ -1896,10 +1903,10 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
 
     # Пагинация
     kb.row(
-        InlineKeyboardButton("⏮", callback_data=f"page:first:{page}"),
-        InlineKeyboardButton("◀", callback_data=f"page:prev:{page}"),
-        InlineKeyboardButton("▶", callback_data=f"page:next:{page}"),
-        InlineKeyboardButton("⏭", callback_data=f"page:last:{page}")
+        InlineKeyboardButton(" ⏮ ", callback_data=f"page:first:{page}"),
+        InlineKeyboardButton(" ◀ ", callback_data=f"page:prev:{page}"),
+        InlineKeyboardButton(" ▶ ", callback_data=f"page:next:{page}"),
+        InlineKeyboardButton(" ⏭ ", callback_data=f"page:last:{page}")
     )
 
     # Назад
@@ -1978,8 +1985,8 @@ async def paginate_chats(call: CallbackQuery):
 
     # Кнопки: удалить все и создать новый
     kb.add(
-        InlineKeyboardButton("❌Удалить все чаты", callback_data="delete_all_chats"),
-        InlineKeyboardButton("➕Новый чат", callback_data="create_chat")
+        InlineKeyboardButton("❌ Удалить все чаты", callback_data="delete_all_chats"),
+        InlineKeyboardButton("➕ Новый чат", callback_data="create_chat")
     )
 
     # Кнопки чатов
@@ -1994,14 +2001,14 @@ async def paginate_chats(call: CallbackQuery):
 
     # Пагинация
     kb.row(
-        InlineKeyboardButton("⏮", callback_data=f"page:first:{new_page}"),
-        InlineKeyboardButton("◀", callback_data=f"page:prev:{new_page}"),
-        InlineKeyboardButton("▶", callback_data=f"page:next:{new_page}"),
-        InlineKeyboardButton("⏭", callback_data=f"page:last:{new_page}")
+        InlineKeyboardButton(" ⏮ ", callback_data=f"page:first:{new_page}"),
+        InlineKeyboardButton(" ◀ ", callback_data=f"page:prev:{new_page}"),
+        InlineKeyboardButton(" ▶ ", callback_data=f"page:next:{new_page}"),
+        InlineKeyboardButton(" ⏭ ", callback_data=f"page:last:{new_page}")
     )
 
     # Назад
-    kb.add(InlineKeyboardButton("🔙 Назад", callback_data="settings"))
+    kb.add(InlineKeyboardButton(" 🔙 Назад", callback_data="settings"))
 
     # Отправляем обновленное сообщение с чатиками и кнопками
     try:
@@ -2039,7 +2046,7 @@ async def select_chat(call: CallbackQuery):
     text = f'Управление чатом\n"*{chat_name}*"'
 
     # Формируем кнопки для управления выбранным чатом
-    select_button_text = "✅ Выбран" if chat_id == user["current_chat_id"] else "▶️ Выбрать этот чат"
+    select_button_text = "✅ Выбран" if chat_id == user["current_chat_id"] else " ▶️ Выбрать этот чат"
     kb = InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton(select_button_text, callback_data=f"select_active_chat:{chat_id}"),
         InlineKeyboardButton("✏️ Переименовать чат", callback_data=f"rename_chat:{chat_id}"),
@@ -2411,7 +2418,7 @@ async def check_access_or_prompt(message) -> bool:
 
         keyboard = InlineKeyboardMarkup(row_width=1)
         keyboard.add(
-            InlineKeyboardButton("💰Доступ к ChatGPT", callback_data="buy_chatgpt_14days"),
+            InlineKeyboardButton("💰 Доступ к ChatGPT", callback_data="buy_chatgpt_14days"),
             InlineKeyboardButton("📩 Поделиться ссылкой (+14 дней)", url=share_url)
         )
 
@@ -2489,7 +2496,7 @@ async def close_inactive_chat_and_prompt(message, *, with_mode_banner: bool):
 
     # Уведомление о закрытии + кнопка «Мои чаты»
     kb = InlineKeyboardMarkup(row_width=1).add(
-        InlineKeyboardButton("🗂Мои чаты", callback_data="my_chats")
+        InlineKeyboardButton("🗂 Мои чаты", callback_data="my_chats")
     )
     chat_name = chat["name"] or "Без названия"
     await message.answer(
