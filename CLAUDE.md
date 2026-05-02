@@ -27,6 +27,11 @@ configs_files/  — конфиги nginx, systemd и т.д.
 
 **Сервер:** `91.192.102.250` (`neuronbot.ru`), nginx + SSL.
 
+**SSH:** `ssh -i ~/.ssh/id_ed25519 root@91.192.102.250`
+
+**Тестовый бот:** `/srv/test_bot/` — venv создан с python3.11 (не менять на python3 по умолчанию — там 3.8!)
+- Запуск: `cd /srv/test_bot && venv/bin/python main.py`
+
 ---
 
 ## Правила для кода

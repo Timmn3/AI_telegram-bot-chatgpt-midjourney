@@ -352,8 +352,10 @@ async def chat_history_page(chat_id: int, uid: int, token: str):
 
     msgs_html = ""
     for msg in messages_asc:
-        role_class = "user" if msg["user_id"] is not None else "bot"
-        text = html_lib.escape(msg["text"] or "")
+        is_user = msg["user_id"] is not None
+        role_class = "user" if is_user else "bot"
+        raw = msg["text"] or ""
+        text = html_lib.escape(raw) if is_user else raw
         time_str = msg["created_at"].strftime("%H:%M")
         msgs_html += (
             f'<div class="msg-wrap {role_class}">'
@@ -462,7 +464,8 @@ async function loadMore() {{
   data.reverse().forEach(msg => {{
     const wrap = document.createElement('div');
     wrap.className = 'msg-wrap ' + (msg.is_user ? 'user' : 'bot');
-    wrap.innerHTML = '<div class="bubble"><div class="text">' + escHtml(msg.text) +
+    const textContent = msg.is_user ? escHtml(msg.text) : msg.text;
+    wrap.innerHTML = '<div class="bubble"><div class="text">' + textContent +
       '</div><div class="time">' + msg.time + '</div></div>';
     frag.appendChild(wrap);
   }});
@@ -498,4 +501,6 @@ async def chat_history_messages(chat_id: int, uid: int, token: str, offset: int 
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    import os
+    port = int(os.getenv("API_PORT", "8000"))
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")

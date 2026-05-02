@@ -512,6 +512,8 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
         summary = current_chat["summary"] if current_chat else ""
         keywords = current_chat["keywords"] if current_chat and current_chat.get("keywords") else []
 
+        user_text = prompt  # чистый текст пользователя — сохраняем до добавления системных инструкций
+
         # Подмешиваем summary/keywords в промпт, если есть
         if summary:
             prompt = f"Ранее в этом чате обсуждалось: {summary.strip()}\n\n" + prompt
@@ -585,8 +587,6 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
                 """
 
-        message_user = prompt
-
         if messages is None:
             messages = []
         messages.append({"role": "user", "content": prompt})
@@ -643,7 +643,7 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
         had_chat = bool(current_chat)
         if not had_chat:
             # Временное имя — просто первые 50 символов вопроса пользователя
-            provisional_name = re.sub(r"\s+", " ", message_user).strip().strip('"')[:50] or "Новый чат"
+            provisional_name = re.sub(r"\s+", " ", user_text).strip().strip('"')[:50] or "Новый чат"
             new_chat_id = await db.create_chat(user_id, name=provisional_name, summary="")
             await db.set_current_chat(user_id, new_chat_id)
             chat_id = new_chat_id
@@ -651,7 +651,7 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
             chat_id = current_chat["id"]
 
         # Сохраняем реплики синхронно (это быстро)
-        await db.add_message(chat_id, user_id, message_user)
+        await db.add_message(chat_id, user_id, user_text)
         await db.add_message(chat_id, None, message_gpt)
 
         # Списываем токены/триал и логируем действие — синхронно
@@ -660,7 +660,7 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
         await db.add_action(user_id, model)
 
         # Запускаем тяжёлую пост-обработку в фоне: имя (если чат новый), keywords и summary
-        asyncio.create_task(_postprocess_chat(chat_id, user_id, message_user, message_gpt, model, had_chat))
+        asyncio.create_task(_postprocess_chat(chat_id, user_id, user_text, message_gpt, model, had_chat))
 
         return messages
     finally:
