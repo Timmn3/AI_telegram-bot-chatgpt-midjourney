@@ -67,7 +67,6 @@ def settings(lang, from_msg):
 
     return InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton("🤖 Выбрать модель ChatGPT", callback_data="model_menu"),
-        InlineKeyboardButton(f"Ответы ChatGPT: {flag}", callback_data=f"change_lang:{lang}:{from_msg}"),
         InlineKeyboardButton("✍🏻 Рассказать о себе", callback_data="chatgpt_about_me"),
         InlineKeyboardButton("🎭 Характер ChatGPT", callback_data="character_menu"),
         InlineKeyboardButton("🗣 Изменить голос ChatGPT", callback_data="voice_menu"),
@@ -414,3 +413,43 @@ def get_start_inline():
         InlineKeyboardButton("🎨 Midjourney", callback_data="choose_ai:mj"),
     )
     return kb
+
+
+def character_list_keyboard(characters):
+    kb = InlineKeyboardMarkup(row_width=1)
+    if len(characters) > 1:
+        kb.add(InlineKeyboardButton("🗑 Удалить все характеры", callback_data="delete_all_characters"))
+    kb.add(InlineKeyboardButton("➕ Новый характер", callback_data="new_character"))
+    for ch in characters:
+        kb.add(InlineKeyboardButton(ch["name"], callback_data=f"character_settings:{ch['id']}"))
+    kb.add(InlineKeyboardButton("🔙 Назад", callback_data="back_to_profile:acc"))
+    return kb
+
+
+def character_settings_keyboard(char_id):
+    return InlineKeyboardMarkup(row_width=1).add(
+        InlineKeyboardButton("✅ Выбрать этот характер", callback_data=f"select_character:{char_id}"),
+        InlineKeyboardButton("✏️ Редактировать", callback_data=f"edit_character:{char_id}"),
+        InlineKeyboardButton("🗑 Удалить характер", callback_data=f"delete_character:{char_id}"),
+        InlineKeyboardButton("🔙 Назад", callback_data="character_menu")
+    )
+
+
+def confirm_delete_character_keyboard(char_id):
+    return InlineKeyboardMarkup(row_width=1).add(
+        InlineKeyboardButton("🗑 Удалить", callback_data=f"confirm_delete_character:{char_id}"),
+        InlineKeyboardButton("Отмена", callback_data=f"character_settings:{char_id}")
+    )
+
+
+def edit_character_name_keyboard():
+    return InlineKeyboardMarkup(row_width=1).add(
+        InlineKeyboardButton("Не менять название", callback_data="skip_character_name"),
+        InlineKeyboardButton("Отмена", callback_data="character_menu")
+    )
+
+
+def edit_character_instructions_keyboard():
+    return InlineKeyboardMarkup(row_width=1).add(
+        InlineKeyboardButton("Отмена", callback_data="character_menu")
+    )

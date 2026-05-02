@@ -32,3 +32,14 @@ class EnterChatName(StatesGroup):
 # Класс для ввода имени имеющегося чата
 class EnterChatRename(StatesGroup):
     chat_name = State()  # Состояние для ввода имени нового чата
+
+
+class CreateCharacter(StatesGroup):
+    name = State()
+    instructions = State()
+
+
+class EditCharacter(StatesGroup):
+    char_id = State()
+    name = State()
+    instructions = State()

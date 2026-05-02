@@ -268,6 +268,76 @@ async def update_chatgpt_character(user_id, text):
     await conn.close()
 
 
+# --- Характеры (новая система) ---
+
+async def create_character(user_id: int, name: str, instructions: str) -> int:
+    conn: Connection = await get_conn()
+    row = await conn.fetchrow(
+        "INSERT INTO characters(user_id, name, instructions) VALUES($1, $2, $3) RETURNING id",
+        user_id, name, instructions
+    )
+    await conn.close()
+    return row["id"]
+
+
+async def get_characters(user_id: int):
+    conn: Connection = await get_conn()
+    rows = await conn.fetch(
+        "SELECT * FROM characters WHERE user_id = $1 ORDER BY created_at ASC",
+        user_id
+    )
+    await conn.close()
+    return rows
+
+
+async def get_character(char_id: int):
+    conn: Connection = await get_conn()
+    row = await conn.fetchrow("SELECT * FROM characters WHERE id = $1", char_id)
+    await conn.close()
+    return row
+
+
+async def update_character(char_id: int, name: str, instructions: str):
+    conn: Connection = await get_conn()
+    await conn.execute(
+        "UPDATE characters SET name = $2, instructions = $3 WHERE id = $1",
+        char_id, name, instructions
+    )
+    await conn.close()
+
+
+async def delete_character(char_id: int):
+    conn: Connection = await get_conn()
+    await conn.execute("DELETE FROM characters WHERE id = $1", char_id)
+    await conn.close()
+
+
+async def delete_all_characters(user_id: int):
+    conn: Connection = await get_conn()
+    await conn.execute("DELETE FROM characters WHERE user_id = $1", user_id)
+    await conn.close()
+
+
+async def set_active_character(user_id: int, char_id):
+    conn: Connection = await get_conn()
+    await conn.execute("UPDATE users SET active_character_id = $2 WHERE user_id = $1", user_id, char_id)
+    await conn.close()
+
+
+async def get_active_character(user_id: int):
+    conn: Connection = await get_conn()
+    row = await conn.fetchrow(
+        """
+        SELECT c.* FROM characters c
+        JOIN users u ON u.active_character_id = c.id
+        WHERE u.user_id = $1
+        """,
+        user_id
+    )
+    await conn.close()
+    return row
+
+
 # Функция для обновления настроек ChatGPT пользователя
 async def update_chatgpt_settings(user_id, text):
 

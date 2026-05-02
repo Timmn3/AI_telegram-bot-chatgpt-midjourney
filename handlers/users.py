@@ -1443,29 +1443,214 @@ async def change_profile_info(message: Message, state: FSMContext):
     await state.finish()
 
 
-# Хэндлер ввода характерий ChatGPT
+# Показать список характеров
 @dp.callback_query_handler(text="character_menu", state="*")
 async def character_menu(call: CallbackQuery, state: FSMContext):
-    user = await db.get_user(call.from_user.id)
-
-    # Удаляем старое сообщение с текстом и клавиатурой
-    await call.message.delete()
-
-    await call.message.answer(
-        '<b>Введите запрос</b>\n\nНастройте ChatGPT как Вам удобно - тон, настроение, эмоциональный окрас сообщений⤵️\n\n<u><a href="https://telegra.ph/Tonkaya-nastrojka-ChatGPT-06-30">Инструкция.</a></u>',
-        disable_web_page_preview=True,
-        reply_markup=user_kb.clear_description())
-    await state.set_state(states.ChangeChatGPTCharacter.text)
-
-
-# Хендлер для сохранения характера ChatGPT
-@dp.message_handler(state=states.ChangeChatGPTCharacter.text)
-async def change_character(message: Message, state: FSMContext):
-    if len(message.text) > 256:
-        return await message.answer("Максимальная длина 256 символов")
-    await db.update_chatgpt_character(message.from_user.id, message.text)  # Обновляем данные в базе
-    await message.answer("✅ Описание обновлено!")
     await state.finish()
+    characters = await db.get_characters(call.from_user.id)
+    active = await db.get_active_character(call.from_user.id)
+
+    text = "<b>🎭 Характер ChatGPT</b>\n\nНастройте ChatGPT как Вам удобно — тон, настроение, эмоциональный окрас сообщений.\n\n"
+    if not characters:
+        text += "У вас ещё нет характеров. Создайте первый!"
+    else:
+        active_name = active["name"] if active else "не выбран"
+        text += f"Активный: <b>{active_name}</b>"
+
+    try:
+        await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters))
+    except Exception:
+        await call.message.answer(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters))
+    await call.answer()
+
+
+# Создание нового характера — запрос названия
+@dp.callback_query_handler(text="new_character", state="*")
+async def new_character(call: CallbackQuery, state: FSMContext):
+    await call.message.edit_text(
+        "Введите название характера:",
+        reply_markup=user_kb.edit_character_instructions_keyboard()
+    )
+    await states.CreateCharacter.name.set()
+    await call.answer()
+
+
+# Получаем название нового характера
+@dp.message_handler(state=states.CreateCharacter.name)
+async def create_character_name(message: Message, state: FSMContext):
+    if len(message.text) > 64:
+        return await message.answer("Максимальная длина названия — 64 символа")
+    await state.update_data(name=message.text)
+    await message.answer(
+        "Укажите инструкции для характера:",
+        reply_markup=user_kb.edit_character_instructions_keyboard()
+    )
+    await states.CreateCharacter.instructions.set()
+
+
+# Получаем инструкции и создаём характер
+@dp.message_handler(state=states.CreateCharacter.instructions)
+async def create_character_instructions(message: Message, state: FSMContext):
+    data = await state.get_data()
+    name = data["name"]
+    char_id = await db.create_character(message.from_user.id, name, message.text)
+    await db.set_active_character(message.from_user.id, char_id)
+    await state.finish()
+    await message.answer(
+        f"✅ <b>{html.escape(name)}</b> успешно создан и загружен!\n\nВведите запрос:",
+        parse_mode="HTML"
+    )
+
+
+# Настройки конкретного характера
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith("character_settings:"), state="*")
+async def character_settings(call: CallbackQuery, state: FSMContext):
+    await state.finish()
+    char_id = int(call.data.split(":")[1])
+    char = await db.get_character(char_id)
+    if not char:
+        await call.answer("Характер не найден", show_alert=True)
+        return
+    active = await db.get_active_character(call.from_user.id)
+    active_mark = " ✅" if active and active["id"] == char_id else ""
+    text = f"<b>Настройки: {html.escape(char['name'])}{active_mark}</b>\n\n<i>{html.escape(char['instructions'])}</i>"
+    try:
+        await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_settings_keyboard(char_id))
+    except Exception:
+        await call.message.answer(text, parse_mode="HTML", reply_markup=user_kb.character_settings_keyboard(char_id))
+    await call.answer()
+
+
+# Выбрать характер как активный
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith("select_character:"), state="*")
+async def select_character(call: CallbackQuery, state: FSMContext):
+    char_id = int(call.data.split(":")[1])
+    char = await db.get_character(char_id)
+    if not char:
+        await call.answer("Характер не найден", show_alert=True)
+        return
+    await db.set_active_character(call.from_user.id, char_id)
+    await call.answer(f"✅ {char['name']} загружен!", show_alert=False)
+    active_mark = " ✅"
+    text = f"<b>Настройки: {html.escape(char['name'])}{active_mark}</b>\n\n<i>{html.escape(char['instructions'])}</i>"
+    try:
+        await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_settings_keyboard(char_id))
+    except Exception:
+        pass
+
+
+# Редактировать характер — запрос нового названия
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith("edit_character:"), state="*")
+async def edit_character(call: CallbackQuery, state: FSMContext):
+    char_id = int(call.data.split(":")[1])
+    await state.update_data(char_id=char_id)
+    await call.message.edit_text(
+        "Введите новое название:",
+        reply_markup=user_kb.edit_character_name_keyboard()
+    )
+    await states.EditCharacter.name.set()
+    await call.answer()
+
+
+# Пропустить переименование — оставить старое название
+@dp.callback_query_handler(text="skip_character_name", state=states.EditCharacter.name)
+async def skip_character_name(call: CallbackQuery, state: FSMContext):
+    await call.message.edit_text(
+        "Укажите инструкции для характера:",
+        reply_markup=user_kb.edit_character_instructions_keyboard()
+    )
+    await states.EditCharacter.instructions.set()
+    await call.answer()
+
+
+# Получаем новое название
+@dp.message_handler(state=states.EditCharacter.name)
+async def edit_character_name(message: Message, state: FSMContext):
+    if len(message.text) > 64:
+        return await message.answer("Максимальная длина названия — 64 символа")
+    await state.update_data(new_name=message.text)
+    await message.answer(
+        "Укажите инструкции для характера:",
+        reply_markup=user_kb.edit_character_instructions_keyboard()
+    )
+    await states.EditCharacter.instructions.set()
+
+
+# Получаем новые инструкции и сохраняем
+@dp.message_handler(state=states.EditCharacter.instructions)
+async def edit_character_instructions(message: Message, state: FSMContext):
+    data = await state.get_data()
+    char_id = data["char_id"]
+    char = await db.get_character(char_id)
+    if not char:
+        await state.finish()
+        return await message.answer("Характер не найден")
+    new_name = data.get("new_name", char["name"])
+    await db.update_character(char_id, new_name, message.text)
+    await state.finish()
+    await message.answer(
+        f"✅ Характер переименован в <b>{html.escape(new_name)}</b>, инструкции обновлены.\n\nВведите запрос:",
+        parse_mode="HTML"
+    )
+
+
+# Удалить характер — показать подтверждение
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith("delete_character:"), state="*")
+async def delete_character(call: CallbackQuery, state: FSMContext):
+    char_id = int(call.data.split(":")[1])
+    char = await db.get_character(char_id)
+    if not char:
+        await call.answer("Характер не найден", show_alert=True)
+        return
+    try:
+        await call.message.edit_text(
+            f"Вы действительно хотите удалить характер <b>{html.escape(char['name'])}</b>?",
+            parse_mode="HTML",
+            reply_markup=user_kb.confirm_delete_character_keyboard(char_id)
+        )
+    except Exception:
+        await call.message.answer(
+            f"Вы действительно хотите удалить характер <b>{html.escape(char['name'])}</b>?",
+            parse_mode="HTML",
+            reply_markup=user_kb.confirm_delete_character_keyboard(char_id)
+        )
+    await call.answer()
+
+
+# Подтвердить удаление
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith("confirm_delete_character:"), state="*")
+async def confirm_delete_character(call: CallbackQuery, state: FSMContext):
+    char_id = int(call.data.split(":")[1])
+    char = await db.get_character(char_id)
+    name = char["name"] if char else "характер"
+    active = await db.get_active_character(call.from_user.id)
+    if active and active["id"] == char_id:
+        await db.set_active_character(call.from_user.id, None)
+    await db.delete_character(char_id)
+    await call.answer(f"🗑 {name} удалён", show_alert=False)
+    characters = await db.get_characters(call.from_user.id)
+    active = await db.get_active_character(call.from_user.id)
+    active_name = active["name"] if active else "не выбран"
+    text = f"<b>🎭 Характер ChatGPT</b>\n\nАктивный: <b>{active_name}</b>"
+    if not characters:
+        text = "<b>🎭 Характер ChatGPT</b>\n\nУ вас ещё нет характеров. Создайте первый!"
+    try:
+        await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters))
+    except Exception:
+        await call.message.answer(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters))
+
+
+# Удалить все характеры
+@dp.callback_query_handler(text="delete_all_characters", state="*")
+async def delete_all_characters(call: CallbackQuery, state: FSMContext):
+    await db.set_active_character(call.from_user.id, None)
+    await db.delete_all_characters(call.from_user.id)
+    await call.answer("🗑 Все характеры удалены", show_alert=False)
+    text = "<b>🎭 Характер ChatGPT</b>\n\nУ вас ещё нет характеров. Создайте первый!"
+    try:
+        await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard([]))
+    except Exception:
+        await call.message.answer(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard([]))
 
 
 # Хендлер для сброса настроек ChatGPT
@@ -1527,7 +1712,9 @@ async def gen_prompt(message: Message, state: FSMContext):
             return await not_enough_balance(message.bot, user_id, "chatgpt")
 
         data = await state.get_data()
-        system_msg = user["chatgpt_about_me"] + "\n" + user["chatgpt_character"]
+        active_char = await db.get_active_character(user_id)
+        char_instructions = active_char["instructions"] if active_char else ""
+        system_msg = user["chatgpt_about_me"] + "\n" + char_instructions
         messages = [{"role": "system", "content": system_msg}] if "messages" not in data else data["messages"]
         update_messages = await get_gpt(prompt=message.text, messages=messages, user_id=user_id,
                                         bot=message.bot, state=state)  # Генерация ответа от ChatGPT
@@ -1567,7 +1754,9 @@ async def handle_voice(message: Message, state: FSMContext):
             return await not_enough_balance(message.bot, message.from_user.id, "chatgpt")
 
         data = await state.get_data()
-        system_msg = user["chatgpt_about_me"] + "\n" + user["chatgpt_settings"]
+        active_char = await db.get_active_character(message.from_user.id)
+        char_instructions = active_char["instructions"] if active_char else ""
+        system_msg = user["chatgpt_about_me"] + "\n" + char_instructions
         messages = [{"role": "system", "content": system_msg}] if "messages" not in data else data["messages"]
         update_messages = await get_gpt(prompt=text, messages=messages, user_id=message.from_user.id,
                                         bot=message.bot, state=state)  # Генерация ответа от ChatGPT
