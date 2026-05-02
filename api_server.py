@@ -10,7 +10,8 @@ import aiohttp
 from config import NOTIFY_URL, bug_id, ADMINS_CODER, Tinkoff
 from keyboards import user as user_kb
 from fastapi import FastAPI, Request, HTTPException, Form  # Импорт необходимых классов для работы с FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+import html as html_lib
 from pydantic import BaseModel  # Импорт базовой модели данных
 from create_bot import bot  # Импорт бота
 from io import BytesIO  # Для работы с потоками байтов
@@ -22,6 +23,7 @@ from typing import Optional
 import uuid
 
 from utils.pay import get_receipt_url
+from utils.history_token import verify_history_token
 
 logger = logging.getLogger(__name__)
 
@@ -326,6 +328,173 @@ async def get_midjourney_button(request: Request):
         await db.remove_free_image(user["user_id"])
     else:
         await db.remove_image(user["user_id"])
+
+
+@app.get("/history/{chat_id}", response_class=HTMLResponse)
+async def chat_history_page(chat_id: int, uid: int, token: str):
+    if not verify_history_token(uid, chat_id, token):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    chat = await db.get_chat_by_id(chat_id)
+    if not chat or chat["user_id"] != uid:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    messages = await db.get_chat_messages(chat_id, uid, offset=0, limit=25)
+    if messages is None:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    messages_asc = list(reversed(messages))
+    has_more = len(messages) == 25
+    initial_offset = len(messages)
+
+    chat_name = html_lib.escape(chat["name"] or "Диалог")
+    created_at = chat["created_at"].strftime("%d.%m.%Y")
+
+    msgs_html = ""
+    for msg in messages_asc:
+        role_class = "user" if msg["user_id"] is not None else "bot"
+        text = html_lib.escape(msg["text"] or "")
+        time_str = msg["created_at"].strftime("%H:%M")
+        msgs_html += (
+            f'<div class="msg-wrap {role_class}">'
+            f'<div class="bubble">'
+            f'<div class="text">{text}</div>'
+            f'<div class="time">{time_str}</div>'
+            f'</div></div>\n'
+        )
+
+    load_btn_display = "block" if has_more else "none"
+
+    page = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>История диалога</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--tg-theme-bg-color, #18222d);
+  color: var(--tg-theme-text-color, #e0e0e0);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}}
+.header {{
+  position: sticky; top: 0;
+  background: var(--tg-theme-secondary-bg-color, #1f2936);
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  z-index: 10;
+}}
+.header h2 {{
+  font-size: 16px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}}
+.header .meta {{ font-size: 12px; opacity: 0.6; margin-top: 2px; }}
+#load-more-wrap {{ text-align: center; padding: 10px; display: {load_btn_display}; }}
+#load-more-btn {{
+  background: var(--tg-theme-button-color, #2b5278);
+  color: var(--tg-theme-button-text-color, #fff);
+  border: none; border-radius: 20px;
+  padding: 8px 20px; font-size: 14px; cursor: pointer;
+}}
+#messages {{
+  flex: 1; padding: 12px 10px;
+  display: flex; flex-direction: column; gap: 6px;
+}}
+.msg-wrap {{ display: flex; width: 100%; }}
+.msg-wrap.user {{ justify-content: flex-end; }}
+.msg-wrap.bot  {{ justify-content: flex-start; }}
+.bubble {{
+  max-width: 78%; padding: 8px 12px;
+  border-radius: 16px; word-break: break-word;
+}}
+.msg-wrap.user .bubble {{
+  background: var(--tg-theme-button-color, #2b5278);
+  color: var(--tg-theme-button-text-color, #fff);
+  border-bottom-right-radius: 4px;
+}}
+.msg-wrap.bot .bubble {{
+  background: var(--tg-theme-secondary-bg-color, #1f2936);
+  color: var(--tg-theme-text-color, #e0e0e0);
+  border-bottom-left-radius: 4px;
+}}
+.text {{ font-size: 14px; line-height: 1.5; white-space: pre-wrap; }}
+.time {{ font-size: 11px; opacity: 0.55; margin-top: 4px; text-align: right; }}
+</style>
+</head>
+<body>
+<div class="header">
+  <h2>{chat_name}</h2>
+  <div class="meta">Создан: {created_at}</div>
+</div>
+<div id="load-more-wrap">
+  <button id="load-more-btn" onclick="loadMore()">&#11014; Загрузить ещё</button>
+</div>
+<div id="messages">
+{msgs_html}</div>
+<script>
+let offset = {initial_offset};
+const chatId = {chat_id};
+const uid = {uid};
+const token = "{token}";
+
+function escHtml(s) {{
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}}
+
+async function loadMore() {{
+  const btn = document.getElementById('load-more-btn');
+  btn.disabled = true; btn.textContent = '...';
+  const res = await fetch(`/api/history/${{chatId}}/messages?uid=${{uid}}&token=${{token}}&offset=${{offset}}`);
+  if (!res.ok) {{ btn.disabled = false; btn.textContent = '&#11014; Загрузить ещё'; return; }}
+  const data = await res.json();
+  if (data.length === 0) {{
+    document.getElementById('load-more-wrap').style.display = 'none';
+    return;
+  }}
+  offset += data.length;
+  const container = document.getElementById('messages');
+  const frag = document.createDocumentFragment();
+  data.reverse().forEach(msg => {{
+    const wrap = document.createElement('div');
+    wrap.className = 'msg-wrap ' + (msg.is_user ? 'user' : 'bot');
+    wrap.innerHTML = '<div class="bubble"><div class="text">' + escHtml(msg.text) +
+      '</div><div class="time">' + msg.time + '</div></div>';
+    frag.appendChild(wrap);
+  }});
+  container.insertBefore(frag, container.firstChild);
+  if (data.length < 25) {{
+    document.getElementById('load-more-wrap').style.display = 'none';
+  }} else {{
+    btn.disabled = false; btn.textContent = '&#11014; Загрузить ещё';
+  }}
+}}
+
+window.onload = () => {{ window.scrollTo(0, document.body.scrollHeight); }};
+</script>
+</body>
+</html>"""
+    return HTMLResponse(content=page)
+
+
+@app.get("/api/history/{chat_id}/messages")
+async def chat_history_messages(chat_id: int, uid: int, token: str, offset: int = 0):
+    if not verify_history_token(uid, chat_id, token):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    messages = await db.get_chat_messages(chat_id, uid, offset=offset, limit=25)
+    if messages is None:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    return JSONResponse([{
+        "is_user": msg["user_id"] is not None,
+        "text": msg["text"] or "",
+        "time": msg["created_at"].strftime("%H:%M"),
+    } for msg in messages])
 
 
 if __name__ == "__main__":

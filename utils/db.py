@@ -1418,6 +1418,23 @@ async def get_chat_by_id(chat_id: int):
     await conn.close()
     return row
 
+async def get_chat_messages(chat_id: int, user_id: int, offset: int = 0, limit: int = 25):
+    conn: Connection = await get_conn()
+    chat = await conn.fetchrow("SELECT id FROM chats WHERE id = $1 AND user_id = $2", chat_id, user_id)
+    if not chat:
+        await conn.close()
+        return None
+    rows = await conn.fetch("""
+        SELECT user_id, text, created_at
+        FROM messages
+        WHERE chat_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+    """, chat_id, limit, offset)
+    await conn.close()
+    return rows
+
+
 async def update_chat_summary(chat_id: int, summary: str):
     conn = await get_conn()
     await conn.execute("""

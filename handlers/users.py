@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import List
 from aiogram import Bot
 from aiogram.types import Message, CallbackQuery, ChatActions, ContentType, MediaGroup, Update, InlineKeyboardMarkup, \
-    InlineKeyboardButton
+    InlineKeyboardButton, WebAppInfo
 from aiogram.types.input_file import InputFile
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher import FSMContext
@@ -14,6 +14,7 @@ from urllib import parse
 from keyboards.user import image_openai_menu, partner
 from states.user import EnterChatName, EnterChatRename
 from utils import db, ai, more_api, pay  # Импорт утилит для взаимодействия с БД и внешними API
+from utils.history_token import make_history_token
 from states import user as states  # Состояния FSM для пользователя
 import keyboards.user as user_kb  # Клавиатуры для взаимодействия с пользователями
 from config import bot_url, TOKEN, NOTIFY_URL, bug_id, PHOTO_PATH, MJ_PHOTO_BASE_URL, ADMINS_CODER, check_channel
@@ -2323,8 +2324,10 @@ async def select_chat(call: CallbackQuery):
 
     # Формируем кнопки для управления выбранным чатом
     select_button_text = "✅ Выбран" if chat_id == user["current_chat_id"] else " ▶️ Выбрать этот чат"
+    history_url = f"https://neuronbot.ru/history/{chat_id}?uid={user_id}&token={make_history_token(user_id, chat_id)}"
     kb = InlineKeyboardMarkup(row_width=1).add(
         InlineKeyboardButton(select_button_text, callback_data=f"select_active_chat:{chat_id}"),
+        InlineKeyboardButton("📖 История диалога", web_app=WebAppInfo(url=history_url)),
         InlineKeyboardButton("✏️ Переименовать чат", callback_data=f"rename_chat:{chat_id}"),
         InlineKeyboardButton("🗑 Удалить чат", callback_data=f"delete_selected_chat:{chat_id}"),
         InlineKeyboardButton("🔙 Назад", callback_data="my_chats")
