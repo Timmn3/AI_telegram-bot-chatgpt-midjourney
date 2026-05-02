@@ -415,13 +415,14 @@ def get_start_inline():
     return kb
 
 
-def character_list_keyboard(characters):
+def character_list_keyboard(characters, active_id=None):
     kb = InlineKeyboardMarkup(row_width=1)
     if len(characters) > 1:
         kb.add(InlineKeyboardButton("🗑 Удалить все характеры", callback_data="delete_all_characters"))
     kb.add(InlineKeyboardButton("➕ Новый характер", callback_data="new_character"))
     for ch in characters:
-        kb.add(InlineKeyboardButton(ch["name"], callback_data=f"character_settings:{ch['id']}"))
+        label = f"✅ {ch['name']}" if ch["id"] == active_id else ch["name"]
+        kb.add(InlineKeyboardButton(label, callback_data=f"character_settings:{ch['id']}"))
     kb.add(InlineKeyboardButton("🔙 Назад", callback_data="back_to_profile:acc"))
     return kb
 

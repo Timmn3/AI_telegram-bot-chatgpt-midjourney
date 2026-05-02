@@ -1449,6 +1449,7 @@ async def character_menu(call: CallbackQuery, state: FSMContext):
     await state.finish()
     characters = await db.get_characters(call.from_user.id)
     active = await db.get_active_character(call.from_user.id)
+    active_id = active["id"] if active else None
 
     text = "<b>🎭 Характер ChatGPT</b>\n\nНастройте ChatGPT как Вам удобно — тон, настроение, эмоциональный окрас сообщений.\n\n"
     if not characters:
@@ -1458,9 +1459,9 @@ async def character_menu(call: CallbackQuery, state: FSMContext):
         text += f"Активный: <b>{active_name}</b>"
 
     try:
-        await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters))
+        await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters, active_id))
     except Exception:
-        await call.message.answer(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters))
+        await call.message.answer(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters, active_id))
     await call.answer()
 
 
@@ -1497,7 +1498,7 @@ async def create_character_instructions(message: Message, state: FSMContext):
     await db.set_active_character(message.from_user.id, char_id)
     await state.finish()
     await message.answer(
-        f"<b>{html.escape(name)}</b> успешно создан\n\n<b>{html.escape(name)}</b> успешно загружен\n\nВведите запрос⤵️",
+        f"<b>{html.escape(name)}</b> успешно создан",
         parse_mode="HTML"
     )
 
@@ -1512,8 +1513,7 @@ async def character_settings(call: CallbackQuery, state: FSMContext):
         await call.answer("Характер не найден", show_alert=True)
         return
     active = await db.get_active_character(call.from_user.id)
-    active_mark = " ✅" if active and active["id"] == char_id else ""
-    text = f"<b>Настройки для {html.escape(char['name'])}{active_mark}</b>\n\n<i>{html.escape(char['instructions'])}</i>"
+    text = f"<b>Настройки для {html.escape(char['name'])}</b>\n\n<i>{html.escape(char['instructions'])}</i>"
     try:
         await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_settings_keyboard(char_id))
     except Exception:
@@ -1530,8 +1530,7 @@ async def select_character(call: CallbackQuery, state: FSMContext):
         await call.answer("Характер не найден", show_alert=True)
         return
     await db.set_active_character(call.from_user.id, char_id)
-    # Обновляем заголовок с ✅
-    text = f"<b>Настройки для {html.escape(char['name'])} ✅</b>\n\n<i>{html.escape(char['instructions'])}</i>"
+    text = f"<b>Настройки для {html.escape(char['name'])}</b>\n\n<i>{html.escape(char['instructions'])}</i>"
     try:
         await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_settings_keyboard(char_id))
     except Exception:
