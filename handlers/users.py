@@ -1421,15 +1421,27 @@ async def try_prompt(call: CallbackQuery, state: FSMContext):
 # Хендлер для настроек ChatGPT: ввод данных о пользователе через callback
 @dp.callback_query_handler(text="chatgpt_about_me", state="*")
 async def chatgpt_about_me(call: CallbackQuery, state: FSMContext):
+    await state.finish()
     user = await db.get_user(call.from_user.id)
-    # Удаляем старое сообщение с текстом и клавиатурой
     await call.message.delete()
 
-    await call.message.answer(
-        '<b>Введите запрос</b>\n\nПоделитесь с ChatGPT любой информацией о себе, чтобы получить более качественные ответы⤵️\n\n<u><a href="https://telegra.ph/Tonkaya-nastrojka-ChatGPT-06-30">Инструкция.</a></u>',
-        disable_web_page_preview=True,
-        reply_markup=user_kb.clear_description())
-    await state.set_state(states.ChangeChatGPTAboutMe.text)  # Устанавливаем состояние ввода данных
+    current = user.get("chatgpt_about_me", "") or ""
+    if current:
+        await call.message.answer(
+            'Поделитесь с ChatGPT любой информацией о себе, чтобы получить более качественные ответы\n\n'
+            '<u><a href="https://telegra.ph/Tonkaya-nastrojka-ChatGPT-06-30">Инструкция</a></u>\n\n'
+            f'Ваше описание:\n<blockquote>{current}</blockquote>',
+            disable_web_page_preview=True,
+            reply_markup=user_kb.about_me_has_text_kb()
+        )
+    else:
+        await call.message.answer(
+            '<b>Введите запрос</b>\n\nПоделитесь с ChatGPT любой информацией о себе, чтобы получить более качественные ответы⤵️\n\n'
+            '<u><a href="https://telegra.ph/Tonkaya-nastrojka-ChatGPT-06-30">Инструкция.</a></u>',
+            disable_web_page_preview=True,
+            reply_markup=user_kb.about_me_input_kb()
+        )
+        await state.set_state(states.ChangeChatGPTAboutMe.text)
     await call.answer()
 
 
@@ -1438,9 +1450,52 @@ async def chatgpt_about_me(call: CallbackQuery, state: FSMContext):
 async def change_profile_info(message: Message, state: FSMContext):
     if len(message.text) > 256:
         return await message.answer("Максимальная длина 256 символов")
-    await db.update_chatgpt_about_me(message.from_user.id, message.text)  # Обновляем данные в базе
+    await db.update_chatgpt_about_me(message.from_user.id, message.text)
     await message.answer("✅ Описание обновлено!")
     await state.finish()
+
+
+@dp.callback_query_handler(text="delete_about_me", state="*")
+async def delete_about_me_handler(call: CallbackQuery):
+    await call.message.delete()
+    await call.message.answer(
+        "Вы действительно хотите удалить информацию о себе?",
+        reply_markup=user_kb.confirm_delete_about_me_kb()
+    )
+    await call.answer()
+
+
+@dp.callback_query_handler(text="confirm_delete_about_me", state="*")
+async def confirm_delete_about_me_handler(call: CallbackQuery):
+    await db.update_chatgpt_about_me(call.from_user.id, "")
+    await call.message.delete()
+    await call.message.answer("✅ Описание успешно удалено")
+    await call.answer()
+
+
+@dp.callback_query_handler(text="cancel_delete_about_me", state="*")
+async def cancel_delete_about_me_handler(call: CallbackQuery):
+    user = await db.get_user(call.from_user.id)
+    user_lang = user["chat_gpt_lang"]
+    await call.message.delete()
+    await call.message.answer(
+        "Здесь Вы можете изменить настройки \nChatGPT⤵️",
+        reply_markup=user_kb.settings(user_lang, 'acc')
+    )
+    await call.answer()
+
+
+@dp.callback_query_handler(text="back_to_chatgpt_settings", state="*")
+async def back_to_chatgpt_settings_handler(call: CallbackQuery, state: FSMContext):
+    await state.finish()
+    user = await db.get_user(call.from_user.id)
+    user_lang = user["chat_gpt_lang"]
+    await call.message.delete()
+    await call.message.answer(
+        "Здесь Вы можете изменить настройки \nChatGPT⤵️",
+        reply_markup=user_kb.settings(user_lang, 'acc')
+    )
+    await call.answer()
 
 
 # Показать список характеров

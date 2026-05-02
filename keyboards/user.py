@@ -121,6 +121,26 @@ def clear_description():
     )
 
 
+def about_me_input_kb():
+    return InlineKeyboardMarkup(row_width=1).add(
+        InlineKeyboardButton("🔙 Назад", callback_data="back_to_chatgpt_settings")
+    )
+
+
+def about_me_has_text_kb():
+    return InlineKeyboardMarkup(row_width=1).add(
+        InlineKeyboardButton("🗑 Удалить описание", callback_data="delete_about_me"),
+        InlineKeyboardButton("🔙 Назад", callback_data="back_to_chatgpt_settings")
+    )
+
+
+def confirm_delete_about_me_kb():
+    return InlineKeyboardMarkup(row_width=2).add(
+        InlineKeyboardButton("✅ Удалить", callback_data="confirm_delete_about_me"),
+        InlineKeyboardButton("❌ Отмена", callback_data="cancel_delete_about_me")
+    )
+
+
 # Кнопка для вариации запроса (например, в MidJourney)
 def get_try_prompt(ai_type):
 
@@ -423,7 +443,7 @@ def character_list_keyboard(characters, active_id=None):
     for ch in characters:
         label = f"✅ {ch['name']}" if ch["id"] == active_id else ch["name"]
         kb.add(InlineKeyboardButton(label, callback_data=f"character_settings:{ch['id']}"))
-    kb.add(InlineKeyboardButton("🔙 Назад", callback_data="back_to_profile:acc"))
+    kb.add(InlineKeyboardButton("🔙 Назад", callback_data="back_to_chatgpt_settings"))
     return kb
 
 
