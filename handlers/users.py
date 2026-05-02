@@ -1581,6 +1581,7 @@ async def skip_character_instructions(call: CallbackQuery, state: FSMContext):
     new_name = data["new_name"] if name_changed else char["name"]
     if name_changed:
         await db.update_character(char_id, new_name, char["instructions"])
+        await db.set_active_character(call.from_user.id, char_id)
     await state.finish()
     await call.answer()
     if name_changed:
@@ -1617,6 +1618,7 @@ async def edit_character_instructions(message: Message, state: FSMContext):
     name_changed = "new_name" in data
     new_name = data["new_name"] if name_changed else char["name"]
     await db.update_character(char_id, new_name, message.text)
+    await db.set_active_character(message.from_user.id, char_id)
     await state.finish()
     if name_changed:
         await message.answer(
