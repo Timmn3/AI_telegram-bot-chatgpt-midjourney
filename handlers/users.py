@@ -910,9 +910,7 @@ async def check_sub(call: CallbackQuery):
         # Проверка подписки через Telegram API
         status: ChatMember = await bot.get_chat_member(channel_id, user_id)
         if status.status == "left":
-            await call.message.answer("Для продолжения использования, подпишитесь на наш канал⤵️",
-                                      reply_markup=partner)
-            await call.answer()
+            await call.answer("Необходимо подписаться на канал", show_alert=True)
             return  # не показываем меню
     except ChatNotFound:
         await call.message.answer("Канал не найден.")
@@ -1013,9 +1011,10 @@ async def ref_menu(message: Message):
         caption=f'''<b>🤝 Партнёрская программа</b>
 
 <i>Приводи друзей и получай 2 недели ChatGPT бесплатно.</i>
+Для участия и получения бонусов необходимо быть подписанным на наш <a href="https://t.me/NeuronAgent">канал</a>
 
 <b>⬇️ Твоя реферальная ссылка:</b>
-└ {ref_link}
+└ <code>{ref_link}</code>
 
 <b>🏅 Статистика:</b>
 ├ Лично приглашённых: <b>{count_refs}</b>
