@@ -26,7 +26,7 @@ logging.basicConfig(
 client = OpenAI(api_key=OPENAPI_TOKEN)
 
 # Инициализация MidJourneyAPI
-mj_api = MidJourneyAPI(primary_api="goapi")  # Начнем с GoAPI
+mj_api = MidJourneyAPI(primary_api="legnext")
 
 # Функция для получения MidJourney токена в зависимости от индекса
 def get_mj_token(index):
@@ -200,13 +200,30 @@ async def get_gpt(messages, model):
 
 # Функция для отправки запроса в MidJourney
 async def get_mdjrny(prompt, user_id):
-    """
-    Переводим промпт, создаём действие и отправляем imagine через mj_api.
-    Сетевых блокирующих вызовов здесь нет.
-    """
-    translated_prompt = await get_translate(prompt)  # Переводим запрос на английский
-    request_id = await db.add_action(user_id, "image", "imagine")  # Сохраняем действие в базе данных
-    response = await mj_api.imagine(translated_prompt, request_id)  # Отправляем запрос в Midjourney
+    logger.info(f"[MJ] STEP 1 — исходный запрос пользователя: {prompt!r}")
+
+    gpt_prompt = (
+        f"Мне нужно сгенерировать изображение в Midjourney: {prompt}, "
+        "составь для меня качественный промпт для Midjourney для этого изображения. "
+        "НЕ УКАЗЫВАЙ В ПРОМТЕ ВЕРСИЮ"
+    )
+    logger.info(f"[MJ] STEP 2 — отправляю в ChatGPT: {gpt_prompt!r}")
+
+    gpt_messages = [{"role": "user", "content": gpt_prompt}]
+    gpt_result = await get_gpt(gpt_messages, model='5-mini')
+
+    logger.info(f"[MJ] STEP 3 — ответ ChatGPT: status={gpt_result['status']}, content={gpt_result['content']!r}")
+
+    if gpt_result["status"] and gpt_result["content"]:
+        enhanced_prompt = gpt_result["content"]
+        logger.info(f"[MJ] STEP 4 — улучшенный промпт идёт в Midjourney: {enhanced_prompt!r}")
+    else:
+        enhanced_prompt = await get_translate(prompt)
+        logger.warning(f"[MJ] STEP 4 — ChatGPT недоступен, fallback-перевод: {enhanced_prompt!r}")
+
+    request_id = await db.add_action(user_id, "image", "imagine")
+    response = await mj_api.imagine(enhanced_prompt, request_id)
+    logger.info(f"[MJ] STEP 5 — ответ Midjourney API: {response}")
     return response
 
 

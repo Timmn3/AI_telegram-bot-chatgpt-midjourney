@@ -240,6 +240,8 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
         # Извлекаем правильный URL изображения
         if 'task_result' in data:
             image_url = data["task_result"]["image_url"]
+        elif 'output' in data and data.get('output', {}).get('image_url'):
+            image_url = data["output"]["image_url"]
         elif 'original_image_url' in data:
             image_url = data["original_image_url"]
         elif 'image_url' in data:
@@ -295,7 +297,10 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
         return JSONResponse(status_code=200, content={"status": "ok"})
 
     else:
-        error_messages = ''.join(data['task_result'].get('error_messages', []))
+        error_messages = ''.join(
+            data.get('task_result', {}).get('error_messages', []) or
+            [data.get('error', 'Неизвестная ошибка')]
+        )
         await bot.send_message(user_id, f"Произошла ошибка, подробности ошибки:\n\n{error_messages}")
         return JSONResponse(status_code=200, content={"status": "error"})
 

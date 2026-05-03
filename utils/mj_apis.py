@@ -3,7 +3,7 @@ import aiohttp
 import json
 
 from utils import db
-from config import go_api_token, APIFRAME_API_KEY, midjourney_webhook_url
+from config import go_api_token, APIFRAME_API_KEY, midjourney_webhook_url, LEGNEXT_API_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -12,26 +12,27 @@ logging.basicConfig(
     format='%(filename)s:%(lineno)d #%(levelname)-8s '
            '[%(asctime)s] - %(name)s - %(message)s')
 
-# Основной URL для работы с Midjourney
 GOAPI_URL = "https://api.goapi.ai/mj/v2"
-
-# Резервный URL для работы с Midjourney
 APIFRAME_URL = "https://api.apiframe.pro"
+LEGNEXT_URL = "https://api.legnext.ai/api/v1"
 
-# Заголовки для API GoAPI (используется для взаимодействия с MidJourney)
 GOAPI_HEADERS = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'X-API-KEY': go_api_token  # Токен для доступа к GoAPI
+    'X-API-KEY': go_api_token
 }
 
-# Заголовки для Apiframe
 APIFRAME_HEADERS = {
     'Content-Type': 'application/json',
     'Authorization': APIFRAME_API_KEY
 }
 
-# Класс для работы с GoAPI (MidJourney)
+LEGNEXT_HEADERS = {
+    'Content-Type': 'application/json',
+    'x-api-key': LEGNEXT_API_KEY
+}
+
+
 class GoAPI:
     def __init__(self):
         self.session = aiohttp.ClientSession()
@@ -40,10 +41,9 @@ class GoAPI:
         await self.session.close()
 
     async def create_request(self, data, action, request_id):
-
-        data["webhook_endpoint"] = midjourney_webhook_url + "/" + str(request_id)  # Указываем вебхук для ответа
+        data["webhook_endpoint"] = midjourney_webhook_url + "/" + str(request_id)
         data["notify_progress"] = True
-        url=f"{GOAPI_URL}/{action}"
+        url = f"{GOAPI_URL}/{action}"
 
         logger.info(f"Отправка запроса к GoAPI: URL={url}, Data={data}")
 
@@ -56,7 +56,6 @@ class GoAPI:
                 response_content = await response.json()
                 logger.info(f"Ответ GoAPI: {response_content}")
 
-                # Сохраняем task_id в базе данных для сопоставления с action_id
                 task_id = response_content.get('task_id')
                 if task_id:
                     logger.info(f"Task ID: {task_id}, Request ID: {request_id}")
@@ -96,7 +95,6 @@ class GoAPI:
         return await self.create_request(data, "outpaint", request_id)
 
 
-# Класс работы с резервным API - ApiFrame
 class ApiFrame:
     def __init__(self):
         self.session = aiohttp.ClientSession()
@@ -104,30 +102,7 @@ class ApiFrame:
     async def close(self):
         await self.session.close()
 
-    # async def create_request(self, data, action, request_id):
-
-    #     data["webhook_endpoint"] = midjourney_webhook_url + "/" + str(request_id)
-    #     data["notify_progress"] = True
-    #     url = f"{APIFRAME_URL}/{action}"
-
-    #     logger.info(f'Data: {data}, Action: {action}, Request ID: {request_id}')
-    #     logger.info(f'WebHook: {data["webhook_endpoint"]}, url: {url}')
-
-    #     try:
-    #         async with self.session.post(url, json=data, headers=APIFRAME_HEADERS) as response:
-    #             if response.status != 200:
-    #                 error_text = await response.text()
-    #                 logger.error(f"Ошибка ApiFrame: {response.status} - {error_text}")
-    #                 raise Exception(f"ApiFrame Error: {response.status} - {error_text}")
-    #             response_content = await response.json()
-    #             logger.info(f"Ответ ApiFrame: {response_content}")
-    #             return response_content
-    #     except Exception as e:
-    #         logger.error(f"Ошибка при запросе к ApiFrame: {e}")
-    #         raise
-
     async def create_request(self, data, action, request_id):
-        # Используем фиксированный webhook_endpoint без request_id
         data["webhook_endpoint"] = f"{midjourney_webhook_url}"
         data["notify_progress"] = True
         url = f"{APIFRAME_URL}/{action}"
@@ -143,13 +118,12 @@ class ApiFrame:
                     raise Exception(f"ApiFrame Error: {response.status} - {error_text}")
                 response_content = await response.json()
                 logger.info(f"Ответ ApiFrame: {response_content}")
-                
-                # Сохраняем task_id в базе данных для сопоставления с action_id
+
                 task_id = response_content.get('task_id')
                 if task_id:
                     logger.info(f"Task ID: {task_id}, Request ID: {request_id}")
                     await db.update_action_with_task_id(request_id, task_id)
-                
+
                 return response_content
         except Exception as e:
             logger.error(f"Ошибка при запросе к ApiFrame: {e}")
@@ -183,79 +157,149 @@ class ApiFrame:
         return await self.create_request(data, "outpaint", request_id)
 
 
+class LegnextAPI:
+    def __init__(self):
+        self.session = aiohttp.ClientSession()
+
+    async def close(self):
+        await self.session.close()
+
+    async def create_request(self, data, action, request_id):
+        data["callback"] = midjourney_webhook_url + "/" + str(request_id)
+        url = f"{LEGNEXT_URL}/{action}"
+
+        logger.info(f"Отправка запроса к Legnext: URL={url}, Data={data}")
+
+        try:
+            async with self.session.post(url, json=data, headers=LEGNEXT_HEADERS) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    logger.error(f"Ошибка Legnext: {response.status} - {error_text}")
+                    raise Exception(f"Legnext Error: {response.status} - {error_text}")
+                response_content = await response.json()
+                logger.info(f"Ответ Legnext: {response_content}")
+
+                job_id = response_content.get('job_id')
+                if job_id:
+                    logger.info(f"Job ID: {job_id}, Request ID: {request_id}")
+                    await db.update_action_with_task_id(request_id, job_id)
+
+                return response_content
+        except Exception as e:
+            logger.error(f"Ошибка при запросе к Legnext: {e}")
+            raise
+
+    async def imagine(self, prompt, request_id):
+        data = {"text": f"{prompt} --v 8.1"}
+        return await self.create_request(data, "diffusion", request_id)
+
+    async def upscale(self, task_id, index, request_id):
+        # index приходит как "1"/"2"/"3"/"4", Legnext ждёт imageNo 0-3
+        try:
+            image_no = int(index) - 1
+        except (ValueError, TypeError):
+            image_no = 0
+        data = {"jobId": task_id, "imageNo": image_no, "type": 0}
+        return await self.create_request(data, "upscale", request_id)
+
+    async def variation(self, task_id, index, request_id):
+        # high → type=1 (Strong), low → type=0 (Subtle)
+        # если index числовой — берём первый вариант (imageNo 0)
+        if str(index).lstrip('-').isdigit():
+            try:
+                image_no = int(index) - 1
+            except (ValueError, TypeError):
+                image_no = 0
+            var_type = 1
+        else:
+            image_no = 0
+            var_type = 1 if index == 'high' else 0
+        data = {"jobId": task_id, "imageNo": image_no, "type": var_type}
+        return await self.create_request(data, "variation", request_id)
+
+    async def outpaint(self, task_id, zoom_ratio, request_id):
+        logger.warning(f"Legnext outpaint не реализован, task_id={task_id}, zoom_ratio={zoom_ratio}, request_id={request_id}")
+        raise NotImplementedError("Outpaint не поддерживается для Legnext API")
+
+
 class MidJourneyAPI:
     def __init__(self, primary_api="goapi"):
-        self.primary_api = primary_api  # "goapi" или "apiframe"
+        self.primary_api = primary_api  # "goapi", "apiframe" или "legnext"
         self.apiframe = ApiFrame()
         self.goapi = GoAPI()
+        self.legnext = LegnextAPI()
 
     def set_primary_api(self, api_type):
-        if api_type not in ["goapi", "apiframe"]:
+        if api_type not in ["goapi", "apiframe", "legnext"]:
             raise ValueError("Неподдерживаемый тип API")
         self.primary_api = api_type
 
     async def close(self):
         await self.apiframe.close()
+        await self.goapi.close()
+        await self.legnext.close()
 
     async def create_request(self, data, action, request_id):
-
         logger.info(f'Data: {data}, Action: {action}, Request ID: {request_id}')
 
         if self.primary_api == "goapi":
             try:
-                response = await self.goapi.create_request(data, action, request_id)
-                return response
+                return await self.goapi.create_request(data, action, request_id)
             except Exception as e:
                 logger.error(f"GoAPI недоступен: {e}.")
                 try:
-                    error_data = json.loads((str(e)[19:]).strip())  # Парсим JSON из строки ошибки
+                    error_data = json.loads((str(e)[19:]).strip())
                     logger.info(f"Ошибка GoAPI: {error_data}")
-                    # message = error_data.get("message", "Нет сообщения в ошибке")
                     return error_data
                 except (json.JSONDecodeError, IndexError) as parse_error:
-                    # Если не удаётся распарсить, логируем ошибку
                     logger.error(f"Ошибка при парсинге ответа GoAPI: {parse_error}")
-                    return str(e)  # Возвращаем саму ошибку, если не удалось распарсить
+                    return str(e)
 
         if self.primary_api == "apiframe":
             try:
-                response = await self.apiframe.create_request(data, action, request_id)
-                return response
+                return await self.apiframe.create_request(data, action, request_id)
             except Exception as e:
                 logger.error(f"ApiFrame недоступен: {e}.")
 
+        if self.primary_api == "legnext":
+            try:
+                return await self.legnext.create_request(data, action, request_id)
+            except Exception as e:
+                logger.error(f"Legnext недоступен: {e}.")
+                try:
+                    error_data = json.loads((str(e)[18:]).strip())
+                    return error_data
+                except (json.JSONDecodeError, IndexError):
+                    return str(e)
+
     async def imagine(self, prompt, request_id):
-        action = "imagine"
         if self.primary_api == "goapi":
             data = {
                 "process_mode": "fast",
                 "prompt": prompt,
                 "model_version": "v7"
-                # Другие поля, необходимые для GoAPI
             }
+            return await self.create_request(data, "imagine", request_id)
+        elif self.primary_api == "legnext":
+            return await self.legnext.imagine(prompt, request_id)
         else:
-            data = {
-                "prompt": prompt,
-                # Другие поля, необходимые для ApiFrame
-            }
-        return await self.create_request(data, action, request_id)
+            data = {"prompt": prompt}
+            return await self.create_request(data, "imagine", request_id)
 
     async def upscale(self, task_id, index, request_id):
+        if self.primary_api == "legnext":
+            return await self.legnext.upscale(task_id, index, request_id)
 
         action = "upscale" if self.primary_api == "goapi" else "upscale-1x"
         if self.primary_api == "goapi":
-            data = {
-                "origin_task_id": task_id,
-                "index": index
-            }
+            data = {"origin_task_id": task_id, "index": index}
         else:
-            data = {
-                "parent_task_id": task_id,
-                "index": index
-            }
+            data = {"parent_task_id": task_id, "index": index}
         return await self.create_request(data, action, request_id)
 
     async def variation(self, task_id, index, request_id):
+        if self.primary_api == "legnext":
+            return await self.legnext.variation(task_id, index, request_id)
 
         if index == 'high':
             index = 'high_variation' if self.primary_api == "goapi" else 'strong'
@@ -264,18 +308,14 @@ class MidJourneyAPI:
 
         action = "variation" if self.primary_api == "goapi" else "variations"
         if self.primary_api == "goapi":
-            data = {
-                "origin_task_id": task_id,
-                "index": index
-            }
+            data = {"origin_task_id": task_id, "index": index}
         else:
-            data = {
-                "parent_task_id": task_id,
-                "index": index
-            }
+            data = {"parent_task_id": task_id, "index": index}
         return await self.create_request(data, action, request_id)
 
     async def outpaint(self, task_id, zoom_ratio, request_id):
+        if self.primary_api == "legnext":
+            return await self.legnext.outpaint(task_id, zoom_ratio, request_id)
 
         if zoom_ratio == '1.5':
             zoom_ratio = '1.5' if self.primary_api == "goapi" else 1.5
@@ -284,13 +324,7 @@ class MidJourneyAPI:
 
         action = "outpaint"
         if self.primary_api == "goapi":
-            data = {
-                "origin_task_id": task_id,
-                "zoom_ratio": zoom_ratio
-            }
+            data = {"origin_task_id": task_id, "zoom_ratio": zoom_ratio}
         else:
-            data = {
-                "parent_task_id": task_id,
-                "zoom_ratio": zoom_ratio
-            }
+            data = {"parent_task_id": task_id, "zoom_ratio": zoom_ratio}
         return await self.create_request(data, action, request_id)
