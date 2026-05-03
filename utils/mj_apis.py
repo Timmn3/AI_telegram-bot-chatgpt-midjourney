@@ -1,4 +1,5 @@
 import logging
+import re
 import aiohttp
 import json
 
@@ -31,6 +32,14 @@ LEGNEXT_HEADERS = {
     'Content-Type': 'application/json',
     'x-api-key': LEGNEXT_API_KEY
 }
+
+# Флаги, удалённые в MJ v8.1
+_V81_BANNED_FLAGS_RE = re.compile(
+    r'--(?:q|quality|cref|cw|oref|ow|no)(?:\s+\S+)?', re.IGNORECASE
+)
+
+def _strip_v81_banned_flags(text: str) -> str:
+    return _V81_BANNED_FLAGS_RE.sub('', text).strip()
 
 
 class GoAPI:
@@ -190,7 +199,8 @@ class LegnextAPI:
             raise
 
     async def imagine(self, prompt, request_id):
-        data = {"text": f"{prompt} --v 8.1"}
+        clean = _strip_v81_banned_flags(prompt)
+        data = {"text": f"{clean} --v 8.1"}
         return await self.create_request(data, "diffusion", request_id)
 
     async def upscale(self, task_id, index, request_id):

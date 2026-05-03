@@ -203,9 +203,10 @@ async def get_mdjrny(prompt, user_id):
     logger.info(f"[MJ] STEP 1 — исходный запрос пользователя: {prompt!r}")
 
     gpt_prompt = (
-        f"Мне нужно сгенерировать изображение в Midjourney: {prompt}, "
-        "составь для меня качественный промпт для Midjourney для этого изображения. "
-        "НЕ УКАЗЫВАЙ В ПРОМТЕ ВЕРСИЮ"
+        f"Generate a high-quality Midjourney image prompt for: {prompt}. "
+        "Return ONLY the prompt text in English, no explanations, no intro phrases, no recommendations. "
+        "Do not include any flags like --v, --q, --quality, --stylize, --s, --ar. "
+        "Just the descriptive prompt itself."
     )
     logger.info(f"[MJ] STEP 2 — отправляю в ChatGPT: {gpt_prompt!r}")
 
