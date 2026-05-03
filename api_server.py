@@ -53,17 +53,17 @@ class PayOKWebhook(BaseModel):
 
 
 # Функция для отправки фотографии, сгенерированной MidJourney
-async def send_mj_photo(user_id, photo_url, kb):
+async def send_mj_photo(user_id, photo_url, kb, caption=None):
 
     try:
-        response = requests.get(photo_url, timeout=5)  # Загружаем изображение по URL
+        response = requests.get(photo_url, timeout=5)
     except requests.exceptions.Timeout:
-        img = photo_url  # В случае таймаута просто используем URL как картинку
+        img = photo_url
     except requests.exceptions.ConnectionError:
-        img = photo_url  # В случае ошибки соединения также используем URL
+        img = photo_url
     else:
-        img = BytesIO(response.content)  # Преобразуем изображение в байтовый поток
-    await bot.send_photo(user_id, photo=img, reply_markup=kb)  # Отправляем изображение пользователю
+        img = BytesIO(response.content)
+    await bot.send_photo(user_id, photo=img, caption=caption, reply_markup=kb)
 
 
 # Функция для обработки платежей
@@ -275,6 +275,7 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
                 if action["image_type"] in ("imagine", "vary", "zoom"):
                     await bot.send_photo(
                         user_id, photo,
+                        caption="Выберите вариант изображения\nКнопки активны 15 минут",
                         reply_markup=user_kb.get_try_prompt_or_choose(action_id, include_try=True)
                     )
                     if user["free_image"] > 0:
@@ -321,7 +322,8 @@ async def get_midjourney_button(request: Request):
     user_id = action["user_id"]
     photo_url = data["imageUrl"]
     await send_mj_photo(user_id, photo_url,
-                        user_kb.get_try_prompt_or_choose(data["buttonMessageId"], action["api_key_number"]))
+                        user_kb.get_try_prompt_or_choose(data["buttonMessageId"], action["api_key_number"]),
+                        caption="Выберите вариант изображения\nКнопки активны 15 минут")
     user = await db.get_user(user_id)
     await db.set_action_get_response(action_id)
     if user["free_image"] > 0:

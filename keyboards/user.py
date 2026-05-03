@@ -195,12 +195,12 @@ def get_ref_menu(url):
 def get_try_prompt_or_choose(task_id, include_try=False):
 
     kb = InlineKeyboardMarkup(row_width=2).add(
-        InlineKeyboardButton("u1", callback_data=f"choose_image:{task_id}:1"),
-        InlineKeyboardButton("u2", callback_data=f"choose_image:{task_id}:2"),
-        InlineKeyboardButton("u3", callback_data=f"choose_image:{task_id}:3"),
-        InlineKeyboardButton("u4", callback_data=f"choose_image:{task_id}:4"))
+        InlineKeyboardButton("Сохранить изображение 1", callback_data=f"choose_image:{task_id}:1"),
+        InlineKeyboardButton("Сохранить изображение 2", callback_data=f"choose_image:{task_id}:2"),
+        InlineKeyboardButton("Сохранить изображение 3", callback_data=f"choose_image:{task_id}:3"),
+        InlineKeyboardButton("Сохранить изображение 4", callback_data=f"choose_image:{task_id}:4"))
     if include_try:
-        kb.add(InlineKeyboardButton("🔄 Ещё варианты", callback_data=f"try_prompt:image"))  # Кнопка для вариации запроса
+        kb.add(InlineKeyboardButton("🔄 Ещё варианты (-1 генерация)", callback_data=f"try_prompt:image"))
     return kb
 
 
@@ -208,10 +208,10 @@ def get_try_prompt_or_choose(task_id, include_try=False):
 def get_choose(task_id):
 
     return InlineKeyboardMarkup(row_width=2).add(
-        InlineKeyboardButton("🪄 Vary (Subtle)", callback_data=f"change_image:vary:low:{task_id}"),
-        InlineKeyboardButton("🪄 Vary (Strong)", callback_data=f"change_image:vary:high:{task_id}"),
-        InlineKeyboardButton("🔍 Zoom Out 2x", callback_data=f"change_image:zoom:2:{task_id}"),
-        InlineKeyboardButton("🔍 Zoom Out 1.5x", callback_data=f"change_image:zoom:1.5:{task_id}"))
+        InlineKeyboardButton("🪄 Изменить (слегка)", callback_data=f"change_image:vary:low:{task_id}"),
+        InlineKeyboardButton("🪄 Изменить (сильно)", callback_data=f"change_image:vary:high:{task_id}"),
+        InlineKeyboardButton("🔍 Уменьшить 2×", callback_data=f"change_image:zoom:2:{task_id}"),
+        InlineKeyboardButton("🔍 Уменьшить 1.5×", callback_data=f"change_image:zoom:1.5:{task_id}"))
 
 
 ''' Новые кнопки для выбора покупки токенов для GPT или MJ '''
