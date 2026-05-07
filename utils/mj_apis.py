@@ -52,6 +52,31 @@ def _strip_v81_banned_flags(text: str) -> str:
     return _V81_BANNED_FLAGS_RE.sub('', text).strip()
 
 
+def friendly_mj_error(raw_message) -> str:
+    """Преобразует техническое сообщение об ошибке MJ/Legnext в понятное пользователю."""
+    if not raw_message:
+        return "⏳ Сервис Midjourney временно недоступен. Попробуйте через минуту."
+
+    msg = str(raw_message).lower()
+
+    if any(k in msg for k in ['timeout', 'callback and fetch', 'bot is inactive',
+                               'no available bot', 'service unavailable', 'overloaded',
+                               'rate limit', 'too many requests']):
+        return "⏳ Сервис Midjourney перегружен. Попробуйте через минуту."
+
+    if any(k in msg for k in ['invalid prompt', 'invalid request', 'parse error',
+                               'malformed', 'invalid parameter']):
+        return "⚠️ Не удалось обработать запрос. Попробуйте переформулировать."
+
+    if any(k in msg for k in ['banned', 'prohibit', 'forbidden', 'content policy', 'nsfw']):
+        return "🚫 Запрос содержит запрещённые слова. Попробуйте переформулировать."
+
+    if any(k in msg for k in ['unsupported task type', 'piapi_v8', 'not supported']):
+        return "⚠️ Эта функция временно недоступна для текущей версии Midjourney."
+
+    return "⏳ Не удалось сгенерировать изображение. Попробуйте через минуту."
+
+
 class GoAPI:
     def __init__(self):
         self.session = aiohttp.ClientSession()

@@ -17,6 +17,7 @@ from create_bot import bot  # Импорт бота
 from io import BytesIO
 from PIL import Image
 from utils import db  # Импорт функций работы с базой данных
+from utils.mj_apis import friendly_mj_error
 import requests  # Для синхронных HTTP-запросов
 import uvicorn  # Для запуска сервера FastAPI
 from typing import Optional
@@ -341,8 +342,9 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
             error_messages = ''.join(err)
         else:
             raw = data.get('error', {})
-            error_messages = raw.get('message', 'Неизвестная ошибка') if isinstance(raw, dict) else str(raw)
-        await bot.send_message(user_id, f"Произошла ошибка:\n\n{error_messages}")
+            error_messages = raw.get('message', '') if isinstance(raw, dict) else str(raw)
+        logger.error(f"MJ generation failed for user {user_id}, action {action_id}: {error_messages!r}")
+        await bot.send_message(user_id, friendly_mj_error(error_messages))
         return JSONResponse(status_code=200, content={"status": "error"})
 
 

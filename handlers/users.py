@@ -20,6 +20,7 @@ import keyboards.user as user_kb  # Клавиатуры для взаимоде
 from config import bot_url, TOKEN, NOTIFY_URL, bug_id, PHOTO_PATH, MJ_PHOTO_BASE_URL, ADMINS_CODER, check_channel
 from create_bot import dp, bot  # Диспетчер из create_bot.py
 from utils.ai import mj_api, text_to_speech, voice_to_text
+from utils.mj_apis import friendly_mj_error
 from aiogram.utils.exceptions import CantParseEntities, RetryAfter
 import html
 import asyncio
@@ -237,16 +238,18 @@ async def get_mj(prompt, user_id, bot: Bot):
     logger.info(f"MidJourney: {res}")
 
     if res is None:
-        await bot.send_message(user_id, f"Произошла ошибка, повторите попытку позже")
+        await bot.send_message(user_id, "⏳ Сервис Midjourney временно недоступен. Попробуйте через минуту.")
         return
     elif ('Banned Prompt' in res):
-        await bot.send_message(user_id, f"Запрещенное слово в запросе:\n\n{res}")
+        await bot.send_message(user_id, "🚫 Запрос содержит запрещённые слова. Попробуйте переформулировать.")
         return
     elif ('Invalid image prompt position' in res):
-        await bot.send_message(user_id, f"Некорректная структура запроса:\n\n{res}")
+        await bot.send_message(user_id, "⚠️ Не удалось обработать запрос. Попробуйте переформулировать.")
         return
     elif ('status' in res) and (res['status'] == "failed"):
-        await bot.send_message(user_id, f"Произошла ошибка, подробности ошибки:\n\n{res['message']}")
+        raw = res.get('message') or res.get('error', {}).get('message', '') if isinstance(res.get('error'), dict) else res.get('message', '')
+        logger.error(f"MJ sync failed for user {user_id}: {raw!r}")
+        await bot.send_message(user_id, friendly_mj_error(raw))
         return
 
     await db.mark_used_trial(user_id)
