@@ -11,7 +11,7 @@ import os
 from config import OPENAPI_TOKEN, midjourney_webhook_url, MJ_API_KEY, TNL_API_KEY, TOKEN, NOTIFY_URL, TNL_API_KEY1, \
     ADMINS_CODER, PROJECT_MANAGER  # Импорт конфигураций и токенов
 from utils import db  # Работа с базой данных
-from utils.mj_apis import GoAPI, ApiFrame, MidJourneyAPI
+from utils.mj_apis import GoAPI, ApiFrame, MidJourneyAPI, _strip_user_flags
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -201,6 +201,9 @@ async def get_gpt(messages, model):
 # Функция для отправки запроса в MidJourney
 async def get_mdjrny(prompt, user_id):
     logger.info(f"[MJ] STEP 1 — исходный запрос пользователя: {prompt!r}")
+
+    prompt = _strip_user_flags(prompt)
+    logger.info(f"[MJ] STEP 1.1 — после очистки от пользовательских флагов: {prompt!r}")
 
     gpt_prompt = (
         f"Generate a high-quality Midjourney image prompt for: {prompt}. "

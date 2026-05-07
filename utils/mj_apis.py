@@ -33,10 +33,19 @@ LEGNEXT_HEADERS = {
     'x-api-key': LEGNEXT_API_KEY
 }
 
-# Флаги, удалённые в MJ v8.1
+# Любые --флаги (для очистки ПОЛЬЗОВАТЕЛЬСКОГО ввода до отправки в GPT)
+_ANY_FLAG_RE = re.compile(r'--\S+(?:\s+\S+)?', re.IGNORECASE)
+
+# Флаги, удалённые в MJ v8.1 (для пост-GPT защиты — на случай если модель ляпнула запрещённый)
 _V81_BANNED_FLAGS_RE = re.compile(
-    r'--(?:q|quality|cref|cw|oref|ow|no)(?:\s+\S+)?', re.IGNORECASE
+    r'--(?:quality|cref|cw|oref|ow|no|q)\b(?:\s+\S+)?', re.IGNORECASE
 )
+
+
+def _strip_user_flags(text: str) -> str:
+    """Вырезает любые --флаги из пользовательского ввода. Юзер не управляет флагами — их подбирает GPT."""
+    return _ANY_FLAG_RE.sub('', text).strip()
+
 
 def _strip_v81_banned_flags(text: str) -> str:
     return _V81_BANNED_FLAGS_RE.sub('', text).strip()
