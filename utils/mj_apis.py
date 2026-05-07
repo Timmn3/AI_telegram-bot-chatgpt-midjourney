@@ -52,6 +52,24 @@ def _strip_v81_banned_flags(text: str) -> str:
     return _V81_BANNED_FLAGS_RE.sub('', text).strip()
 
 
+# Хранилище для retry-логики: action_id -> {'prompt': enhanced_prompt, 'count': retry_count}
+# Живёт в памяти процесса. При перезапуске бота state теряется (это ОК для коротких задач MJ).
+_retry_state: dict = {}
+
+# Максимум повторных попыток (не считая первую)
+MJ_MAX_RETRIES = 2
+
+
+def is_temporary_mj_error(message) -> bool:
+    """Временная ошибка — таймаут, перегрузка, недоступность ботов. Имеет смысл ретраить."""
+    if not message:
+        return False
+    msg = str(message).lower()
+    return any(k in msg for k in ['timeout', 'callback and fetch', 'bot is inactive',
+                                   'no available bot', 'service unavailable', 'overloaded',
+                                   'rate limit', 'too many requests'])
+
+
 def friendly_mj_error(raw_message) -> str:
     """Преобразует техническое сообщение об ошибке MJ/Legnext в понятное пользователю."""
     if not raw_message:

@@ -11,7 +11,7 @@ import os
 from config import OPENAPI_TOKEN, midjourney_webhook_url, MJ_API_KEY, TNL_API_KEY, TOKEN, NOTIFY_URL, TNL_API_KEY1, \
     ADMINS_CODER, PROJECT_MANAGER  # Импорт конфигураций и токенов
 from utils import db  # Работа с базой данных
-from utils.mj_apis import GoAPI, ApiFrame, MidJourneyAPI, _strip_user_flags
+from utils.mj_apis import GoAPI, ApiFrame, MidJourneyAPI, _strip_user_flags, _retry_state
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -228,6 +228,8 @@ async def get_mdjrny(prompt, user_id):
     request_id = await db.add_action(user_id, "image", "imagine")
     response = await mj_api.imagine(enhanced_prompt, request_id)
     logger.info(f"[MJ] STEP 5 — ответ Midjourney API: {response}")
+    # Сохраняем промпт для возможного retry при таймауте от Legnext
+    _retry_state[request_id] = {'prompt': enhanced_prompt, 'count': 0, 'user_id': user_id}
     return response
 
 
