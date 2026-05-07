@@ -1338,15 +1338,25 @@ async def choose_image(call: CallbackQuery):
         return
     action_id = call.data.split(":")[1]
     image_id = call.data.split(":")[2]
+
+    # Legnext: картинки уже сохранены локально — отдаём без upscale, баланс не списываем
+    local_path = f'photos/{action_id}_{image_id}.png'
+    if os.path.exists(local_path):
+        with open(local_path, 'rb') as photo:
+            await call.message.answer_photo(
+                photo,
+                reply_markup=user_kb.get_choose(int(action_id))
+            )
+        return
+
     task_id = (await db.get_task_by_action_id(int(action_id)))["external_task_id"]
     await call.message.answer("Ожидайте, сохраняю изображение в отличном качестве… ⏳ ",
                               reply_markup=user_kb.get_menu(user["default_ai"]))
-    res = await ai.get_choose_mdjrny(task_id, image_id, call.from_user.id)  # Запрос к MidJourney API
+    res = await ai.get_choose_mdjrny(task_id, image_id, call.from_user.id)
 
     if res is not None and "success" not in res:
         if "message" in res and res["message"] == "repeat task":
-            return await call.message.answer(
-                "Вы уже сохраняли это изображение!")  # Сообщение, если изображение уже сохранялось
+            return await call.message.answer("Вы уже сохраняли это изображение!")
 
 
 # Хендлер для изменения изображения через callback
@@ -1384,9 +1394,16 @@ async def change_image(call: CallbackQuery):
                 await notify_low_midjourney_requests(user_id, call.bot)
 
     if button_type == "zoom":
-        response = await mj_api.outpaint(task_id, value, action_id)  # Масштабирование изображения через API
+        try:
+            response = await mj_api.outpaint(task_id, value, action_id)
+        except Exception as e:
+            if "unsupported task type" in str(e).lower() or "piapi_v8" in str(e).lower():
+                await call.message.answer("❌ Функция «Уменьшить» временно недоступна для Midjourney v8.1.")
+            else:
+                await call.message.answer("❌ Ошибка при выполнении операции, попробуйте позже.")
+            return
     elif button_type == "vary":
-        response = await mj_api.variation(task_id, value, action_id)  # Вариация изображения через API
+        response = await mj_api.variation(task_id, value, action_id)
 
 
 # Хендлер для очистки контента через callback

@@ -14,7 +14,8 @@ from fastapi.responses import JSONResponse, HTMLResponse
 import html as html_lib
 from pydantic import BaseModel  # Импорт базовой модели данных
 from create_bot import bot  # Импорт бота
-from io import BytesIO  # Для работы с потоками байтов
+from io import BytesIO
+from PIL import Image
 from utils import db  # Импорт функций работы с базой данных
 import requests  # Для синхронных HTTP-запросов
 import uvicorn  # Для запуска сервера FastAPI
@@ -195,6 +196,21 @@ async def check_pay_payok(payment_id: Annotated[str, Form()], amount: Annotated[
     raise HTTPException(200)
 
 
+async def make_grid_from_urls(session: aiohttp.ClientSession, image_urls: list) -> bytes:
+    images = []
+    for url in image_urls[:4]:
+        async with session.get(url) as resp:
+            data = await resp.read()
+            images.append(Image.open(BytesIO(data)).convert('RGB'))
+    w, h = images[0].size
+    grid = Image.new('RGB', (w * 2, h * 2))
+    for i, img in enumerate(images):
+        grid.paste(img, (i % 2 * w, i // 2 * h))
+    buf = BytesIO()
+    grid.save(buf, format='PNG')
+    return buf.getvalue()
+
+
 @app.post('/api/midjourney/{action_id}')
 async def get_midjourney_with_id(action_id: int, request: Request):
     return await handle_midjourney_webhook(action_id=action_id, request=request)
@@ -212,6 +228,9 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
     try:
         data = await request.json()
         logger.info(f"Получен webhook: {data}")
+        # Legnext оборачивает payload в поле 'data'
+        if 'data' in data and isinstance(data['data'], dict):
+            data = data['data']
     except Exception as e:
         logger.error(f"Не удалось разобрать JSON: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON")
@@ -237,11 +256,16 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
 
     if data.get('status') != 'failed':
         logger.info(f"Полученные данные в webhook: {data}")
-        # Извлекаем правильный URL изображения
+        # Извлекаем URL(ы) изображения
+        image_url = None
+        image_urls_list = None
         if 'task_result' in data:
             image_url = data["task_result"]["image_url"]
         elif 'output' in data and data.get('output', {}).get('image_url'):
             image_url = data["output"]["image_url"]
+            urls = data["output"].get("image_urls")
+            if urls and len(urls) >= 4:
+                image_urls_list = urls[:4]
         elif 'original_image_url' in data:
             image_url = data["original_image_url"]
         elif 'image_url' in data:
@@ -250,22 +274,35 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
             return 200
 
         if not image_url:
-            logger.error("В ответе отсутствует image_url или original_image_url")
+            logger.error("В ответе отсутствует image_url")
             raise HTTPException(status_code=400, detail="Missing image URL")
 
         image_path = f'photos/{action_id}.png'
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(image_url) as resp:
-                    if resp.status == 200:
-                        with open(image_path, "wb") as f:
-                            f.write(await resp.read())
-                        logger.info(f"Изображение сохранено по пути: {image_path}")
-                    else:
-                        logger.error(f"Не удалось загрузить изображение: статус {resp.status}")
-                        await bot.send_message(user_id, "Не удалось загрузить изображение.")
-                        return JSONResponse(status_code=500, content={"status": "error"})
+                if image_urls_list:
+                    # Legnext: собираем коллаж 2x2 из 4 картинок
+                    image_data = await make_grid_from_urls(session, image_urls_list)
+                    with open(image_path, "wb") as f:
+                        f.write(image_data)
+                    logger.info(f"Коллаж 2x2 сохранён: {image_path}")
+                    # Сохраняем каждую из 4 картинок отдельно для выбора без upscale
+                    for idx, url in enumerate(image_urls_list, start=1):
+                        async with session.get(url) as r:
+                            if r.status == 200:
+                                with open(f'photos/{action_id}_{idx}.png', 'wb') as f:
+                                    f.write(await r.read())
+                else:
+                    async with session.get(image_url) as resp:
+                        if resp.status == 200:
+                            with open(image_path, "wb") as f:
+                                f.write(await resp.read())
+                            logger.info(f"Изображение сохранено: {image_path}")
+                        else:
+                            logger.error(f"Не удалось загрузить изображение: статус {resp.status}")
+                            await bot.send_message(user_id, "Не удалось загрузить изображение.")
+                            return JSONResponse(status_code=500, content={"status": "error"})
         except Exception as e:
             logger.error(f"Ошибка при загрузке изображения: {e}")
             await bot.send_message(user_id, "Произошла ошибка при загрузке изображения.")
@@ -297,11 +334,15 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
         return JSONResponse(status_code=200, content={"status": "ok"})
 
     else:
-        error_messages = ''.join(
-            data.get('task_result', {}).get('error_messages', []) or
-            [data.get('error', 'Неизвестная ошибка')]
-        )
-        await bot.send_message(user_id, f"Произошла ошибка, подробности ошибки:\n\n{error_messages}")
+        # GoAPI: task_result.error_messages (список строк)
+        # Legnext: error.message (строка внутри словаря)
+        err = data.get('task_result', {}).get('error_messages')
+        if err:
+            error_messages = ''.join(err)
+        else:
+            raw = data.get('error', {})
+            error_messages = raw.get('message', 'Неизвестная ошибка') if isinstance(raw, dict) else str(raw)
+        await bot.send_message(user_id, f"Произошла ошибка:\n\n{error_messages}")
         return JSONResponse(status_code=200, content={"status": "error"})
 
 

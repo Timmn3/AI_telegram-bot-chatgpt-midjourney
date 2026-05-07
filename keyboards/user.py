@@ -207,11 +207,14 @@ def get_try_prompt_or_choose(task_id, include_try=False):
 # Кнопки для изменения изображения (вариация, зум и т.д.)
 def get_choose(task_id):
 
-    return InlineKeyboardMarkup(row_width=2).add(
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
         InlineKeyboardButton("🪄 Изменить (слегка)", callback_data=f"change_image:vary:low:{task_id}"),
         InlineKeyboardButton("🪄 Изменить (сильно)", callback_data=f"change_image:vary:high:{task_id}"),
-        InlineKeyboardButton("🔍 Уменьшить 2×", callback_data=f"change_image:zoom:2:{task_id}"),
-        InlineKeyboardButton("🔍 Уменьшить 1.5×", callback_data=f"change_image:zoom:1.5:{task_id}"))
+        # InlineKeyboardButton("🔍 Отдалить 2×", callback_data=f"change_image:zoom:2:{task_id}"),
+        # InlineKeyboardButton("🔍 Отдалить 1.5×", callback_data=f"change_image:zoom:1.5:{task_id}"),
+    )
+    return kb
 
 
 ''' Новые кнопки для выбора покупки токенов для GPT или MJ '''

@@ -228,8 +228,12 @@ class LegnextAPI:
         return await self.create_request(data, "variation", request_id)
 
     async def outpaint(self, task_id, zoom_ratio, request_id):
-        logger.warning(f"Legnext outpaint не реализован, task_id={task_id}, zoom_ratio={zoom_ratio}, request_id={request_id}")
-        raise NotImplementedError("Outpaint не поддерживается для Legnext API")
+        try:
+            zoom = float(zoom_ratio)
+        except (ValueError, TypeError):
+            zoom = 1.5
+        data = {"jobId": task_id, "scale": zoom}
+        return await self.create_request(data, "outpaint", request_id)
 
 
 class MidJourneyAPI:
