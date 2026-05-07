@@ -56,8 +56,8 @@ def _strip_v81_banned_flags(text: str) -> str:
 # Живёт в памяти процесса. При перезапуске бота state теряется (это ОК для коротких задач MJ).
 _retry_state: dict = {}
 
-# Максимум повторных попыток (не считая первую)
-MJ_MAX_RETRIES = 2
+# Максимум повторных попыток (не считая первую). Всего попыток = 1 + MJ_MAX_RETRIES
+MJ_MAX_RETRIES = 1
 
 
 def is_temporary_mj_error(message) -> bool:
