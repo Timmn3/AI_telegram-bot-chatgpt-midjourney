@@ -1447,7 +1447,7 @@ async def chatgpt_about_me(call: CallbackQuery, state: FSMContext):
         await call.message.answer(
             'Поделитесь с ChatGPT любой информацией о себе, чтобы получить более качественные ответы\n\n'
             '<u><a href="https://telegra.ph/Tonkaya-nastrojka-ChatGPT-06-30">Инструкция</a></u>\n\n'
-            f'Ваше описание:\n<blockquote>{current}</blockquote>',
+            f'Ваше описание:\n<blockquote expandable>{current}</blockquote>',
             disable_web_page_preview=True,
             reply_markup=user_kb.about_me_has_text_kb()
         )
@@ -1531,9 +1531,10 @@ async def character_menu(call: CallbackQuery, state: FSMContext):
         text += f"Активный: <b>{active_name}</b>"
 
     try:
-        await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters, active_id))
+        await call.message.delete()
     except Exception:
-        await call.message.answer(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters, active_id))
+        pass
+    await call.message.answer(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters, active_id))
     await call.answer()
 
 
@@ -2161,6 +2162,7 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
         "SELECT id, name FROM chats WHERE user_id = $1 ORDER BY created_at LIMIT $2 OFFSET $3",
         user["user_id"], chats_per_page, offset
     )
+    total_chats = await conn.fetchval("SELECT COUNT(*) FROM chats WHERE user_id = $1", user["user_id"])
     await conn.close()
 
     current_chat_id = user["current_chat_id"]
@@ -2177,11 +2179,10 @@ async def show_my_chats(call: CallbackQuery, page: int = 0):
     # Формируем клавиатуру с кнопками
     kb = InlineKeyboardMarkup(row_width=2)
 
-    # Кнопки: удалить все и создать новый
-    kb.add(
-        InlineKeyboardButton("❌ Удалить все чаты", callback_data="delete_all_chats"),
-        InlineKeyboardButton("➕ Новый чат", callback_data="create_chat")
-    )
+    # Кнопка "Удалить все" только если чатов больше одного
+    if total_chats > 1:
+        kb.add(InlineKeyboardButton("❌ Удалить все чаты", callback_data="delete_all_chats"))
+    kb.add(InlineKeyboardButton("➕ Новый чат", callback_data="create_chat"))
 
     # Кнопки чатов
     for chat in chats:
