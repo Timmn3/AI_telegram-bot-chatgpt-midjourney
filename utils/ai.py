@@ -206,15 +206,15 @@ async def get_mdjrny(prompt, user_id):
     logger.info(f"[MJ] STEP 1.1 — после очистки от пользовательских флагов: {prompt!r}")
 
     gpt_prompt = (
-        f"Generate a high-quality Midjourney image prompt for: {prompt}. "
-        "Return ONLY the prompt text in English, no explanations, no intro phrases, no recommendations. "
-        "Do not include any flags like --v, --q, --quality, --stylize, --s, --ar. "
-        "Just the descriptive prompt itself."
+        f"Мне нужно сгенерировать изображение в Midjourney: {prompt}, "
+        "составь для меня качественный промпт для Midjourney для этого изображения. "
+        "НЕ УКАЗЫВАЙ В ПРОМТЕ ВЕРСИЮ. "
+        "Верни ТОЛЬКО текст промпта на английском, без пояснений и вступительных фраз."
     )
-    logger.info(f"[MJ] STEP 2 — отправляю в ChatGPT: {gpt_prompt!r}")
+    logger.info(f"[MJ] STEP 2 — отправляю в ChatGPT (gpt-5.2): {gpt_prompt!r}")
 
     gpt_messages = [{"role": "user", "content": gpt_prompt}]
-    gpt_result = await get_gpt(gpt_messages, model='5-mini')
+    gpt_result = await get_gpt(gpt_messages, model='5')
 
     logger.info(f"[MJ] STEP 3 — ответ ChatGPT: status={gpt_result['status']}, content={gpt_result['content']!r}")
 
