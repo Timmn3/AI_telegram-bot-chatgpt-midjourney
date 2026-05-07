@@ -11,7 +11,9 @@ import os
 from config import OPENAPI_TOKEN, midjourney_webhook_url, MJ_API_KEY, TNL_API_KEY, TOKEN, NOTIFY_URL, TNL_API_KEY1, \
     ADMINS_CODER, PROJECT_MANAGER  # Импорт конфигураций и токенов
 from utils import db  # Работа с базой данных
-from utils.mj_apis import GoAPI, ApiFrame, MidJourneyAPI, _strip_user_flags, _retry_state
+from utils.mj_apis import (GoAPI, ApiFrame, MidJourneyAPI, _strip_user_flags,
+                            _retry_state, MJ_MAX_RETRIES, MJ_WATCHDOG_TIMEOUT,
+                            friendly_mj_error)
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -228,9 +230,51 @@ async def get_mdjrny(prompt, user_id):
     request_id = await db.add_action(user_id, "image", "imagine")
     response = await mj_api.imagine(enhanced_prompt, request_id)
     logger.info(f"[MJ] STEP 5 — ответ Midjourney API: {response}")
-    # Сохраняем промпт для возможного retry при таймауте от Legnext
+    # Сохраняем промпт и запускаем watchdog: если за MJ_WATCHDOG_TIMEOUT не пришёл
+    # webhook от Legnext (status=completed/failed обновляет get_response в БД) — повторяем запрос.
     _retry_state[request_id] = {'prompt': enhanced_prompt, 'count': 0, 'user_id': user_id}
+    asyncio.create_task(_run_mj_watchdog(request_id))
     return response
+
+
+async def _run_mj_watchdog(action_id: int):
+    """Через MJ_WATCHDOG_TIMEOUT секунд проверяет, пришёл ли webhook от Legnext.
+    Если нет — делает retry того же промпта (до MJ_MAX_RETRIES раз)."""
+    try:
+        await asyncio.sleep(MJ_WATCHDOG_TIMEOUT)
+
+        action = await db.get_action(action_id)
+        if action and action.get('get_response'):
+            _retry_state.pop(action_id, None)
+            return
+
+        state = _retry_state.get(action_id)
+        if not state:
+            return
+
+        if state['count'] >= MJ_MAX_RETRIES:
+            logger.warning(f"[MJ watchdog] action {action_id}: лимит попыток исчерпан, показываю ошибку")
+            try:
+                await my_bot.send_message(state['user_id'], friendly_mj_error('timeout'))
+            finally:
+                _retry_state.pop(action_id, None)
+            return
+
+        state['count'] += 1
+        logger.info(f"[MJ watchdog] action {action_id}: webhook не пришёл за "
+                    f"{MJ_WATCHDOG_TIMEOUT}s, retry {state['count']}/{MJ_MAX_RETRIES}")
+        try:
+            await my_bot.send_message(state['user_id'], "🔄 Сервис задержался, повторяю запрос...")
+            await mj_api.imagine(state['prompt'], action_id)
+            asyncio.create_task(_run_mj_watchdog(action_id))
+        except Exception as e:
+            logger.exception(f"[MJ watchdog] retry call failed for action {action_id}: {e}")
+            try:
+                await my_bot.send_message(state['user_id'], friendly_mj_error('timeout'))
+            finally:
+                _retry_state.pop(action_id, None)
+    except Exception as e:
+        logger.exception(f"[MJ watchdog] unexpected error for action {action_id}: {e}")
 
 
 # Функция для выбора и улучшения изображения в MidJourney

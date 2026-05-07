@@ -17,7 +17,7 @@ from create_bot import bot  # Импорт бота
 from io import BytesIO
 from PIL import Image
 from utils import db  # Импорт функций работы с базой данных
-from utils.mj_apis import friendly_mj_error, is_temporary_mj_error, _retry_state, MJ_MAX_RETRIES
+from utils.mj_apis import friendly_mj_error
 import requests  # Для синхронных HTTP-запросов
 import uvicorn  # Для запуска сервера FastAPI
 from typing import Optional
@@ -332,8 +332,8 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
             await bot.send_message(user_id, "Произошла ошибка при отправке изображения.")
             return JSONResponse(status_code=500, content={"status": "error"})
 
-        # Успех — очищаем retry-state
-        _retry_state.pop(action_id, None)
+        # Маркер для watchdog в боте — webhook пришёл, retry не нужен
+        await db.set_action_get_response(action_id)
         return JSONResponse(status_code=200, content={"status": "ok"})
 
     else:
@@ -346,24 +346,9 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
             raw = data.get('error', {})
             error_messages = raw.get('message', '') if isinstance(raw, dict) else str(raw)
         logger.error(f"MJ generation failed for user {user_id}, action {action_id}: {error_messages!r}")
-
-        # Auto-retry при временных ошибках (таймаут, перегрузка)
-        state = _retry_state.get(action_id)
-        if state and state['count'] < MJ_MAX_RETRIES and is_temporary_mj_error(error_messages):
-            state['count'] += 1
-            logger.info(f"MJ retry {state['count']}/{MJ_MAX_RETRIES} для action {action_id}")
-            try:
-                await bot.send_message(user_id, "🔄 Сервис задержался, повторяю запрос...")
-                from utils.ai import mj_api
-                await mj_api.imagine(state['prompt'], action_id)
-                return JSONResponse(status_code=200, content={"status": "retry"})
-            except Exception as e:
-                logger.error(f"Retry call failed for action {action_id}: {e}")
-                # Падаем дальше в финальную ошибку
-
-        # Финальная ошибка — показать пользователю и убрать state
         await bot.send_message(user_id, friendly_mj_error(error_messages))
-        _retry_state.pop(action_id, None)
+        # Маркер для watchdog — webhook (даже failed) пришёл, retry не нужен
+        await db.set_action_get_response(action_id)
         return JSONResponse(status_code=200, content={"status": "error"})
 
 
