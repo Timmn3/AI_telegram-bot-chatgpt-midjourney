@@ -36,9 +36,10 @@ LEGNEXT_HEADERS = {
 # Любые --флаги (для очистки ПОЛЬЗОВАТЕЛЬСКОГО ввода до отправки в GPT)
 _ANY_FLAG_RE = re.compile(r'--\S+(?:\s+\S+)?', re.IGNORECASE)
 
-# Флаги, удалённые в MJ v8.1 (для пост-GPT защиты — на случай если модель ляпнула запрещённый)
+# Флаги, удалённые в MJ v8.1 + флаг версии --v (бот сам подставит --v 8.1)
+# (?!--) — значение флага не должно начинаться с --, иначе захватит соседний флаг
 _V81_BANNED_FLAGS_RE = re.compile(
-    r'--(?:quality|cref|cw|oref|ow|no|q)\b(?:\s+\S+)?', re.IGNORECASE
+    r'--(?:quality|cref|cw|oref|ow|version|no|q|v)\b(?:\s+(?!--)\S+)?', re.IGNORECASE
 )
 
 
