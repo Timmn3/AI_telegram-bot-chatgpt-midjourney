@@ -261,11 +261,18 @@ async def _run_mj_watchdog(action_id: int):
             return
 
         state['count'] += 1
+        # На retry упрощаем промпт — убираем все --флаги (GPT мог сгенерить кривые,
+        # Legnext мог ломаться на парсинге). Бот сам добавит --v 8.1 в imagine().
+        simplified_prompt = _strip_user_flags(state['prompt'])
         logger.info(f"[MJ watchdog] action {action_id}: webhook не пришёл за "
-                    f"{MJ_WATCHDOG_TIMEOUT}s, retry {state['count']}/{MJ_MAX_RETRIES}")
+                    f"{MJ_WATCHDOG_TIMEOUT}s, retry {state['count']}/{MJ_MAX_RETRIES} "
+                    f"(promt simplified: {simplified_prompt!r})")
         try:
-            await my_bot.send_message(state['user_id'], "🔄 Сервис задержался, повторяю запрос...")
-            await mj_api.imagine(state['prompt'], action_id)
+            await my_bot.send_message(state['user_id'],
+                                      "🔄 Сервис задержался, повторяю упрощённо...")
+            await mj_api.imagine(simplified_prompt, action_id)
+            # Обновляем state, чтобы при следующем retry (если будет) использовался уже упрощённый
+            state['prompt'] = simplified_prompt
             asyncio.create_task(_run_mj_watchdog(action_id))
         except Exception as e:
             logger.exception(f"[MJ watchdog] retry call failed for action {action_id}: {e}")
