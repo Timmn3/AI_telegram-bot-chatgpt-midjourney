@@ -1603,7 +1603,7 @@ async def character_settings(call: CallbackQuery, state: FSMContext):
         await call.answer("Характер не найден", show_alert=True)
         return
     active = await db.get_active_character(call.from_user.id)
-    text = f"<b>Настройки для {html.escape(char['name'])}</b>\n\n<i>{html.escape(char['instructions'])}</i>"
+    text = f"<b>Настройки для {html.escape(char['name'])}</b>\n\n<blockquote expandable>{html.escape(char['instructions'])}</blockquote>"
     try:
         await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_settings_keyboard(char_id))
     except Exception:
@@ -1620,7 +1620,7 @@ async def select_character(call: CallbackQuery, state: FSMContext):
         await call.answer("Характер не найден", show_alert=True)
         return
     await db.set_active_character(call.from_user.id, char_id)
-    text = f"<b>Настройки для {html.escape(char['name'])}</b>\n\n<i>{html.escape(char['instructions'])}</i>"
+    text = f"<b>Настройки для {html.escape(char['name'])}</b>\n\n<blockquote expandable>{html.escape(char['instructions'])}</blockquote>"
     try:
         await call.message.edit_text(text, parse_mode="HTML", reply_markup=user_kb.character_settings_keyboard(char_id))
     except Exception:
