@@ -1712,7 +1712,7 @@ async def edit_character_instructions(message: Message, state: FSMContext):
     await state.finish()
     if name_changed:
         await message.answer(
-            f"Характер переименован в <b>{html.escape(new_name)}</b>\n\nВведите запрос⤵️",
+            f"Характер переименован в <b>{html.escape(new_name)}</b>",
             parse_mode="HTML"
         )
     else:
@@ -1720,6 +1720,10 @@ async def edit_character_instructions(message: Message, state: FSMContext):
             f"Инструкции для <b>{html.escape(new_name)}</b> успешно изменены",
             parse_mode="HTML"
         )
+
+    updated = await db.get_character(char_id)
+    text = f"<b>Настройки для {html.escape(updated['name'])}</b>\n\n<blockquote expandable>{html.escape(updated['instructions'])}</blockquote>"
+    await message.answer(text, parse_mode="HTML", reply_markup=user_kb.character_settings_keyboard(char_id))
 
 
 # Удалить характер — показать подтверждение
