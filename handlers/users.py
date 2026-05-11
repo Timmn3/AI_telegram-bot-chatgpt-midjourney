@@ -2417,10 +2417,12 @@ async def select_active_chat(call: CallbackQuery):
         return
 
     # Обновляем текущий активный чат для пользователя в базе данных
+    # и фиксируем активность чата, чтобы он не закрывался по inactivity-таймеру
     conn = await db.get_conn()
     await conn.execute(
         "UPDATE users SET current_chat_id = $1 WHERE user_id = $2", chat_id, user["user_id"]
     )
+    await conn.execute("UPDATE chats SET updated_at = NOW() WHERE id = $1", chat_id)
     await conn.close()
 
     # Отправляем сообщение о том, что чат успешно загружен
