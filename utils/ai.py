@@ -269,7 +269,7 @@ async def _run_mj_watchdog(action_id: int):
                     f"(promt simplified: {simplified_prompt!r})")
         try:
             await my_bot.send_message(state['user_id'],
-                                      "🔄 Сервис задержался, повторяю упрощённо...")
+                                      "🔄 Сервис задержался, повторяю ...")
             await mj_api.imagine(simplified_prompt, action_id)
             # Обновляем state, чтобы при следующем retry (если будет) использовался уже упрощённый
             state['prompt'] = simplified_prompt
