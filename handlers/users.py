@@ -1775,8 +1775,22 @@ ChatGPT⤵️""",
     )
 
 
-# Удалить все характеры
+# Подтверждение удаления всех характеров
 @dp.callback_query_handler(text="delete_all_characters", state="*")
+async def confirm_delete_all_characters(call: CallbackQuery, state: FSMContext):
+    kb = InlineKeyboardMarkup(row_width=1).add(
+        InlineKeyboardButton("🗑 Удалить все характеры", callback_data="confirm_delete_all_characters"),
+        InlineKeyboardButton("🔙 Назад", callback_data="character_menu"),
+    )
+    try:
+        await call.message.edit_text("Вы действительно хотите удалить все характеры?", reply_markup=kb)
+    except Exception:
+        await call.message.answer("Вы действительно хотите удалить все характеры?", reply_markup=kb)
+    await call.answer()
+
+
+# Удалить все характеры (после подтверждения)
+@dp.callback_query_handler(text="confirm_delete_all_characters", state="*")
 async def delete_all_characters(call: CallbackQuery, state: FSMContext):
     await db.set_active_character(call.from_user.id, None)
     await db.delete_all_characters(call.from_user.id)
