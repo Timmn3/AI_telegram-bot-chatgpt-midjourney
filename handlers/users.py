@@ -143,14 +143,12 @@ async def start_message(message: Message, state: FSMContext):
         )
     else:
         await db.change_default_ai(message.from_user.id, "chatgpt")
-        example_prompt = await generate_example_prompt()
         await message.answer(
-            f"""<b>Введите запрос</b>
-Например: <code>{example_prompt}</code>
-
-<u><a href="https://telegra.ph/Kak-polzovatsya-ChatGPT-podrobnaya-instrukciya-06-04">Подробная инструкция.</a></u>""",
-            reply_markup=user_kb.get_menu("chatgpt"),
-            disable_web_page_preview=True
+            """Бот подходит для множества задач:
+💬 <b>ChatGPT</b> — ответы на вопросы, анализ изображений, помощь с текстами, идеями и задачами
+🎨 <b>Midjourney</b> — создание изображений по вашему описанию
+<b>Выберите, с чего хотите начать</b> 👇""",
+            reply_markup=user_kb.get_start_inline()
         )
 
 
