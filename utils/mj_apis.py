@@ -33,25 +33,14 @@ LEGNEXT_HEADERS = {
     'x-api-key': LEGNEXT_API_KEY
 }
 
-# Любые --флаги (для очистки ПОЛЬЗОВАТЕЛЬСКОГО ввода до отправки в GPT)
+# Любые --флаги. Используется и для очистки пользовательского ввода, и для зачистки
+# ответа GPT перед отправкой в Legnext: бот сам добавляет фиксированный хвост
+# --ar 3:2 --style raw --s 150 --v 8.1, чтобы избежать запрещённых в v8.1 флагов.
 _ANY_FLAG_RE = re.compile(r'--\S+(?:\s+\S+)?', re.IGNORECASE)
-
-# Флаги, удалённые в MJ v8.1 + флаг версии --v (бот сам подставит --v 8.1).
-# --no НЕ запрещён в v8.1 (negative prompt со списком через запятую: "--no text, logo, humans"),
-# поэтому его не вырезаем — пусть проходит как есть.
-# (?!--) — значение флага не должно начинаться с --, иначе захватит соседний флаг.
-_V81_BANNED_FLAGS_RE = re.compile(
-    r'--(?:quality|cref|cw|oref|ow|version|q|v)\b(?:\s+(?!--)\S+)?', re.IGNORECASE
-)
 
 
 def _strip_user_flags(text: str) -> str:
-    """Вырезает любые --флаги из пользовательского ввода. Юзер не управляет флагами — их подбирает GPT."""
     return _ANY_FLAG_RE.sub('', text).strip()
-
-
-def _strip_v81_banned_flags(text: str) -> str:
-    return _V81_BANNED_FLAGS_RE.sub('', text).strip()
 
 
 # Хранилище для retry-логики: action_id -> {'prompt': enhanced_prompt, 'count': retry_count}
@@ -257,8 +246,11 @@ class LegnextAPI:
             raise
 
     async def imagine(self, prompt, request_id):
-        clean = _strip_v81_banned_flags(prompt)
-        data = {"text": f"{clean} --v 8.1"}
+        # Срезаем ВСЕ --флаги из ответа GPT (он не должен их добавлять, но иногда добавляет
+        # запрещённые в v8.1 — --quality, --no и т.п., из-за которых Legnext возвращает 400).
+        # Нужные флаги добавляем сами фиксированным хвостом.
+        clean = _strip_user_flags(prompt)
+        data = {"text": f"{clean} --ar 3:2 --style raw --s 150 --v 8.1"}
         return await self.create_request(data, "diffusion", request_id)
 
     async def upscale(self, task_id, index, request_id):
