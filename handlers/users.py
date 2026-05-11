@@ -1474,8 +1474,15 @@ async def change_profile_info(message: Message, state: FSMContext):
     if len(message.text) > 256:
         return await message.answer("Максимальная длина 256 символов")
     await db.update_chatgpt_about_me(message.from_user.id, message.text)
-    await message.answer("✅ Описание обновлено!")
     await state.finish()
+    await message.answer("✅ Описание обновлено!")
+    await message.answer(
+        'Поделитесь с ChatGPT любой информацией о себе, чтобы получить более качественные ответы\n\n'
+        '<u><a href="https://telegra.ph/Tonkaya-nastrojka-ChatGPT-06-30">Инструкция</a></u>\n\n'
+        f'Ваше описание:\n<blockquote expandable>{html.escape(message.text)}</blockquote>',
+        disable_web_page_preview=True,
+        reply_markup=user_kb.about_me_has_text_kb()
+    )
 
 
 @dp.callback_query_handler(text="delete_about_me", state="*")
@@ -1489,10 +1496,17 @@ async def delete_about_me_handler(call: CallbackQuery):
 
 
 @dp.callback_query_handler(text="confirm_delete_about_me", state="*")
-async def confirm_delete_about_me_handler(call: CallbackQuery):
+async def confirm_delete_about_me_handler(call: CallbackQuery, state: FSMContext):
     await db.update_chatgpt_about_me(call.from_user.id, "")
     await call.message.delete()
     await call.message.answer("✅ Описание успешно удалено")
+    await call.message.answer(
+        '<b>Введите запрос</b>\n\nПоделитесь с ChatGPT любой информацией о себе, чтобы получить более качественные ответы⤵️\n\n'
+        '<u><a href="https://telegra.ph/Tonkaya-nastrojka-ChatGPT-06-30">Инструкция.</a></u>',
+        disable_web_page_preview=True,
+        reply_markup=user_kb.about_me_input_kb()
+    )
+    await state.set_state(states.ChangeChatGPTAboutMe.text)
     await call.answer()
 
 
