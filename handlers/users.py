@@ -1583,6 +1583,17 @@ async def create_character_instructions(message: Message, state: FSMContext):
         parse_mode="HTML"
     )
 
+    characters = await db.get_characters(message.from_user.id)
+    active = await db.get_active_character(message.from_user.id)
+    active_id = active["id"] if active else None
+    text = "<b>🎭 Характер ChatGPT</b>\n\nНастройте ChatGPT как Вам удобно — тон, настроение, эмоциональный окрас сообщений.\n\n"
+    if not characters:
+        text += "У вас ещё нет характеров. Создайте первый!"
+    else:
+        active_name = active["name"] if active else "не выбран"
+        text += f"Активный: <b>{active_name}</b>"
+    await message.answer(text, parse_mode="HTML", reply_markup=user_kb.character_list_keyboard(characters, active_id))
+
 
 # Настройки конкретного характера
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith("character_settings:"), state="*")
