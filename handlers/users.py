@@ -2880,6 +2880,10 @@ async def choose_ai(call: CallbackQuery, state: FSMContext):
 
     await call.answer()
 
+    # call.message.from_user — это бот; подменяем на реального юзера,
+    # чтобы ask_question/gen_img корректно работали с user_id
+    call.message.from_user = call.from_user
+
     if choice == "gpt":
         await ask_question(call.message, state)
     else:
