@@ -195,10 +195,10 @@ def get_ref_menu(url):
 def get_try_prompt_or_choose(task_id, include_try=False):
 
     kb = InlineKeyboardMarkup(row_width=2).add(
-        InlineKeyboardButton("Сохранить изображение 1", callback_data=f"choose_image:{task_id}:1"),
-        InlineKeyboardButton("Сохранить изображение 2", callback_data=f"choose_image:{task_id}:2"),
-        InlineKeyboardButton("Сохранить изображение 3", callback_data=f"choose_image:{task_id}:3"),
-        InlineKeyboardButton("Сохранить изображение 4", callback_data=f"choose_image:{task_id}:4"))
+        InlineKeyboardButton("Изображение 1", callback_data=f"choose_image:{task_id}:1"),
+        InlineKeyboardButton("Изображение 2", callback_data=f"choose_image:{task_id}:2"),
+        InlineKeyboardButton("Изображение 3", callback_data=f"choose_image:{task_id}:3"),
+        InlineKeyboardButton("Изображение 4", callback_data=f"choose_image:{task_id}:4"))
     if include_try:
         kb.add(InlineKeyboardButton("🔄 Ещё варианты (-1 генерация)", callback_data=f"try_prompt:image"))
     return kb
