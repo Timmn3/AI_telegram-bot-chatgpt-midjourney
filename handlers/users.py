@@ -1759,10 +1759,19 @@ async def confirm_delete_character(call: CallbackQuery, state: FSMContext):
     if active and active["id"] == char_id:
         await db.set_active_character(call.from_user.id, None)
     await db.delete_character(char_id)
-    await call.answer()
+    await call.answer(f"{name} удалён", show_alert=False)
+
+    try:
+        await call.message.delete()
+    except Exception:
+        pass
+
+    user = await db.get_user(call.from_user.id)
+    user_lang = user["chat_gpt_lang"]
     await call.message.answer(
-        f"<b>{html.escape(name)}</b> успешно удален",
-        parse_mode="HTML"
+        """Здесь Вы можете изменить настройки
+ChatGPT⤵️""",
+        reply_markup=user_kb.settings(user_lang, 'acc')
     )
 
 
