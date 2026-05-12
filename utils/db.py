@@ -579,6 +579,21 @@ async def set_action_get_response(usage_id):
     await conn.close()
 
 
+# Атомарно резервирует action под обработку webhook'а. Возвращает True если успешно
+# залочили (get_response был FALSE и стал TRUE), False — если уже было залочено
+# (дубль вебхука от Legnext или второй webhook после retry на v7+turbo).
+async def try_lock_action_for_webhook(usage_id) -> bool:
+    conn: Connection = await get_conn()
+    row = await conn.fetchrow(
+        "UPDATE usage SET get_response = TRUE "
+        "WHERE id = $1 AND COALESCE(get_response, FALSE) = FALSE "
+        "RETURNING id",
+        usage_id,
+    )
+    await conn.close()
+    return row is not None
+
+
 # Получение IAM токена из таблицы конфигурации
 async def get_iam_token():
 

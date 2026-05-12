@@ -252,6 +252,13 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
         logger.error(f"Action not found для action_id: {action_id} или task_id: {task_id}")
         raise HTTPException(status_code=404, detail="Action not found")
 
+    # Атомарный лок: первый пришедший webhook резервирует action, все последующие
+    # (дубль Legnext или второй webhook после v7+turbo retry) — early return.
+    # Также закрывает race с watchdog: флаг ставится сразу, а не после save+send_photo.
+    if not await db.try_lock_action_for_webhook(action_id):
+        logger.info(f"[idempotent] action_id {action_id} уже обработан, дубликат пропущен")
+        return JSONResponse(status_code=200, content={"status": "duplicate_ignored"})
+
     user_id = action["user_id"]
     user = await db.get_user(user_id)
 
@@ -332,8 +339,7 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
             await bot.send_message(user_id, "Произошла ошибка при отправке изображения.")
             return JSONResponse(status_code=500, content={"status": "error"})
 
-        # Маркер для watchdog в боте — webhook пришёл, retry не нужен
-        await db.set_action_get_response(action_id)
+        # get_response уже выставлен в try_lock_action_for_webhook на входе.
         return JSONResponse(status_code=200, content={"status": "ok"})
 
     else:
@@ -347,8 +353,7 @@ async def handle_midjourney_webhook(action_id: Optional[int], request: Request):
             error_messages = raw.get('message', '') if isinstance(raw, dict) else str(raw)
         logger.error(f"MJ generation failed for user {user_id}, action {action_id}: {error_messages!r}")
         await bot.send_message(user_id, friendly_mj_error(error_messages))
-        # Маркер для watchdog — webhook (даже failed) пришёл, retry не нужен
-        await db.set_action_get_response(action_id)
+        # get_response уже выставлен в try_lock_action_for_webhook на входе.
         return JSONResponse(status_code=200, content={"status": "error"})
 
 
