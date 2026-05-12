@@ -55,6 +55,10 @@ MJ_MAX_RETRIES = 1
 # Legnext в shared-пуле часто виснет на 3-6 минут, retry с тем же промптом обычно отрабатывает за 30-60с.
 MJ_WATCHDOG_TIMEOUT = 90
 
+# Таймаут для тихого retry на v7+turbo. У v8.1 нет turbo, поэтому первый таймаут на v8.1 fast,
+# а второй — на v7+turbo. Итого макс. ожидание до финального сообщения = 90 + 90 = 180с (3 мин).
+MJ_WATCHDOG_TIMEOUT_TURBO = 90
+
 
 def is_temporary_mj_error(message) -> bool:
     """Временная ошибка — таймаут, перегрузка, недоступность ботов. Имеет смысл ретраить."""
@@ -76,7 +80,7 @@ def friendly_mj_error(raw_message) -> str:
     if any(k in msg for k in ['timeout', 'callback and fetch', 'bot is inactive',
                                'no available bot', 'service unavailable', 'overloaded',
                                'rate limit', 'too many requests']):
-        return "⏳ Сервис Midjourney перегружен. Попробуйте через минуту."
+        return "⏳ Сервис Midjourney перегружен. Попробуйте сделать новый запрос через несколько минут."
 
     if any(k in msg for k in ['invalid prompt', 'invalid request', 'parse error',
                                'malformed', 'invalid parameter']):
@@ -247,12 +251,18 @@ class LegnextAPI:
             logger.error(f"Ошибка при запросе к Legnext: {e}")
             raise
 
-    async def imagine(self, prompt, request_id):
+    async def imagine(self, prompt, request_id, turbo_fallback=False):
         # Срезаем ВСЕ --флаги из ответа GPT (он не должен их добавлять, но иногда добавляет
         # запрещённые в v8.1 — --quality, --no и т.п., из-за которых Legnext возвращает 400).
         # Нужные флаги добавляем сами фиксированным хвостом.
+        # turbo_fallback=True → откатываемся на v7 + --turbo: shared-пул v8.1 регулярно
+        # виснет на 3-6 минут, у v8.1 нет turbo-режима (см. docs.legnext.ai/getting-started/models).
         clean = _strip_user_flags(prompt)
-        data = {"text": f"{clean} --ar 3:2 --style raw --s 150 --v 8.1"}
+        if turbo_fallback:
+            tail = "--ar 3:2 --style raw --s 150 --v 7 --turbo"
+        else:
+            tail = "--ar 3:2 --style raw --s 150 --v 8.1"
+        data = {"text": f"{clean} {tail}"}
         return await self.create_request(data, "diffusion", request_id)
 
     async def upscale(self, task_id, index, request_id):
@@ -338,7 +348,7 @@ class MidJourneyAPI:
                 except (json.JSONDecodeError, IndexError):
                     return str(e)
 
-    async def imagine(self, prompt, request_id):
+    async def imagine(self, prompt, request_id, turbo_fallback=False):
         if self.primary_api == "goapi":
             data = {
                 "process_mode": "fast",
@@ -347,7 +357,7 @@ class MidJourneyAPI:
             }
             return await self.create_request(data, "imagine", request_id)
         elif self.primary_api == "legnext":
-            return await self.legnext.imagine(prompt, request_id)
+            return await self.legnext.imagine(prompt, request_id, turbo_fallback=turbo_fallback)
         else:
             data = {"prompt": prompt}
             return await self.create_request(data, "imagine", request_id)

@@ -13,7 +13,7 @@ from config import OPENAPI_TOKEN, midjourney_webhook_url, MJ_API_KEY, TNL_API_KE
 from utils import db  # Работа с базой данных
 from utils.mj_apis import (GoAPI, ApiFrame, MidJourneyAPI, _strip_user_flags,
                             _retry_state, MJ_MAX_RETRIES, MJ_WATCHDOG_TIMEOUT,
-                            friendly_mj_error)
+                            MJ_WATCHDOG_TIMEOUT_TURBO, friendly_mj_error)
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -228,20 +228,32 @@ async def get_mdjrny(prompt, user_id):
         logger.warning(f"[MJ] STEP 4 — ChatGPT недоступен, fallback-перевод: {enhanced_prompt!r}")
 
     request_id = await db.add_action(user_id, "image", "imagine")
-    response = await mj_api.imagine(enhanced_prompt, request_id)
-    logger.info(f"[MJ] STEP 5 — ответ Midjourney API: {response}")
+    try:
+        response = await mj_api.imagine(enhanced_prompt, request_id)
+        logger.info(f"[MJ] STEP 5 — ответ Midjourney API: {response}")
+    except Exception as e:
+        # Синхронная ошибка Legnext (HTTP 400, сеть и т.п.) — НЕ показываем юзеру,
+        # молча уходим на v7+turbo fallback. Если и он упадёт — _start_turbo_fallback
+        # сам пришлёт единое финальное сообщение.
+        logger.warning(f"[MJ] STEP 5 — синхронная ошибка Legnext, ухожу на v7+turbo: {e}")
+        asyncio.create_task(_start_turbo_fallback(request_id, user_id, enhanced_prompt))
+        return {'job_id': 'fallback_pending', 'status': 'pending'}
     # Сохраняем промпт и запускаем watchdog: если за MJ_WATCHDOG_TIMEOUT не пришёл
     # webhook от Legnext (status=completed/failed обновляет get_response в БД) — повторяем запрос.
-    _retry_state[request_id] = {'prompt': enhanced_prompt, 'count': 0, 'user_id': user_id}
+    _retry_state[request_id] = {'prompt': enhanced_prompt, 'count': 0, 'user_id': user_id, 'turbo': False}
     asyncio.create_task(_run_mj_watchdog(request_id))
     return response
 
 
 async def _run_mj_watchdog(action_id: int):
     """Через MJ_WATCHDOG_TIMEOUT секунд проверяет, пришёл ли webhook от Legnext.
-    Если нет — делает retry того же промпта (до MJ_MAX_RETRIES раз)."""
+    Если нет — тихо ретраит на v7+turbo (Legnext shared-пул v8.1 регулярно виснет в pending).
+    Юзер промежуточных сообщений не видит — только одно финальное при полном фейле."""
     try:
-        await asyncio.sleep(MJ_WATCHDOG_TIMEOUT)
+        state = _retry_state.get(action_id)
+        # На первой итерации (v8.1 fast) — стандартный таймаут, на retry (v7 turbo) — отдельный.
+        sleep_sec = MJ_WATCHDOG_TIMEOUT_TURBO if (state and state.get('turbo')) else MJ_WATCHDOG_TIMEOUT
+        await asyncio.sleep(sleep_sec)
 
         action = await db.get_action(action_id)
         if action and action.get('get_response'):
@@ -261,17 +273,14 @@ async def _run_mj_watchdog(action_id: int):
             return
 
         state['count'] += 1
-        # На retry упрощаем промпт — убираем все --флаги (GPT мог сгенерить кривые,
-        # Legnext мог ломаться на парсинге). Бот сам добавит --v 8.1 в imagine().
+        state['turbo'] = True
+        # Тихий retry на v7+turbo. У v8.1 нет turbo-режима, а fast-пул Legnext часто виснет.
         simplified_prompt = _strip_user_flags(state['prompt'])
         logger.info(f"[MJ watchdog] action {action_id}: webhook не пришёл за "
-                    f"{MJ_WATCHDOG_TIMEOUT}s, retry {state['count']}/{MJ_MAX_RETRIES} "
-                    f"(promt simplified: {simplified_prompt!r})")
+                    f"{sleep_sec}s, тихий retry {state['count']}/{MJ_MAX_RETRIES} "
+                    f"на v7+turbo (prompt simplified: {simplified_prompt!r})")
         try:
-            await my_bot.send_message(state['user_id'],
-                                      "🔄 Сервис задержался, повторяю ...")
-            await mj_api.imagine(simplified_prompt, action_id)
-            # Обновляем state, чтобы при следующем retry (если будет) использовался уже упрощённый
+            await mj_api.imagine(simplified_prompt, action_id, turbo_fallback=True)
             state['prompt'] = simplified_prompt
             asyncio.create_task(_run_mj_watchdog(action_id))
         except Exception as e:
@@ -282,6 +291,25 @@ async def _run_mj_watchdog(action_id: int):
                 _retry_state.pop(action_id, None)
     except Exception as e:
         logger.exception(f"[MJ watchdog] unexpected error for action {action_id}: {e}")
+
+
+async def _start_turbo_fallback(action_id: int, user_id: int, prompt: str):
+    """Молчаливый фолбэк на v7+turbo для случаев, когда первая попытка (v8.1 fast)
+    упала синхронно (HTTP 400, сеть и т.п.) — _retry_state ещё не создан, watchdog
+    сам не запустится. Создаём state, шлём turbo-запрос, стартуем watchdog."""
+    simplified = _strip_user_flags(prompt)
+    try:
+        await mj_api.imagine(simplified, action_id, turbo_fallback=True)
+        _retry_state[action_id] = {
+            'prompt': simplified, 'count': MJ_MAX_RETRIES, 'user_id': user_id, 'turbo': True,
+        }
+        asyncio.create_task(_run_mj_watchdog(action_id))
+    except Exception as e:
+        logger.exception(f"[MJ turbo fallback] первый turbo-запрос упал для action {action_id}: {e}")
+        try:
+            await my_bot.send_message(user_id, friendly_mj_error('timeout'))
+        finally:
+            _retry_state.pop(action_id, None)
 
 
 # Функция для выбора и улучшения изображения в MidJourney
