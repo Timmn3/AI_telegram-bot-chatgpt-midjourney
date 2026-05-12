@@ -34,6 +34,16 @@ logging.basicConfig(
 
 vary_types = {"subtle": "Subtle", "strong": "Strong"}  # Типы для использования в дальнейшем
 
+
+async def _finish_keep_prompt(state: FSMContext):
+    """Сбрасывает FSM state, но сохраняет prompt для кнопки 'Ещё варианты' MJ."""
+    data = await state.get_data()
+    prompt = data.get("prompt")
+    await state.finish()
+    if prompt:
+        await state.update_data(prompt=prompt)
+
+
 '''
 # Проверка и активация промокодов
 async def check_promocode(user_id, code, bot: Bot):
@@ -1034,7 +1044,11 @@ async def ref_menu(message: Message):
 @dp.message_handler(state="*", text="⚙ Аккаунт")
 @dp.message_handler(state="*", commands="account")
 async def show_profile(message: Message, state: FSMContext):
+    data = await state.get_data()
+    last_prompt = data.get("prompt")
     await state.finish()
+    if last_prompt:
+        await state.update_data(prompt=last_prompt)
     user_id = message.from_user.id
     user = await db.get_user(user_id)
     user_lang = user['chat_gpt_lang']
@@ -1101,7 +1115,7 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
         # Удаляем старое сообщение с текстом и клавиатурой
         await call.message.delete()
 
-        await state.finish()
+        await _finish_keep_prompt(state)
         user_lang = user['chat_gpt_lang']
 
         # Формируем текст с количеством доступных генераций и токенов
@@ -1140,7 +1154,7 @@ async def back_to_profile(call: CallbackQuery, state: FSMContext):
     {sub_text}""", reply_markup=keyboard)
 
     else:
-        await state.finish()
+        await _finish_keep_prompt(state)
 
 #         if src == "not_gpt":
 #             await call.message.edit_text("""
@@ -1185,7 +1199,7 @@ async def image_openai_menu_handler(message: Message, state: FSMContext):
     if not await check_access_or_prompt(message):
         return
     if state:
-        await state.finish()  # Завершаем текущее состояние
+        await _finish_keep_prompt(state)
     await db.change_default_ai(message.from_user.id, "image_openai")  # Устанавливаем ChatGPT как основной AI
     user_id = message.from_user.id
     logger.info(f"Пользователь {user_id} вызвал Главное меню для генерации изображений от OpenAI")
@@ -1199,7 +1213,7 @@ async def ask_question(message: Message, state: FSMContext):
     if not await check_access_or_prompt(message):
         return
     if state:
-        await state.finish()  # Завершаем текущее состояние
+        await _finish_keep_prompt(state)
     await db.change_default_ai(message.from_user.id, "chatgpt")  # Устанавливаем ChatGPT как основной AI
     await message.answer("Режим: ChatGPT", reply_markup=user_kb.get_menu("chatgpt"))
 
@@ -1260,7 +1274,7 @@ async def ask_question(message: Message, state: FSMContext):
 
 @dp.callback_query_handler(text="create_new_chat", state="*")
 async def handle_create_new_chat(call: CallbackQuery, state: FSMContext):
-    await state.finish()
+    await _finish_keep_prompt(state)
     user_id = call.from_user.id
 
     # Удаляем активный чат
@@ -1279,7 +1293,7 @@ async def handle_create_new_chat(call: CallbackQuery, state: FSMContext):
 @dp.message_handler(state="*", text="👨🏻‍💻 Поддержка")
 @dp.message_handler(state="*", commands="help")
 async def support(message: Message, state: FSMContext):
-    await state.finish()  # Завершаем текущее состояние
+    await _finish_keep_prompt(state)
     await message.answer('Ответы на многие вопросы можно найти в нашем <a href="https://t.me/NeuronAgent">канале</a>.',
                          disable_web_page_preview=True, reply_markup=user_kb.about)  # Кнопка с инструкцией
 
@@ -1292,7 +1306,7 @@ async def gen_img(message: Message, state: FSMContext):
     # if not await check_access_or_prompt(message):
     #     return
     # user_id = message.from_user.id
-    await state.finish()  # Завершаем текущее состояние
+    await _finish_keep_prompt(state)
     await db.change_default_ai(message.from_user.id, "image")  # Устанавливаем MidJourney как основной AI
     user = await db.get_user(message.from_user.id)  # Получаем данные пользователя
     # Проверяем наличие токенов и подписки
@@ -1416,7 +1430,7 @@ async def change_image(call: CallbackQuery):
 @dp.callback_query_handler(text="clear_content")
 async def clear_content(call: CallbackQuery, state: FSMContext):
     user = await db.get_user(call.from_user.id)
-    await state.finish()  # Завершаем текущее состояние
+    await _finish_keep_prompt(state)
     await call.message.answer("Диалог завершен",
                               reply_markup=user_kb.get_menu(user["default_ai"]))  # Сообщение о завершении диалога
     try:
@@ -1444,7 +1458,7 @@ async def try_prompt(call: CallbackQuery, state: FSMContext):
 # Хендлер для настроек ChatGPT: ввод данных о пользователе через callback
 @dp.callback_query_handler(text="chatgpt_about_me", state="*")
 async def chatgpt_about_me(call: CallbackQuery, state: FSMContext):
-    await state.finish()
+    await _finish_keep_prompt(state)
     user = await db.get_user(call.from_user.id)
     await call.message.delete()
 
@@ -1474,7 +1488,7 @@ async def change_profile_info(message: Message, state: FSMContext):
     if len(message.text) > 256:
         return await message.answer("Максимальная длина 256 символов")
     await db.update_chatgpt_about_me(message.from_user.id, message.text)
-    await state.finish()
+    await _finish_keep_prompt(state)
     await message.answer("✅ Описание обновлено!")
     await message.answer(
         'Поделитесь с ChatGPT любой информацией о себе, чтобы получить более качественные ответы\n\n'
@@ -1524,7 +1538,7 @@ async def cancel_delete_about_me_handler(call: CallbackQuery):
 
 @dp.callback_query_handler(text="back_to_chatgpt_settings", state="*")
 async def back_to_chatgpt_settings_handler(call: CallbackQuery, state: FSMContext):
-    await state.finish()
+    await _finish_keep_prompt(state)
     user = await db.get_user(call.from_user.id)
     user_lang = user["chat_gpt_lang"]
     await call.message.delete()
@@ -1538,7 +1552,7 @@ async def back_to_chatgpt_settings_handler(call: CallbackQuery, state: FSMContex
 # Показать список характеров
 @dp.callback_query_handler(text="character_menu", state="*")
 async def character_menu(call: CallbackQuery, state: FSMContext):
-    await state.finish()
+    await _finish_keep_prompt(state)
     characters = await db.get_characters(call.from_user.id)
     active = await db.get_active_character(call.from_user.id)
     active_id = active["id"] if active else None
@@ -1589,7 +1603,7 @@ async def create_character_instructions(message: Message, state: FSMContext):
     name = data["name"]
     char_id = await db.create_character(message.from_user.id, name, message.text)
     await db.set_active_character(message.from_user.id, char_id)
-    await state.finish()
+    await _finish_keep_prompt(state)
     await message.answer(
         f"<b>{html.escape(name)}</b> успешно создан",
         parse_mode="HTML"
@@ -1610,7 +1624,7 @@ async def create_character_instructions(message: Message, state: FSMContext):
 # Настройки конкретного характера
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith("character_settings:"), state="*")
 async def character_settings(call: CallbackQuery, state: FSMContext):
-    await state.finish()
+    await _finish_keep_prompt(state)
     char_id = int(call.data.split(":")[1])
     char = await db.get_character(char_id)
     if not char:
@@ -1678,7 +1692,7 @@ async def skip_character_instructions(call: CallbackQuery, state: FSMContext):
     char_id = data["char_id"]
     char = await db.get_character(char_id)
     if not char:
-        await state.finish()
+        await _finish_keep_prompt(state)
         await call.answer("Характер не найден", show_alert=True)
         return
     name_changed = "new_name" in data
@@ -1686,7 +1700,7 @@ async def skip_character_instructions(call: CallbackQuery, state: FSMContext):
     if name_changed:
         await db.update_character(char_id, new_name, char["instructions"])
         await db.set_active_character(call.from_user.id, char_id)
-    await state.finish()
+    await _finish_keep_prompt(state)
     await call.answer()
     if name_changed:
         await call.message.answer(
@@ -1717,13 +1731,13 @@ async def edit_character_instructions(message: Message, state: FSMContext):
     char_id = data["char_id"]
     char = await db.get_character(char_id)
     if not char:
-        await state.finish()
+        await _finish_keep_prompt(state)
         return await message.answer("Характер не найден")
     name_changed = "new_name" in data
     new_name = data["new_name"] if name_changed else char["name"]
     await db.update_character(char_id, new_name, message.text)
     await db.set_active_character(message.from_user.id, char_id)
-    await state.finish()
+    await _finish_keep_prompt(state)
     if name_changed:
         await message.answer(
             f"Характер переименован в <b>{html.escape(new_name)}</b>",
@@ -1843,7 +1857,7 @@ async def change_profile_settings(message: Message, state: FSMContext):
         return await message.answer("Максимальная длина 256 символов")
     await db.update_chatgpt_settings(message.from_user.id, message.text)  # Обновляем настройки в базе
     await message.answer("Описание обновлено!")
-    await state.finish()
+    await _finish_keep_prompt(state)
 
 
 # Основной хендлер для обработки сообщений и генерации запросов
@@ -2627,7 +2641,7 @@ async def process_new_chat_name(message: Message, state: FSMContext):
     await message.answer(f'Чат "_{chat_name}_" успешно создан!\n\n*Введите запрос ⤵️*', parse_mode="Markdown")
 
     # Завершаем состояние
-    await state.finish()
+    await _finish_keep_prompt(state)
 
 
 @dp.message_handler(state=EnterChatRename.chat_name)
@@ -2662,7 +2676,7 @@ async def process_rename_chat_name(message: Message, state: FSMContext):
     await message.answer(f'Чат успешно переименован в "_{chat_name}_".\n\n*Введите запрос ⤵️*', parse_mode="Markdown")
 
     # Завершаем состояние
-    await state.finish()
+    await _finish_keep_prompt(state)
 
 
 @dp.callback_query_handler(text="delete_chat")
