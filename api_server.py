@@ -559,6 +559,23 @@ async def chat_history_messages(chat_id: int, uid: int, token: str, offset: int 
     } for msg in messages])
 
 
+@app.get("/health")
+async def health_check():
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"https://api.telegram.org/bot{bot.token}/getMe",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                data = await resp.json()
+                if resp.status == 200 and data.get("ok"):
+                    username = data.get("result", {}).get("username", "")
+                    return JSONResponse({"status": "ok", "username": username})
+    except Exception:
+        pass
+    return JSONResponse({"status": "error"}, status_code=503)
+
+
 if __name__ == "__main__":
     import os
     port = int(os.getenv("API_PORT", "8000"))
