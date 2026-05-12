@@ -1450,9 +1450,7 @@ async def try_prompt(call: CallbackQuery, state: FSMContext):
         await state.finish()
     await call.answer()
 
-    user = await db.get_user(call.from_user.id)
-    if user["default_ai"] == "image":
-        await get_mj(data['prompt'], call.from_user.id, call.bot)  # Генерация изображения
+    await get_mj(data['prompt'], call.from_user.id, call.bot)  # Генерация изображения
 
 
 # Хендлер для настроек ChatGPT: ввод данных о пользователе через callback
