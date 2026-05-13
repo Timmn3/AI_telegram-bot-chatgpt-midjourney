@@ -1,6 +1,7 @@
 import string
 import random
 import logging
+import time
 from datetime import datetime, timedelta
 
 from aiogram.dispatcher import FSMContext
@@ -27,22 +28,24 @@ logging.basicConfig(
     format='%(filename)s:%(lineno)d #%(levelname)-8s '
            '[%(asctime)s] - %(name)s - %(message)s')
 
-BROADCAST_WORKERS = 25
+BROADCAST_WORKERS = 8
+BROADCAST_DELAY = 0.5  # секунд между отправками внутри воркера
 
 
 async def _broadcast_worker(bot, user_id, text, photo, semaphore, counters):
     async with semaphore:
-        for attempt in range(3):
+        for attempt in range(5):
             try:
                 if photo:
                     await bot.send_photo(user_id, photo=photo, caption=text or "")
                 else:
                     await bot.send_message(user_id, text)
                 counters["ok"] += 1
+                await asyncio.sleep(BROADCAST_DELAY)
                 return
             except RetryAfter as e:
-                wait = e.timeout + 1
-                logger.warning(f"[broadcast] FloodWait {wait}s для user {user_id}, попытка {attempt + 1}/3")
+                wait = e.timeout + 2
+                logger.warning(f"[broadcast] FloodWait {wait}s для user {user_id}, попытка {attempt + 1}/5")
                 await asyncio.sleep(wait)
             except (BotBlocked, UserDeactivated, ChatNotFound):
                 counters["blocked"] += 1
@@ -52,31 +55,64 @@ async def _broadcast_worker(bot, user_id, text, photo, semaphore, counters):
                 counters["error"] += 1
                 counters["failed"].append(user_id)
                 return
-        logger.error(f"[broadcast] Исчерпаны 3 попытки (FloodWait) для user {user_id}")
+        logger.error(f"[broadcast] Исчерпаны 5 попыток (FloodWait) для user {user_id}")
         counters["error"] += 1
         counters["failed"].append(user_id)
 
 
-async def _progress_reporter(bot, admin_id, total, counters, stop_event):
+_active_broadcast: dict | None = None
+
+
+def _fmt_time(seconds: float) -> str:
+    if seconds < 60:
+        return f"{int(seconds)}с"
+    elif seconds < 3600:
+        return f"{int(seconds / 60)}м"
+    else:
+        h = int(seconds / 3600)
+        m = int((seconds % 3600) / 60)
+        return f"{h}ч {m}м"
+
+
+def _make_progress_bar(done: int, total: int, width: int = 20) -> str:
+    filled = int(width * done / total) if total else 0
+    bar = "█" * filled + "░" * (width - filled)
+    pct = done / total * 100 if total else 0
+    return f"[{bar}] {pct:.1f}%"
+
+
+def _make_progress_text(counters: dict, total: int, start_time: float) -> str:
+    done = counters["ok"] + counters["blocked"] + counters["error"]
+    elapsed = time.time() - start_time
+    speed = done / elapsed if elapsed > 0 and done > 0 else 0
+    remaining = (total - done) / speed if speed > 0 else 0
+    bar = _make_progress_bar(done, total)
+    return (
+        f"📊 Рассылка идёт...\n"
+        f"{bar}\n\n"
+        f"✅ Отправлено: {counters['ok']}\n"
+        f"🚫 Заблокировали: {counters['blocked']}\n"
+        f"❌ Ошибки: {counters['error']}\n\n"
+        f"⏱ Прошло: {_fmt_time(elapsed)} | Осталось: ~{_fmt_time(remaining)}"
+    )
+
+
+async def _progress_updater(bot, admin_id, msg_id, total, counters, start_time, stop_event):
     while True:
         try:
-            await asyncio.wait_for(stop_event.wait(), timeout=60)
+            await asyncio.wait_for(stop_event.wait(), timeout=30)
             break
         except asyncio.TimeoutError:
             pass
         done = counters["ok"] + counters["blocked"] + counters["error"]
-        pct = done / total * 100 if total else 0
-        logger.info(f"[broadcast] Прогресс: {done}/{total} ({pct:.1f}%)")
+        logger.info(f"[broadcast] Прогресс: {done}/{total} ({done/total*100:.1f}%)")
         try:
-            await bot.send_message(
-                admin_id,
-                f"📊 Рассылка в процессе: {done}/{total} ({pct:.1f}%)\n"
-                f"✅ Отправлено: {counters['ok']}\n"
-                f"🚫 Заблокировали бота: {counters['blocked']}\n"
-                f"❌ Ошибки: {counters['error']}"
+            await bot.edit_message_text(
+                _make_progress_text(counters, total, start_time),
+                admin_id, msg_id
             )
         except Exception as e:
-            logger.error(f"[broadcast] Ошибка отправки прогресса: {e}")
+            logger.warning(f"[broadcast] Не удалось обновить прогресс: {e}")
 
 
 # Фильтрация данных из статистики
@@ -300,18 +336,30 @@ async def confirm_send(message: Message, state: FSMContext):
     total = len(users)
     admin_id = message.from_user.id
 
+    global _active_broadcast
+
     await message.answer("Начал рассылку...", reply_markup=ReplyKeyboardRemove())
     await message.bot.send_message(ADMINS_CODER, text or "[рассылка с изображением]")
     await state.finish()
 
     logger.info(f"[broadcast] Старт: {total} пользователей, инициатор: {admin_id}")
 
+    start_time = time.time()
     counters = {"ok": 0, "blocked": 0, "error": 0, "failed": []}
     semaphore = asyncio.Semaphore(BROADCAST_WORKERS)
     stop_event = asyncio.Event()
 
-    reporter = asyncio.create_task(
-        _progress_reporter(message.bot, admin_id, total, counters, stop_event)
+    progress_msg = await message.answer(_make_progress_text(counters, total, start_time))
+
+    _active_broadcast = {
+        "total": total,
+        "start_time": start_time,
+        "counters": counters,
+    }
+
+    updater = asyncio.create_task(
+        _progress_updater(message.bot, admin_id, progress_msg.message_id,
+                          total, counters, start_time, stop_event)
     )
 
     try:
@@ -325,7 +373,8 @@ async def confirm_send(message: Message, state: FSMContext):
         await message.bot.send_message(admin_id, f"⚠️ Рассылка прервана из-за ошибки: {e}")
     finally:
         stop_event.set()
-        reporter.cancel()
+        updater.cancel()
+        _active_broadcast = None
 
     logger.info(
         f"[broadcast] Завершена: отправлено {counters['ok']}, "
@@ -349,7 +398,10 @@ async def confirm_send(message: Message, state: FSMContext):
         report += f"\n\n⚠️ Проблемные user_id (первые 20): {failed_str}"
         logger.warning(f"[broadcast] Все failed user_ids ({len(counters['failed'])}): {counters['failed']}")
 
-    await message.answer(report)
+    try:
+        await message.bot.edit_message_text(report, admin_id, progress_msg.message_id)
+    except Exception:
+        await message.answer(report)
 
 
 async def calculate_time(N, time_per_task):
@@ -494,6 +546,13 @@ async def start_refill_tokens(message: Message, state: FSMContext):
         await refill_tokens()
 
 
+@dp.message_handler(commands="broadcast_status", is_admin=True)
+async def broadcast_status_handler(message: Message):
+    if _active_broadcast is None:
+        await message.answer("Рассылка не запущена.")
+        return
+    bs = _active_broadcast
+    await message.answer(_make_progress_text(bs["counters"], bs["total"], bs["start_time"]))
 
 
 def get_admin_commands():
@@ -504,6 +563,7 @@ def get_admin_commands():
         "/sub": "Выдать подписку",
         "/balance": "Изменить баланс пользователя",
         "/send": "Запустить рассылку сообщений",
+        "/broadcast_status": "Статус текущей рассылки",
         "/freemoney": "Создать промокод",
         "/add_tokens": "Начислить токены"
     }
