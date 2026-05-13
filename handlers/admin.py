@@ -28,36 +28,35 @@ logging.basicConfig(
     format='%(filename)s:%(lineno)d #%(levelname)-8s '
            '[%(asctime)s] - %(name)s - %(message)s')
 
-BROADCAST_WORKERS = 8
-BROADCAST_DELAY = 0.5  # секунд между отправками внутри воркера
+BROADCAST_INTERVAL = 0.15  # секунд между отправками (глобально, ~6-7 сообщений/сек)
 
 
-async def _broadcast_worker(bot, user_id, text, photo, semaphore, counters):
-    async with semaphore:
-        for attempt in range(5):
-            try:
+async def _broadcast_worker(bot, user_id, text, photo, send_lock, counters):
+    for attempt in range(5):
+        try:
+            async with send_lock:
+                await asyncio.sleep(BROADCAST_INTERVAL)
                 if photo:
                     await bot.send_photo(user_id, photo=photo, caption=text or "")
                 else:
                     await bot.send_message(user_id, text)
-                counters["ok"] += 1
-                await asyncio.sleep(BROADCAST_DELAY)
-                return
-            except RetryAfter as e:
-                wait = e.timeout + 2
-                logger.warning(f"[broadcast] FloodWait {wait}s для user {user_id}, попытка {attempt + 1}/5")
-                await asyncio.sleep(wait)
-            except (BotBlocked, UserDeactivated, ChatNotFound):
-                counters["blocked"] += 1
-                return
-            except Exception as e:
-                logger.error(f"[broadcast] Ошибка user {user_id}: {type(e).__name__}: {e}")
-                counters["error"] += 1
-                counters["failed"].append(user_id)
-                return
-        logger.error(f"[broadcast] Исчерпаны 5 попыток (FloodWait) для user {user_id}")
-        counters["error"] += 1
-        counters["failed"].append(user_id)
+            counters["ok"] += 1
+            return
+        except RetryAfter as e:
+            wait = e.timeout + 2
+            logger.warning(f"[broadcast] FloodWait {wait}s для user {user_id}, попытка {attempt + 1}/5")
+            await asyncio.sleep(wait)
+        except (BotBlocked, UserDeactivated, ChatNotFound):
+            counters["blocked"] += 1
+            return
+        except Exception as e:
+            logger.error(f"[broadcast] Ошибка user {user_id}: {type(e).__name__}: {e}")
+            counters["error"] += 1
+            counters["failed"].append(user_id)
+            return
+    logger.error(f"[broadcast] Исчерпаны 5 попыток (FloodWait) для user {user_id}")
+    counters["error"] += 1
+    counters["failed"].append(user_id)
 
 
 _active_broadcast: dict | None = None
@@ -302,7 +301,7 @@ async def start_send(message: Message, state: FSMContext):
 
     await state.update_data(users=users_list, text=text, photo=photo)
 
-    total_minutes, total_hours = await calculate_time(len(users) / BROADCAST_WORKERS, 0.3)
+    total_minutes, total_hours = await calculate_time(len(users), BROADCAST_INTERVAL)
 
     if total_hours < 1:
         await message.answer(f"Количество пользователей: {len(users)}\n"
@@ -346,7 +345,7 @@ async def confirm_send(message: Message, state: FSMContext):
 
     start_time = time.time()
     counters = {"ok": 0, "blocked": 0, "error": 0, "failed": []}
-    semaphore = asyncio.Semaphore(BROADCAST_WORKERS)
+    send_lock = asyncio.Lock()
     stop_event = asyncio.Event()
 
     progress_msg = await message.answer(_make_progress_text(counters, total, start_time))
@@ -364,7 +363,7 @@ async def confirm_send(message: Message, state: FSMContext):
 
     try:
         tasks = [
-            _broadcast_worker(message.bot, u["user_id"], text, photo, semaphore, counters)
+            _broadcast_worker(message.bot, u["user_id"], text, photo, send_lock, counters)
             for u in users
         ]
         await asyncio.gather(*tasks)
