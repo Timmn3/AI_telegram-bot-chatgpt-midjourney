@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 from aiogram.dispatcher import FSMContext
 from aiogram.types import ParseMode, ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, Message, CallbackQuery
+from aiogram.utils.exceptions import RetryAfter, BotBlocked, UserDeactivated, ChatNotFound
 
 import config
 import keyboards.admin as admin_kb  # Клавиатуры для админских команд
@@ -25,6 +26,57 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(filename)s:%(lineno)d #%(levelname)-8s '
            '[%(asctime)s] - %(name)s - %(message)s')
+
+BROADCAST_WORKERS = 25
+
+
+async def _broadcast_worker(bot, user_id, text, photo, semaphore, counters):
+    async with semaphore:
+        for attempt in range(3):
+            try:
+                if photo:
+                    await bot.send_photo(user_id, photo=photo, caption=text or "")
+                else:
+                    await bot.send_message(user_id, text)
+                counters["ok"] += 1
+                return
+            except RetryAfter as e:
+                wait = e.timeout + 1
+                logger.warning(f"[broadcast] FloodWait {wait}s для user {user_id}, попытка {attempt + 1}/3")
+                await asyncio.sleep(wait)
+            except (BotBlocked, UserDeactivated, ChatNotFound):
+                counters["blocked"] += 1
+                return
+            except Exception as e:
+                logger.error(f"[broadcast] Ошибка user {user_id}: {type(e).__name__}: {e}")
+                counters["error"] += 1
+                counters["failed"].append(user_id)
+                return
+        logger.error(f"[broadcast] Исчерпаны 3 попытки (FloodWait) для user {user_id}")
+        counters["error"] += 1
+        counters["failed"].append(user_id)
+
+
+async def _progress_reporter(bot, admin_id, total, counters, stop_event):
+    while True:
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=60)
+            break
+        except asyncio.TimeoutError:
+            pass
+        done = counters["ok"] + counters["blocked"] + counters["error"]
+        pct = done / total * 100 if total else 0
+        logger.info(f"[broadcast] Прогресс: {done}/{total} ({pct:.1f}%)")
+        try:
+            await bot.send_message(
+                admin_id,
+                f"📊 Рассылка в процессе: {done}/{total} ({pct:.1f}%)\n"
+                f"✅ Отправлено: {counters['ok']}\n"
+                f"🚫 Заблокировали бота: {counters['blocked']}\n"
+                f"❌ Ошибки: {counters['error']}"
+            )
+        except Exception as e:
+            logger.error(f"[broadcast] Ошибка отправки прогресса: {e}")
 
 
 # Фильтрация данных из статистики
@@ -214,14 +266,14 @@ async def start_send(message: Message, state: FSMContext):
 
     await state.update_data(users=users_list, text=text, photo=photo)
 
-    total_minutes, total_hours = await calculate_time(len(users), 0.25)
+    total_minutes, total_hours = await calculate_time(len(users) / BROADCAST_WORKERS, 0.3)
 
     if total_hours < 1:
         await message.answer(f"Количество пользователей: {len(users)}\n"
-                             f"Приблизительное время отправки сообщений: {total_minutes} минут")
+                             f"Приблизительное время отправки: ~{total_minutes} минут")
     else:
         await message.answer(f"Количество пользователей: {len(users)}\n"
-                             f"Приблизительное время отправки сообщений: {total_hours:.1f} часов")
+                             f"Приблизительное время отправки: ~{total_hours:.1f} часов")
 
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(KeyboardButton("Да"), KeyboardButton("Нет"))
@@ -245,32 +297,59 @@ async def confirm_send(message: Message, state: FSMContext):
     users = user_data["users"]
     text = user_data.get("text", "")
     photo = user_data.get("photo")
+    total = len(users)
+    admin_id = message.from_user.id
 
     await message.answer("Начал рассылку...", reply_markup=ReplyKeyboardRemove())
-
-    count = 0
-    block_count = 0
-
-    # Уведомляем администратора
     await message.bot.send_message(ADMINS_CODER, text or "[рассылка с изображением]")
-
     await state.finish()
 
-    for user in users:
-        try:
-            if photo:
-                await message.bot.send_photo(user["user_id"], photo=photo, caption=text or "")
-            else:
-                await message.bot.send_message(user["user_id"], text)
-            count += 1
-        except:
-            block_count += 1
-        await asyncio.sleep(0.1)
+    logger.info(f"[broadcast] Старт: {total} пользователей, инициатор: {admin_id}")
 
-    await message.answer(
-        f"Количество получивших сообщение: {count}.\n"
-        f"Пользователей, заблокировавших бота: {block_count}"
+    counters = {"ok": 0, "blocked": 0, "error": 0, "failed": []}
+    semaphore = asyncio.Semaphore(BROADCAST_WORKERS)
+    stop_event = asyncio.Event()
+
+    reporter = asyncio.create_task(
+        _progress_reporter(message.bot, admin_id, total, counters, stop_event)
     )
+
+    try:
+        tasks = [
+            _broadcast_worker(message.bot, u["user_id"], text, photo, semaphore, counters)
+            for u in users
+        ]
+        await asyncio.gather(*tasks)
+    except Exception as e:
+        logger.error(f"[broadcast] Критическая ошибка: {e}")
+        await message.bot.send_message(admin_id, f"⚠️ Рассылка прервана из-за ошибки: {e}")
+    finally:
+        stop_event.set()
+        reporter.cancel()
+
+    logger.info(
+        f"[broadcast] Завершена: отправлено {counters['ok']}, "
+        f"заблокировали {counters['blocked']}, ошибки {counters['error']}, всего {total}"
+    )
+
+    report = (
+        f"✅ Рассылка завершена!\n\n"
+        f"Всего пользователей: {total}\n"
+        f"✅ Отправлено: {counters['ok']}\n"
+        f"🚫 Заблокировали бота: {counters['blocked']}\n"
+        f"❌ Ошибки / не дошло: {counters['error']}"
+    )
+
+    if counters["failed"]:
+        preview = counters["failed"][:20]
+        tail = len(counters["failed"]) - 20
+        failed_str = ", ".join(map(str, preview))
+        if tail > 0:
+            failed_str += f" и ещё {tail}"
+        report += f"\n\n⚠️ Проблемные user_id (первые 20): {failed_str}"
+        logger.warning(f"[broadcast] Все failed user_ids ({len(counters['failed'])}): {counters['failed']}")
+
+    await message.answer(report)
 
 
 async def calculate_time(N, time_per_task):
