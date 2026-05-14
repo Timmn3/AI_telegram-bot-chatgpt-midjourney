@@ -7,7 +7,7 @@ import config
 import logging
 import utils
 import aiohttp
-from config import NOTIFY_URL, bug_id, ADMINS_CODER, Tinkoff
+from config import NOTIFY_URL, bug_id, ADMINS_CODER, Tinkoff, TOKEN
 from keyboards import user as user_kb
 from fastapi import FastAPI, Request, HTTPException, Form  # Импорт необходимых классов для работы с FastAPI
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -564,7 +564,7 @@ async def health_check():
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                f"https://api.telegram.org/bot{bot.token}/getMe",
+                f"https://api.telegram.org/bot{TOKEN}/getMe",
                 timeout=aiohttp.ClientTimeout(total=5),
             ) as resp:
                 data = await resp.json()
