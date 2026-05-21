@@ -9,6 +9,7 @@ from config import ADMINS
 from typing import Union
 
 from middlewares.album import AlbumMiddleware
+from middlewares.ban_check import BanCheckMiddleware
 from utils import db
 import logging
 
@@ -68,6 +69,7 @@ class IsAdminFilter(BoundFilter):
 # Подключение middleware для проверки регистрации и альбомов
 # dp.middleware.setup(CheckRegMiddleware())  # Middleware для проверки регистрации
 dp.middleware.setup(AlbumMiddleware())  # Middleware для обработки альбомов (групповые сообщения с фото)
+dp.middleware.setup(BanCheckMiddleware())  # Middleware для блокировки забаненных пользователей
 
 
 # Привязка фильтра для проверки администраторских прав к диспетчеру

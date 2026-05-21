@@ -163,7 +163,8 @@ async def generate_image_from_prompt(message: types.Message, state: FSMContext):
             prompt=prompt,
             size=size,
             quality=quality,
-            background=background
+            background=background,
+            user=str(user_id)
         )
 
         image_base64 = result.data[0].b64_json

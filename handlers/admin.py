@@ -578,3 +578,29 @@ async def admin_help(message: Message):
 
     await message.answer(response)
 
+
+@dp.message_handler(commands="ban")
+async def ban_user_handler(message: Message):
+    if message.from_user.id not in ADMINS:
+        return
+    args = message.get_args()
+    if not args or not args.strip().isdigit():
+        await message.answer("Использование: /ban <user_id>")
+        return
+    user_id = int(args.strip())
+    await db.ban_user(user_id)
+    await message.answer(f"✅ Пользователь {user_id} заблокирован.")
+
+
+@dp.message_handler(commands="unban")
+async def unban_user_handler(message: Message):
+    if message.from_user.id not in ADMINS:
+        return
+    args = message.get_args()
+    if not args or not args.strip().isdigit():
+        await message.answer("Использование: /unban <user_id>")
+        return
+    user_id = int(args.strip())
+    await db.unban_user(user_id)
+    await message.answer(f"✅ Пользователь {user_id} разблокирован.")
+

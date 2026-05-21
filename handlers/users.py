@@ -604,7 +604,7 @@ async def get_gpt(prompt, messages, user_id, bot: Bot, state: FSMContext):
 
         logger.info(f"Текстовый запрос к ChatGPT. User: {user}, Model: {model}, tokens: {user[f'tokens_{model_dashed}']}")
         await bot.send_chat_action(user_id, ChatActions.TYPING)
-        res = await ai.get_gpt(messages, model)
+        res = await ai.get_gpt(messages, model, user_id=user_id)
 
         # Удаляем "ожидание"
         try:

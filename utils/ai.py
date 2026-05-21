@@ -118,7 +118,7 @@ def image_url_to_base64(url: str, *, timeout: int = 15) -> str | None:
 
 
 # Функция для отправки запроса в ChatGPT
-async def get_gpt(messages, model):
+async def get_gpt(messages, model, user_id=None):
     status = True
     tokens = 0
     content = ""
@@ -171,17 +171,20 @@ async def get_gpt(messages, model):
                 message["content"] = new_content
 
         logger.info(f'MESSAGES: {messages}')
+        extra_kwargs = {"user": str(user_id)} if user_id else {}
         try:
             response = await asyncio.to_thread(
                 client.chat.completions.create,
                 model=f"{model_map[model]}",
-                messages=messages[-10:]  # Последние 10 сообщений
+                messages=messages[-10:],  # Последние 10 сообщений
+                **extra_kwargs
             )
         except Exception as e:
             response = await asyncio.to_thread(
                 client.chat.completions.create,
                 model=f"{model_map['5']}",
-                messages=messages[-10:]  # Последние 10 сообщений
+                messages=messages[-10:],  # Последние 10 сообщений
+                **extra_kwargs
             )
             logging.error(f'ChatGPT Error model {model} \n {e}')
 
@@ -216,7 +219,7 @@ async def get_mdjrny(prompt, user_id):
     logger.info(f"[MJ] STEP 2 — отправляю в ChatGPT (gpt-5.2): {gpt_prompt!r}")
 
     gpt_messages = [{"role": "user", "content": gpt_prompt}]
-    gpt_result = await get_gpt(gpt_messages, model='5')
+    gpt_result = await get_gpt(gpt_messages, model='5', user_id=user_id)
 
     logger.info(f"[MJ] STEP 3 — ответ ChatGPT: status={gpt_result['status']}, content={gpt_result['content']!r}")
 

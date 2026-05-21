@@ -1745,3 +1745,22 @@ async def fetch_gpt_access_admin_stats(days_left: int = 3, limit: int = 10):
         }
     finally:
         await conn.close()
+
+
+async def ban_user(user_id: int):
+    conn: Connection = await get_conn()
+    await conn.execute("UPDATE users SET is_banned = TRUE WHERE user_id = $1", user_id)
+    await conn.close()
+
+
+async def unban_user(user_id: int):
+    conn: Connection = await get_conn()
+    await conn.execute("UPDATE users SET is_banned = FALSE WHERE user_id = $1", user_id)
+    await conn.close()
+
+
+async def is_user_banned(user_id: int) -> bool:
+    conn: Connection = await get_conn()
+    row = await conn.fetchrow("SELECT is_banned FROM users WHERE user_id = $1", user_id)
+    await conn.close()
+    return bool(row and row["is_banned"])
