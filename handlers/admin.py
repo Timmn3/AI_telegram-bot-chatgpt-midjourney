@@ -564,7 +564,9 @@ def get_admin_commands():
         "/send": "Запустить рассылку сообщений",
         "/broadcast_status": "Статус текущей рассылки",
         "/freemoney": "Создать промокод",
-        "/add_tokens": "Начислить токены"
+        "/add_tokens": "Начислить токены",
+        "/ban": "Заблокировать пользователя: /ban &lt;user_id&gt;",
+        "/unban": "Разблокировать пользователя: /unban &lt;user_id&gt;"
     }
 
 @dp.message_handler(commands="admin_help")
