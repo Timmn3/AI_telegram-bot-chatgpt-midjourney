@@ -1943,6 +1943,51 @@ async def handle_voice(message: Message, state: FSMContext):
         await gen_image_openai(message)
 
 
+# Регенерация последнего ответа ChatGPT
+@dp.callback_query_handler(text="regenerate")
+async def regenerate_answer(call: CallbackQuery, state: FSMContext):
+    if not await check_access_or_prompt(call):
+        return
+
+    user_id = call.from_user.id
+    data = await state.get_data()
+    messages = data.get("messages", [])
+    prompt = data.get("prompt")
+
+    if not prompt:
+        await call.answer("Нет предыдущего запроса для регенерации", show_alert=True)
+        return
+
+    user = await db.get_user(user_id)
+    if user is None:
+        await call.answer("Ошибка: пользователь не найден", show_alert=True)
+        return
+
+    model = user["gpt_model"].replace("-", "_")
+    if user[f"tokens_{model}"] <= 0:
+        await call.answer()
+        return await not_enough_balance(call.bot, user_id, "chatgpt")
+
+    # Убираем последний user+assistant обмен — get_gpt() сам добавит user message заново
+    if len(messages) >= 2 and messages[-1]["role"] == "assistant" and messages[-2]["role"] == "user":
+        messages = messages[:-2]
+    elif len(messages) >= 1 and messages[-1]["role"] == "assistant":
+        messages = messages[:-1]
+
+    await call.answer()
+
+    update_messages = await get_gpt(
+        prompt=prompt,
+        messages=messages,
+        user_id=user_id,
+        bot=call.bot,
+        state=state
+    )
+    if update_messages:
+        update_messages = update_messages[-10:]
+        await state.update_data(messages=update_messages)
+
+
 # Перевод текста в Аудио
 @dp.callback_query_handler(text="text_to_audio")
 async def return_voice(call: CallbackQuery, state: FSMContext):

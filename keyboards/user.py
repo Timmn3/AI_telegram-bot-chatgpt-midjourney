@@ -45,6 +45,7 @@ lang_text = {"en": "ENG", "ru": "RUS"}
 def get_clear_or_audio():    
     
     return InlineKeyboardMarkup(row_width=1).add(
+        InlineKeyboardButton("🔄 Сгенерировать повторно", callback_data="regenerate"),
         InlineKeyboardButton("⚙️ Настройки ChatGPT", callback_data="settings"),
         InlineKeyboardButton("🗣 Озвучить текст", callback_data="text_to_audio"),
         InlineKeyboardButton("🗂 Мои чаты", callback_data="my_chats"),
